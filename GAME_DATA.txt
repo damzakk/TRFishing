@@ -1,0 +1,73 @@
+TR Fishing Editable Game Data
+
+Use this file as your balancing sheet. The bot uses this file as the default fish and rod data.
+After changing live PlayFab data in the manager, restart the bot or wait for the automatic refresh.
+
+Fish fields:
+ID | Name | Rarity | Chance Weight | Min Kg | Max Kg | Luck Scale | EXP | Sell Gold | Description
+
+Common
+ikan_nila | Ikan Nila | Common | 60 | 0.2 | 2.4 | -0.5 | 8 | 12 | Ikan santai yang sering muncul dan tidak banyak drama.
+ikan_kembung | Ikan Kembung | Common | 56 | 0.25 | 2.8 | -0.45 | 10 | 15 | Bentuknya sederhana, tapi percaya dirinya setinggi ombak.
+ikan_lele | Ikan Lele | Common | 52 | 0.3 | 3.2 | -0.4 | 6 | 9 | Licin, tenang, dan selalu terlihat seperti tahu rahasia dapur.
+ikan_tongkol | Ikan Tongkol | Common | 50 | 0.5 | 4.2 | -0.35 | 9 | 14 | Ikan pekerja keras yang cocok untuk pemancing baru.
+ikan_teri | Ikan Teri | Common | 48 | 0.05 | 0.8 | -0.32 | 7 | 10 | Kecil sekali, tapi semangat hidupnya tidak masuk akal.
+ikan_gurame | Ikan Gurame | Common | 45 | 0.6 | 5.5 | -0.28 | 11 | 18 | Ikan rumahan yang mendadak merasa dirinya bangsawan.
+rama_naufal | Rama Naufal | Common | 42 | 0.4 | 3.5 | -0.22 | 10 | 16 | Makhluk air yang namanya terdengar seperti absen kelas.
+cumi | Cumi | Common | 40 | 0.15 | 1.8 | -0.18 | 5 | 7 | Bukan ikan, tapi ikut lomba karena tidak ada yang melarang.
+
+Uncommon
+ikan_jawa | Ikan Jawa | Uncommon | 26 | 0.8 | 7 | 0.05 | 20 | 35 | Tenang di permukaan, penuh perhitungan di dalam air.
+ikan_depok | Ikan Depok | Uncommon | 24 | 0.7 | 6.5 | 0.06 | 18 | 32 | Sering muncul saat cuaca terasa seperti jalan pulang macet.
+ikan_goreng | Ikan Goreng | Uncommon | 22 | 0.5 | 5.8 | 0.07 | 24 | 42 | Entah kenapa sudah matang sebelum ditangkap.
+ebem | Ebem | Uncommon | 20 | 1 | 8 | 0.08 | 26 | 48 | Namanya pendek, auranya panjang.
+ikan_asam_manis | Ikan Asam Manis | Uncommon | 19 | 0.6 | 6.2 | 0.07 | 17 | 30 | Berenang dengan rasa yang membingungkan lidah dan logika.
+ikan_cupang | Ikan Cupang | Uncommon | 18 | 0.05 | 0.4 | 0.09 | 23 | 45 | Kecil, cantik, dan gampang tersinggung oleh gelembung.
+ikan_arwana | Ikan Arwana | Uncommon | 16 | 1.2 | 7.5 | 0.1 | 25 | 50 | Kelihatan mahal bahkan sebelum masuk inventory.
+adhiet | Adhiet | Uncommon | 15 | 0.9 | 6.8 | 0.11 | 28 | 55 | Ikan misterius yang seperti punya jadwal sendiri.
+
+Rare
+ikan_praroro | Ikan Praroro | Rare | 10 | 2 | 14 | 0.12 | 55 | 120 | Ikan absurd yang muncul seolah dipanggil oleh kesalahan ketik kuno.
+ikan_cupang_dragon | Ikan Cupang Dragon | Rare | 9.5 | 0.2 | 2.2 | 0.11 | 50 | 105 | Cupang kecil dengan ambisi sebesar naga dan ego lebih besar lagi.
+ikan_hiu | Ikan Hiu | Rare | 8.5 | 6 | 30 | 0.14 | 65 | 145 | Senyum tajam, reputasi tajam, pajak belum tentu tajam.
+ikan_nawas | Ikan Nawas | Rare | 8 | 2.5 | 16 | 0.15 | 58 | 130 | Ikan yang berenang seperti sedang menghindari tanggung jawab.
+ikan_charger_poco | Ikan Charger Poco | Rare | 7 | 0.3 | 1.5 | 0.18 | 75 | 180 | Hilang saat dibutuhkan, muncul saat sudah beli yang baru.
+ikan_crazy_killer | Ikan Crazy Killer | Rare | 6.5 | 1.5 | 12 | 0.2 | 70 | 165 | Namanya menyeramkan, gerakannya random seperti tombol rusak.
+ikan_dikala_senja | Ikan Dikala Senja | Rare | 6 | 2.2 | 18 | 0.17 | 60 | 135 | Muncul ketika langit sendu dan inventory masih kosong.
+ikan_venomenom | Ikan Venomenom | Rare | 5.5 | 3 | 20 | 0.22 | 78 | 190 | Menggigit peluang dengan gaya yang terlalu percaya diri.
+
+Epic
+ikan_butiran_debu_kosmik | Ikan Butiran Debu Kosmik | Epic | 3.5 | 10 | 35 | 0.22 | 140 | 420 | Secuil debu galaksi yang entah kenapa bisa dijual.
+ikan_melompat_menuju_kahyangan | Ikan Melompat Menuju Kahyangan | Epic | 3 | 14 | 45 | 0.25 | 165 | 520 | Lompatannya tinggi, alasannya tidak pernah jelas.
+sapi | Sapi | Epic | 2.8 | 18 | 120 | 0.27 | 150 | 460 | Tidak ada yang tahu kenapa sapi hidup di air. Semua takut bertanya.
+ikan_anjrotman | Ikan Anjrotman | Epic | 2.4 | 20 | 55 | 0.3 | 180 | 600 | Datang dengan energi ribut dan pergi dengan harga mahal.
+hamim_jepang | Hamim Jepang | Epic | 2.1 | 16 | 48 | 0.33 | 170 | 575 | Ikan lintas dimensi dengan nama seperti username lama.
+ikan_balmond | Ikan Balmond | Epic | 1.8 | 22 | 70 | 0.36 | 190 | 650 | Berat, keras kepala, dan terlihat siap duel di dasar sungai.
+
+Legendary
+ikan_andry_tepat_waktu | Ikan Andry Tepat Waktu | Legendary | 0.9 | 40 | 110 | 0.1 | 400 | 1600 | Ikan legendaris yang datang tepat waktu, membuat semua orang curiga.
+ikan_shinta_vr | Ikan Shinta VR | Legendary | 0.75 | 45 | 130 | 0.12 | 480 | 2100 | Terlihat nyata, terasa virtual, harganya sangat nyata.
+ikan_hell_rina | Ikan Hell Rina | Legendary | 0.65 | 55 | 150 | 0.14 | 520 | 2400 | Membawa hawa panas dari tempat yang tidak ada di peta.
+ikan_heaven_rani | Ikan Heaven Rani | Legendary | 0.5 | 60 | 150 | 0.16 | 600 | 3000 | Versi surgawi yang tetap susah ditangkap.
+ikan_preksu_keju_nasi_uduk | Ikan Preksu Keju Nasi Uduk | Legendary | 0.45 | 35 | 95 | 0.11 | 420 | 1850 | Terlalu spesifik untuk menjadi ikan biasa.
+ikan_ambisi_budidaya_bakteri_pelepas_dahaga | Ikan Ambisi Budidaya Bakteri Pelepas Dahaga | Legendary | 0.35 | 80 | 180 | 0.18 | 700 | 3600 | Nama panjang, nilai tinggi, dan konsep biologis yang mencurigakan.
+
+Secret
+ikan_kajian_ajimat_cinta_asrama_pesantren_gorontalo | Ikan Kajian Ajimat Cinta Asrama Pesantren Gorontalo | Secret | 0.08 | 350 | 999 | 0.02 | 2000 | 15000 | Rahasia yang terdengar seperti judul seminar tengah malam.
+ikan_heaven_denied_parental_guidance | Ikan Heaven Denied Parental Guidance | Secret | 0.05 | 450 | 666.6 | 0.035 | 2750 | 25000 | Terlarang, membingungkan, dan sebaiknya tidak ditanya asalnya.
+ikan_sahabat | Ikan Sahabat | Secret | 0.03 | 700 | 1200 | 0.05 | 4000 | 50000 | Jarang muncul, tapi saat muncul rasanya seperti plot twist.
+ikan_naga_dewa_menentang_langit | Ikan Naga Dewa Menentang Langit | Secret | 0.02 | 1000 | 1500 | 0.07 | 5500 | 75000 | Terlalu kuat untuk kolam biasa, terlalu dramatis untuk diam.
+
+Rod fields:
+ID | Name | Price | Speed Chats | Luck | Max Kg | Accuracy | Description
+
+pancing_bambu | Pancing Bambu | 0 | 6 | 0 | 8 | 45 | Pancing awal yang sederhana, cocok untuk ikan kecil dan latihan sabar.
+pancing_plastik | Pancing Plastik | 150 | 5 | 4 | 18 | 50 | Lebih ringan dan sedikit hoki, meski suaranya kurang meyakinkan.
+pancing_besi | Pancing Besi | 350 | 5 | 7 | 30 | 55 | Mulai terasa serius, kuat untuk ikan sedang dan awal Rare.
+pancing_amarah | Pancing Amarah | 800 | 4 | 11 | 55 | 58 | Tarikannya kasar, tapi hasilnya mulai membuat dompet tersenyum.
+pancing_elemental | Pancing Elemental | 1400 | 4 | 16 | 80 | 62 | Pancing aneh yang seperti punya empat suasana hati.
+pancing_legenda | Pancing Legenda | 2600 | 3 | 24 | 120 | 66 | Pilihan solid untuk pemburu Epic dan Legendary ringan.
+pancing_mistis_abadi | Pancing Mistis Abadi | 5000 | 3 | 32 | 180 | 70 | Aura mistisnya terasa mahal, dan memang mahal.
+pancing_pembelah_kahyangan | Pancing Pembelah Kahyangan | 9500 | 2 | 45 | 350 | 74 | Membuka jalan ke tangkapan besar yang mulai tidak masuk akal.
+pancing_keraton_jawa_keramat_surgawi | Pancing Keraton Jawa Keramat Surgawi | 22000 | 2 | 70 | 800 | 80 | Pancing sakral untuk ikan langka, berat, dan penuh gengsi.
+pancing_kosmik | Pancing Kosmik | 75000 | 1 | 120 | 2000 | 88 | Pancing akhir zaman untuk memburu makhluk Secret tanpa rasa takut.
