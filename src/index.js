@@ -14,6 +14,7 @@ const {
   MessageFlags,
   Partials,
   EmbedBuilder,
+  PermissionFlagsBits,
   StringSelectMenuBuilder
 } = require("discord.js");
 const {
@@ -22,7 +23,7 @@ const {
   joinVoiceChannel,
   VoiceConnectionStatus
 } = require("@discordjs/voice");
-const { adminListPlayers, getGameData, getPlayer, savePlayer } = require("./playfab");
+const { adminListPlayers, adminSaveGameData, getGameData, getPlayer, savePlayer } = require("./playfab");
 const { makeIconAttachment, parseDataImage } = require("./imageUtils");
 
 const token = process.env.DISCORD_TOKEN;
@@ -43,7 +44,12 @@ const rarityColors = {
   Rare: 0x3498db,
   Epic: 0x9b59b6,
   Legendary: 0xf1c40f,
-  Secret: 0xe84393
+  Secret: 0xe84393,
+  Mythic: 0xff6b6b,
+  Divine: 0xffffff,
+  Celestial: 0x7bdff2,
+  Abyssal: 0x141922,
+  Transcendent: 0xff9ff3
 };
 
 const client = new Client({
@@ -78,6 +84,7 @@ let gameData = {
     fishCompEvents: [],
     fishCompLogIntervalMs: 2500,
     fishCompExpReward: 50,
+    fishCompGoldReward: 0,
     chatCooldownMs: 20_000,
     expMultiplier: 1,
     levelExpMultiplier: 1,
@@ -145,6 +152,7 @@ function getSettings() {
     fishCompEvents: [],
     fishCompLogIntervalMs: 2500,
     fishCompExpReward: 50,
+    fishCompGoldReward: 0,
     chatCooldownMs: 20_000,
     expMultiplier: 1,
     levelExpMultiplier: 1,
@@ -699,6 +707,62 @@ function makeProfileEmbed(user, player) {
   return { embed, files: icon?.attachment ? [icon.attachment] : [] };
 }
 
+function makeFishCompRoleRow(member = null) {
+  if (!member?.guild) {
+    return [];
+  }
+  const role = findFishCompRole(member.guild);
+  const hasRole = role ? member.roles.cache.has(role.id) : false;
+  return [
+    new ActionRowBuilder().addComponents(
+      new ButtonBuilder()
+        .setCustomId("fishcomp_role_toggle")
+        .setLabel(hasRole ? "Remove FishComp" : "Get @FishComp")
+        .setStyle(hasRole ? ButtonStyle.Secondary : ButtonStyle.Primary)
+    )
+  ];
+}
+
+function makeProfileRodOptions(player) {
+  const ownedRodIds = new Set(Array.isArray(player.ownedRods) ? player.ownedRods : []);
+  return gameData.rods
+    .filter((rod) => ownedRodIds.has(rod.id))
+    .slice(0, 25)
+    .map((rod) => ({
+      label: truncateText(rod.name, 100),
+      description: truncateText(`Speed ${rod.speed} · Luck ${rod.luck} · Max ${rod.maxWeight || "?"} kg · Acc ${rod.accuracy ?? 50}%`, 100),
+      value: rod.id,
+      default: rod.id === player.rodId
+    }));
+}
+
+function makeProfileComponents(player, member = null) {
+  const components = [];
+  const rodOptions = makeProfileRodOptions(player);
+  if (rodOptions.length) {
+    components.push(
+      new ActionRowBuilder().addComponents(
+        new StringSelectMenuBuilder()
+          .setCustomId("profile_rod_select")
+          .setPlaceholder("Pilih pancingan aktif")
+          .addOptions(rodOptions)
+      )
+    );
+  }
+  components.push(...makeFishCompRoleRow(member));
+  return components;
+}
+
+function makeProfileMessage(user, player, member = null) {
+  const profile = makeProfileEmbed(user, player);
+  return {
+    content: "",
+    embeds: [profile.embed],
+    files: profile.files,
+    components: makeProfileComponents(player, member)
+  };
+}
+
 function makeCatchEmbed(user, caughtFish, catchWeight, expGain) {
   const descriptionLine = caughtFish.description ? `\n${caughtFish.description}` : "";
   const luckScore = formatFishLuckScore(caughtFish.luckScale);
@@ -883,6 +947,44 @@ function formatDiscordMention(userId) {
   return `<@${userId}>`;
 }
 
+function findFishCompRole(guild) {
+  return guild?.roles?.cache?.find((role) => role.name === "FishComp") || null;
+}
+
+async function ensureFishCompRole(guild) {
+  if (!guild) {
+    return null;
+  }
+
+  const existingRole = findFishCompRole(guild);
+  if (existingRole) {
+    if (!existingRole.mentionable && guild.members.me?.permissions.has(PermissionFlagsBits.ManageRoles)) {
+      await existingRole.edit({ mentionable: true }, "TRFishing FishComp role ping").catch(() => {});
+    }
+    return existingRole;
+  }
+
+  if (!guild.members.me?.permissions.has(PermissionFlagsBits.ManageRoles)) {
+    return null;
+  }
+
+  return guild.roles.create({
+    name: "FishComp",
+    color: 0xf1c40f,
+    mentionable: true,
+    reason: "TRFishing competition notification role"
+  }).catch((error) => {
+    console.error(`Could not create FishComp role for guild ${guild.id}:`, error);
+    return null;
+  });
+}
+
+async function ensureFishCompRolesForGuilds() {
+  for (const guild of client.guilds.cache.values()) {
+    await ensureFishCompRole(guild);
+  }
+}
+
 async function hydrateEventGuild(event) {
   if (!event?.announcementChannelId || event.guildId) {
     return;
@@ -897,7 +999,7 @@ async function hydrateEventGuild(event) {
 async function announceActiveEvent() {
   for (const event of getEvents().filter(isEventRunning)) {
     await hydrateEventGuild(event);
-    if (!event?.announcementChannelId || !event.deployedAt || announcedEvents.has(event.id)) {
+    if (!event?.announcementChannelId || !event.deployedAt || event.isAnnounced || announcedEvents.has(event.id)) {
       continue;
     }
 
@@ -913,7 +1015,25 @@ async function announceActiveEvent() {
     const eventMessage = makeEventEmbed(event);
     await channel.send({ embeds: [eventMessage.embed], files: eventMessage.files });
     announcedEvents.add(event.id);
+    await markEventAnnounced(event.id, event.guildId || channel.guildId || "");
   }
+}
+
+async function markEventAnnounced(eventId, guildId = "") {
+  const selectedEventId = String(eventId || "");
+  const applyAnnouncementMark = (event) => (
+    event?.id === selectedEventId
+      ? { ...event, guildId: event.guildId || guildId, isAnnounced: true }
+      : event
+  );
+
+  gameData = {
+    ...gameData,
+    activeEvent: gameData.activeEvent ? applyAnnouncementMark(gameData.activeEvent) : null,
+    events: getEvents().map(applyAnnouncementMark)
+  };
+
+  await adminSaveGameData(gameData);
 }
 
 async function announceEndedEvents() {
@@ -999,6 +1119,7 @@ async function processEnforcedFishingSignal() {
   const mention = user || `<@${request.discordUserId}>`;
   const catchEmbed = makeCatchEmbed(mention, request.fish, request.catchWeight, request.expGain);
   await channel.send({ embeds: [catchEmbed.embed], files: catchEmbed.files });
+  fs.writeFileSync(enforcedFishingSignalPath, JSON.stringify({ id: "", processedAt: new Date().toISOString(), processedId: request.id }));
 }
 
 function scheduleEnforcedFishingSignal() {
@@ -1137,25 +1258,46 @@ function makeStoreMessage(player, selectedRodId = null, status = "") {
 
 function makeCompetitionEmbed(competition, status = "registration") {
   const startsAt = Math.floor(competition.startsAt / 1000);
-  const participants = listCompetitionParticipants(competition, true);
   const embed = new EmbedBuilder()
     .setColor(0xe67e22)
-    .setTitle("Kompetisi Memancing")
-    .setDescription(
+    .setTitle("Kompetisi Memancing");
+
+  if (status === "closed") {
+    embed.setDescription(
       [
-        status === "closed" ? "Registrasi sudah ditutup." : `Dimulai: <t:${startsAt}:R> · <t:${startsAt}:T>`,
-        `Durasi: **${competition.turns} turn**`,
-        `Peserta: **${competition.participants.size}/${competition.maxParticipants}**`,
-        "",
-        participants
+        "Registrasi sudah ditutup.",
+        "Kompetisi sedang disiapkan."
       ].join("\n")
     );
+    return embed;
+  }
+
+  if (status === "complete") {
+    embed.setColor(0x2ecc71);
+    embed.setDescription(
+      [
+        "Kompetisi sudah selesai.",
+        "Hasil kompetisi sudah keluar."
+      ].join("\n")
+    );
+    return embed;
+  }
+
+  const participants = listCompetitionParticipants(competition, true);
+  embed.setDescription(
+    [
+      `Dimulai: <t:${startsAt}:R> · <t:${startsAt}:T>`,
+      `Durasi: **${competition.turns} turn**`,
+      `Peserta: **${competition.participants.size}/${competition.maxParticipants}**`,
+      "",
+      participants
+    ].join("\n")
+  );
+
   if (status === "running") {
-    const scoreboard = [...competition.results.values()]
-      .sort((a, b) => b.count - a.count || b.totalWeight - a.totalWeight || a.username.localeCompare(b.username))
-      .map((result) => `${result.displayName} - ${result.count} ${result.count === 1 ? "ikan" : "Ikan"} - Total ${formatKg(result.totalWeight)}`)
-      .join("\n");
-    const recentLogs = formatCompetitionLogs(competition.logs) || "Menunggu hasil...";
+    const scoreboard = formatCompetitionScoreboard(competition);
+    const visibleLogs = Array.isArray(competition.visibleLogs) ? competition.visibleLogs : competition.logs;
+    const recentLogs = formatCompetitionLogs(visibleLogs) || "Menunggu hasil...";
     embed.setDescription(
       [
         scoreboard || "Belum ada hasil.",
@@ -1167,16 +1309,18 @@ function makeCompetitionEmbed(competition, status = "registration") {
       ].join("\n")
     );
   }
-  const banner = makeFishCompImage(status);
-  if (banner?.url) {
-    embed.setImage(banner.url);
+  if (status !== "complete") {
+    const banner = makeFishCompImage(status);
+    if (banner?.url) {
+      embed.setImage(banner.url);
+    }
   }
   return embed;
 }
 
 function makeCompetitionMessage(competition, status = "registration", components = []) {
   const embed = makeCompetitionEmbed(competition, status);
-  const banner = makeFishCompImage(status);
+  const banner = status === "closed" || status === "complete" ? null : makeFishCompImage(status);
   return {
     embeds: [embed],
     files: banner?.attachment ? [banner.attachment] : [],
@@ -1216,18 +1360,25 @@ function formatCompetitionLogFileLines(competition) {
 
 function formatCompetitionLogForFile(competition, log) {
   return [...competition.participants.values()].reduce((text, participant) => {
-    const readableName = participant.logName || participant.username || participant.displayName || participant.id;
-    return text.replaceAll(formatDiscordMention(participant.id), readableName);
+    const readableName = getCompetitionLogName(participant);
+    const mentionReplaced = text.replaceAll(formatDiscordMention(participant.id), readableName);
+    return participant.logName && participant.logName !== readableName
+      ? mentionReplaced.replaceAll(participant.logName, readableName)
+      : mentionReplaced;
   }, log);
 }
 
-function shuffleCompetitionParticipants(participants) {
-  const shuffled = [...participants];
+function shuffleList(items) {
+  const shuffled = [...items];
   for (let index = shuffled.length - 1; index > 0; index -= 1) {
     const targetIndex = Math.floor(Math.random() * (index + 1));
     [shuffled[index], shuffled[targetIndex]] = [shuffled[targetIndex], shuffled[index]];
   }
   return shuffled;
+}
+
+function shuffleCompetitionParticipants(participants) {
+  return shuffleList(participants);
 }
 
 function getFishCompEvents() {
@@ -1268,8 +1419,8 @@ function makeCompEventState(event, type, durationTurns, luckModifier, activeText
   };
 }
 
-function pickCompetitionEvent(participant) {
-  for (const event of getFishCompEvents()) {
+function pickCompetitionEvent() {
+  for (const event of shuffleList(getFishCompEvents())) {
     if (Math.random() * 100 < Number(event.chance || 0)) {
       return event;
     }
@@ -1315,7 +1466,7 @@ function applyExistingCompetitionEvents(competition, participant, turn) {
 }
 
 function applyNewCompetitionEvent(competition, participant, turn) {
-  const event = pickCompetitionEvent(participant);
+  const event = pickCompetitionEvent();
   if (!event) {
     return { canFish: true, luckModifier: 0 };
   }
@@ -1368,6 +1519,11 @@ function makeCompetitionJoinRow(disabled = false) {
         .setCustomId("fishcomp_join")
         .setLabel("Join")
         .setStyle(ButtonStyle.Success)
+        .setDisabled(disabled),
+      new ButtonBuilder()
+        .setCustomId("fishcomp_cancel")
+        .setLabel("Cancel")
+        .setStyle(ButtonStyle.Danger)
         .setDisabled(disabled)
     )
   ];
@@ -1382,6 +1538,27 @@ function makeCompetitionResultRow(logId) {
         .setStyle(ButtonStyle.Secondary)
     )
   ];
+}
+
+function getSortedCompetitionResults(competition) {
+  return [...competition.results.values()]
+    .sort((a, b) => b.count - a.count || b.totalWeight - a.totalWeight || a.username.localeCompare(b.username));
+}
+
+function formatCompetitionResultLine(result) {
+  return `${result.displayName} - ${result.count} ${result.count === 1 ? "ikan" : "Ikan"} - Total ${formatKg(result.totalWeight)}`;
+}
+
+function formatCompetitionScoreboard(competition) {
+  return getSortedCompetitionResults(competition).map(formatCompetitionResultLine).join("\n");
+}
+
+function getCompetitionRewardExp(competition) {
+  return Math.round(Number(getSettings().fishCompExpReward ?? 50) * Number(getSettings().expMultiplier || 1) * getEventMultiplier("exp_multiplier", competition.guildId));
+}
+
+function getCompetitionRewardGold(competition) {
+  return Math.round(Number(getSettings().fishCompGoldReward ?? 0) * getEventMultiplier("gold_multiplier", competition.guildId));
 }
 
 function summarizeCompetition(competition) {
@@ -1411,6 +1588,18 @@ function listCompetitionParticipants(competition, numbered = false) {
   return participants.map((participant, index) => (numbered ? `${index + 1}. ${participant}` : participant)).join("\n");
 }
 
+function listCompetitionResultParticipants(competition) {
+  const results = getSortedCompetitionResults(competition);
+  if (!results.length) {
+    return "Tidak ada peserta.";
+  }
+  return results.map((result, index) => `${index + 1}. ${formatCompetitionResultLine(result)}`).join("\n");
+}
+
+function getCompetitionLogName(participant) {
+  return participant.globalName || participant.username || participant.logName || participant.displayName || participant.id;
+}
+
 async function withCompetitionTimeout(promise, label) {
   let timeoutId;
   const timeout = new Promise((_, reject) => {
@@ -1430,6 +1619,19 @@ async function prepareCompetitionParticipant(participant) {
   } catch (error) {
     console.error(`Could not load competition player ${participant.id}:`, error);
     participant.rodId = "";
+  }
+}
+
+async function revealPendingCompetitionLogs(competition) {
+  const visibleLogs = Array.isArray(competition.visibleLogs) ? competition.visibleLogs : [];
+  competition.visibleLogs = visibleLogs;
+
+  while (competition.visibleLogs.length < competition.logs.length) {
+    competition.visibleLogs.push(competition.logs[competition.visibleLogs.length]);
+    if (competition.logMessage) {
+      await competition.logMessage.edit(makeCompetitionMessage(competition, "running")).catch(() => {});
+    }
+    await new Promise((resolve) => setTimeout(resolve, competition.logIntervalMs));
   }
 }
 
@@ -1483,6 +1685,7 @@ async function runCompetition(competition) {
   }
   competition.status = "running";
   competition.currentTurn = 0;
+  competition.visibleLogs = [];
   await competition.message.edit(makeCompetitionMessage(competition, "closed", makeCompetitionJoinRow(true))).catch(() => {});
   for (const participant of competition.participants.values()) {
     await prepareCompetitionParticipant(participant);
@@ -1499,20 +1702,22 @@ async function runCompetition(competition) {
     for (const participant of shuffleCompetitionParticipants(competition.participants.values())) {
       const turnEffect = competition.currentTurnEffects.get(participant.id) || null;
       runCompetitionTurnForParticipant(competition, participant, turn, turnEffect);
+      await revealPendingCompetitionLogs(competition);
     }
-    await competition.logMessage.edit(makeCompetitionMessage(competition, "running")).catch(() => {});
-    await new Promise((resolve) => setTimeout(resolve, competition.logIntervalMs));
   }
 
   competition.status = "finished";
   const summary = summarizeCompetition(competition);
-  const winner = [...competition.results.values()].sort((a, b) => b.count - a.count || b.totalWeight - a.totalWeight)[0];
+  const winner = getSortedCompetitionResults(competition)[0];
+  const winnerRewardExp = winner ? getCompetitionRewardExp(competition) : 0;
+  const winnerRewardGold = winner ? getCompetitionRewardGold(competition) : 0;
   let winnerLevel = 0;
   let winnerPreviousLevel = 0;
   if (winner) {
     await withPlayer(winner.id, async (player) => {
       winnerPreviousLevel = getLevel(player.exp);
-      player.exp += Math.round(Number(getSettings().fishCompExpReward ?? 50) * Number(getSettings().expMultiplier || 1) * getEventMultiplier("exp_multiplier", competition.guildId));
+      player.exp += winnerRewardExp;
+      player.gold = Math.max(0, Math.floor(Number(player.gold || 0))) + winnerRewardGold;
       winnerLevel = getLevel(player.exp);
     });
   }
@@ -1522,10 +1727,10 @@ async function runCompetition(competition) {
     .setDescription(
       [
         "**Peserta**",
-        listCompetitionParticipants(competition, true),
+        listCompetitionResultParticipants(competition),
         "",
         winner ? `# MVP: ${winner.displayName}` : "# MVP: -",
-        "Mendapat hadiah: **50 EXP**",
+        winner ? `Mendapat hadiah: **${winnerRewardExp} EXP** dan **${winnerRewardGold} gold**` : "Mendapat hadiah: **0 EXP** dan **0 gold**",
         "",
         summary
       ].join("\n")
@@ -1545,6 +1750,9 @@ async function runCompetition(competition) {
     files: banner?.attachment ? [banner.attachment] : [],
     components: makeCompetitionResultRow(logId)
   }).catch(() => {});
+  if (competition.logMessage) {
+    await competition.logMessage.edit(makeCompetitionMessage(competition, "complete")).catch(() => {});
+  }
   if (winner?.id && winnerLevel > winnerPreviousLevel) {
     const member = await channel.guild?.members.fetch(winner.id).catch(() => null);
     const user = member?.user || await client.users.fetch(winner.id).catch(() => null);
@@ -1564,7 +1772,7 @@ function buildCompetitionLogFile(competition) {
     `Participants: ${competition.participants.size}`,
     "",
     "Participants",
-    [...competition.participants.values()].map((participant, index) => `${index + 1}. ${participant.logName || participant.username || participant.displayName || participant.id}`).join("\n") || "Tidak ada peserta.",
+    [...competition.participants.values()].map((participant, index) => `${index + 1}. ${getCompetitionLogName(participant)}`).join("\n") || "Tidak ada peserta.",
     "",
     "Battle Log",
     ...formatCompetitionLogFileLines(competition)
@@ -1660,6 +1868,18 @@ function buyRod(player, rodId) {
   player.ownedRods.push(rod.id);
   player.rodId = rod.id;
   return { ok: true, message: `Berhasil membeli dan memakai ${rod.name}.` };
+}
+
+function equipOwnedRod(player, rodId) {
+  const rod = gameData.rods.find((entry) => entry.id === rodId);
+  if (!rod) {
+    return { ok: false, message: "Pancingan itu tidak ditemukan." };
+  }
+  if (!player.ownedRods.includes(rod.id)) {
+    return { ok: false, message: "Kamu belum punya pancingan itu." };
+  }
+  player.rodId = rod.id;
+  return { ok: true, message: `Berhasil memakai ${rod.name}.` };
 }
 
 function getUserIdentity(userOrId) {
@@ -2127,13 +2347,13 @@ function makeSlashCommands() {
       options: [
         {
           name: "regtime",
-          description: "Waktu daftar dalam menit. Default 1.",
+          description: "Waktu daftar dalam menit. Default 5.",
           type: ApplicationCommandOptionType.Integer,
           required: false
         },
         {
           name: "duration",
-          description: "Durasi kompetisi dalam jumlah turn. Default 10.",
+      description: "Durasi kompetisi dalam jumlah turn. Default 15.",
           type: ApplicationCommandOptionType.Integer,
           required: false
         }
@@ -2251,6 +2471,7 @@ client.once("clientReady", async () => {
     console.error("Could not register slash commands:", error);
   }
   await restoreFishVoiceChannels();
+  await ensureFishCompRolesForGuilds();
   startVoiceExpTimer();
   scheduleEnforcedFishingSignal();
 });
@@ -2268,6 +2489,20 @@ client.on("interactionCreate", async (interaction) => {
       await interaction.deferUpdate();
       await withPlayerReadOnly(interaction.user, async (player) => {
         await interaction.editReply(makeStoreMessage(player, selectedRodId));
+      });
+      return;
+    }
+
+    if (interaction.isStringSelectMenu() && interaction.customId === "profile_rod_select") {
+      const selectedRodId = interaction.values[0];
+      await interaction.deferUpdate();
+      const member = interaction.guild?.members?.fetch
+        ? await interaction.guild.members.fetch(interaction.user.id).catch(() => null)
+        : null;
+      await withPlayer(interaction.user, async (player) => {
+        const result = equipOwnedRod(player, selectedRodId);
+        await interaction.editReply(makeProfileMessage(interaction.user, player, member));
+        return result.ok ? undefined : { save: false };
       });
       return;
     }
@@ -2308,15 +2543,18 @@ client.on("interactionCreate", async (interaction) => {
       }
 
       const memberDisplayName = interaction.member?.displayName || interaction.user.globalName || interaction.user.username;
+      const globalDisplayName = interaction.user.globalName || interaction.user.username;
       competition.participants.set(interaction.user.id, {
         id: interaction.user.id,
         username: interaction.user.username,
+        globalName: globalDisplayName,
         displayName: formatDiscordMention(interaction.user.id),
         logName: memberDisplayName
       });
       competition.results.set(interaction.user.id, {
         id: interaction.user.id,
         username: interaction.user.username,
+        globalName: globalDisplayName,
         displayName: formatDiscordMention(interaction.user.id),
         logName: memberDisplayName,
         count: 0,
@@ -2328,18 +2566,64 @@ client.on("interactionCreate", async (interaction) => {
       return;
     }
 
+    if (interaction.isButton() && interaction.customId === "fishcomp_cancel") {
+      const competition = competitions.get(interaction.guildId);
+      if (!competition || competition.status !== "registration") {
+        await interaction.reply({ content: "Kompetisi ini sudah tidak bisa dibatalkan.", flags: MessageFlags.Ephemeral });
+        return;
+      }
+      if (interaction.user.id !== competition.creatorId && !isAdmin(interaction.user)) {
+        await interaction.reply({ content: "Hanya pembuat kompetisi atau admin yang bisa membatalkan kompetisi ini.", flags: MessageFlags.Ephemeral });
+        return;
+      }
+
+      await interaction.deferUpdate();
+      await cancelCompetition(competition, "Kompetisi dibatalkan.");
+      return;
+    }
+
+    if (interaction.isButton() && interaction.customId === "fishcomp_role_toggle") {
+      if (!interaction.guild || !interaction.member) {
+        await interaction.reply({ content: "Role FishComp hanya bisa dipakai di server.", flags: MessageFlags.Ephemeral });
+        return;
+      }
+
+      await interaction.deferUpdate();
+      const role = await ensureFishCompRole(interaction.guild);
+      const member = await interaction.guild.members.fetch(interaction.user.id).catch(() => null);
+      if (!role || !member) {
+        await interaction.editReply({
+          content: "Aku belum bisa menyiapkan role FishComp. Pastikan bot punya permission Manage Roles.",
+          embeds: [],
+          files: [],
+          components: []
+        });
+        return;
+      }
+
+      if (member.roles.cache.has(role.id)) {
+        await member.roles.remove(role, "TRFishing FishComp opt-out");
+      } else {
+        await member.roles.add(role, "TRFishing FishComp opt-in");
+      }
+
+      await withPlayerReadOnly(interaction.user, async (player) => {
+        await interaction.editReply(makeProfileMessage(interaction.user, player, member));
+      });
+      return;
+    }
+
     if (!interaction.isChatInputCommand()) {
       return;
     }
 
     if (interaction.commandName === "fishprofile") {
       await interaction.deferReply({ flags: MessageFlags.Ephemeral });
+      const member = interaction.guild?.members?.fetch
+        ? await interaction.guild.members.fetch(interaction.user.id).catch(() => null)
+        : null;
       await withPlayerReadOnly(interaction.user, async (player) => {
-        const profile = makeProfileEmbed(interaction.user, player);
-        await interaction.editReply({
-          embeds: [profile.embed],
-          files: profile.files
-        });
+        await interaction.editReply(makeProfileMessage(interaction.user, player, member));
       });
       return;
     }
@@ -2424,13 +2708,13 @@ client.on("interactionCreate", async (interaction) => {
         await interaction.reply({ content: "Command ini hanya bisa dipakai di server.", flags: MessageFlags.Ephemeral });
         return;
       }
-      await interaction.deferReply();
+      await interaction.deferReply({ flags: MessageFlags.Ephemeral });
       await interaction.editReply(await makeServerStatusMessage(interaction.guild));
       return;
     }
 
     if (interaction.commandName === "fishleaderboard") {
-      await interaction.deferReply();
+      await interaction.deferReply({ flags: MessageFlags.Ephemeral });
       await interaction.editReply(await makeLeaderboardMessage(interaction.options.getString("page") || "fish_count"));
       return;
     }
@@ -2462,8 +2746,8 @@ client.on("interactionCreate", async (interaction) => {
         return;
       }
 
-      const registrationMinutes = Math.max(1, Math.min(30, interaction.options.getInteger("regtime") || 1));
-      const turns = Math.max(1, Math.min(50, interaction.options.getInteger("duration") || 10));
+      const registrationMinutes = Math.max(1, Math.min(30, interaction.options.getInteger("regtime") || 5));
+      const turns = Math.max(1, Math.min(50, interaction.options.getInteger("duration") || 15));
       const competition = {
         guildId: interaction.guildId,
         channelId: interaction.channelId,
@@ -2485,6 +2769,11 @@ client.on("interactionCreate", async (interaction) => {
       competitions.set(interaction.guildId, competition);
       await interaction.reply(makeCompetitionMessage(competition, "registration", makeCompetitionJoinRow(false)));
       competition.message = await interaction.fetchReply();
+      const fishCompRole = interaction.guild ? await ensureFishCompRole(interaction.guild) : null;
+      await interaction.channel?.send({
+        content: `Ayo! Kompetisi memancing sudah dimulai!! ${fishCompRole ? fishCompRole.toString() : "@FishComp"}`,
+        allowedMentions: fishCompRole ? { roles: [fishCompRole.id] } : { parse: [] }
+      }).catch(() => {});
       competition.timeout = setTimeout(() => {
         if (competition.participants.size < 2) {
           cancelCompetition(competition, competition.participants.size === 0 ? "Tidak ada peserta yang join." : "Butuh minimal 2 peserta untuk memulai kompetisi.");

@@ -74,7 +74,7 @@ The manager also has:
 - `/sellfish` - Menjual semua ikan secara privat.
 - `/sellfish fish:<fish name or id>` - Menjual satu jenis ikan secara privat.
 - `/fishhelp` - Menampilkan panel bantuan secara privat.
-- `/fishcomp registration_time:<minutes> duration:<turns>` - Membuat kompetisi memancing publik dengan tombol Join.
+- `/fishcomp regtime:<minutes> duration:<turns>` - Membuat kompetisi memancing publik dengan tombol Join. Default duration 15 turns.
 - `!fishcompforcestart` - Admin command untuk memaksa kompetisi yang sedang registrasi agar mulai lebih cepat.
 
 ## How Fishing Works

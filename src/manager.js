@@ -200,6 +200,7 @@ function cleanSettings(settings) {
     fishCompEvents: cleanFishCompEvents(source.fishCompEvents),
     fishCompLogIntervalMs: Math.max(0, cleanNumber(source.fishCompLogIntervalMs, 2500)),
     fishCompExpReward: Math.max(0, cleanNumber(source.fishCompExpReward, 50)),
+    fishCompGoldReward: Math.max(0, cleanNumber(source.fishCompGoldReward, 0)),
     chatCooldownMs: Math.max(0, cleanNumber(source.chatCooldownMs, 20_000)),
     expMultiplier: Math.max(0, cleanNumber(source.expMultiplier, 1)),
     levelExpMultiplier: Math.max(0.01, cleanNumber(source.levelExpMultiplier, 1)),
@@ -272,6 +273,7 @@ function cleanEvent(event) {
     fishId: bonuses[0]?.fishId || "",
     announcementChannelId: String(event.announcementChannelId || "").trim(),
     guildId: String(event.guildId || "").trim(),
+    isAnnounced: event.isAnnounced === true,
     stoppedAt: String(event.stoppedAt || "").trim(),
     deployedAt: String(event.deployedAt || "").trim()
   };
@@ -469,6 +471,7 @@ async function handleApi(request, response) {
         ...(data.activeEvent || cleanEvent({})),
         id: data.activeEvent?.id || String(Date.now()),
         startAt: data.activeEvent?.startAt || new Date().toISOString(),
+        isAnnounced: false,
         deployedAt: new Date().toISOString()
       };
       deployedEvent.endsAt = new Date(Date.parse(deployedEvent.startAt) + Math.max(1, Number(deployedEvent.durationMinutes || 60)) * 60_000).toISOString();
@@ -784,10 +787,73 @@ const html = `<!doctype html>
       flex-wrap: wrap;
       gap: 8px;
     }
+    .fish-layout {
+      grid-column: 1 / -1;
+      display: grid;
+      grid-template-columns: minmax(280px, 1fr) minmax(320px, 520px);
+      gap: 14px;
+      align-items: start;
+    }
+    .fish-toolbar {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px;
+      align-items: center;
+      margin-bottom: 12px;
+    }
+    .fish-gallery {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(118px, 1fr));
+      gap: 10px;
+      max-height: 74vh;
+      overflow: auto;
+      padding-right: 4px;
+    }
+    .fish-card {
+      display: grid;
+      gap: 8px;
+      text-align: center;
+      align-content: start;
+      min-height: 148px;
+    }
+    .fish-card.active {
+      border-color: var(--accent);
+    }
+    .fish-card img {
+      width: 100%;
+      aspect-ratio: 1;
+      border-radius: 8px;
+      border: 1px solid var(--line);
+      background: #0b0f13;
+      object-fit: contain;
+    }
+    .fish-card .empty-preview {
+      aspect-ratio: 1;
+    }
+    .fish-card span {
+      color: var(--text);
+      font-size: 13px;
+      font-weight: 800;
+      line-height: 1.2;
+      overflow-wrap: anywhere;
+    }
+    .fish-detail {
+      position: sticky;
+      top: 12px;
+    }
+    .hidden-input {
+      position: absolute;
+      opacity: 0;
+      pointer-events: none;
+      width: 1px;
+      height: 1px;
+    }
     @media (max-width: 620px) {
       header { align-items: flex-start; flex-direction: column; }
       .fields { grid-template-columns: 1fr; }
       .player-layout { grid-template-columns: 1fr; }
+      .fish-layout { grid-template-columns: 1fr; }
+      .fish-detail { position: static; }
       .image-grid { grid-template-columns: 1fr; }
     }
   </style>
@@ -821,10 +887,12 @@ const html = `<!doctype html>
       fish: [],
       rods: [],
       adminDiscordIds: [],
-      settings: { rodStoreImageBase64: "", rodStoreImageUrl: "", fishCompBannerBase64: "", fishCompBannerUrl: "", fishCompRegistrationBannerBase64: "", fishCompRegistrationBannerUrl: "", fishCompRunningBannerBase64: "", fishCompRunningBannerUrl: "", fishCompResultBannerBase64: "", fishCompResultBannerUrl: "", fishGuideBannerBase64: "", fishGuideBannerUrl: "", fishHelpBannerBase64: "", fishHelpBannerUrl: "", fishCompEvents: [], fishCompLogIntervalMs: 2500, fishCompExpReward: 50, chatCooldownMs: 20000, expMultiplier: 1, levelExpMultiplier: 1, voiceExpAmount: 1, voiceExpIntervalMinutes: 15 },
+      settings: { rodStoreImageBase64: "", rodStoreImageUrl: "", fishCompBannerBase64: "", fishCompBannerUrl: "", fishCompRegistrationBannerBase64: "", fishCompRegistrationBannerUrl: "", fishCompRunningBannerBase64: "", fishCompRunningBannerUrl: "", fishCompResultBannerBase64: "", fishCompResultBannerUrl: "", fishGuideBannerBase64: "", fishGuideBannerUrl: "", fishHelpBannerBase64: "", fishHelpBannerUrl: "", fishCompEvents: [], fishCompLogIntervalMs: 2500, fishCompExpReward: 50, fishCompGoldReward: 0, chatCooldownMs: 20000, expMultiplier: 1, levelExpMultiplier: 1, voiceExpAmount: 1, voiceExpIntervalMinutes: 15 },
       activeEvent: null,
       events: [],
       eventDraft: null,
+      selectedFishId: "",
+      fishSort: "name",
       lastAnnouncementChannelId: localStorage.getItem("trfishing:lastAnnouncementChannelId") || "",
       players: [],
       playerSearch: "",
@@ -835,6 +903,7 @@ const html = `<!doctype html>
     const grid = document.querySelector("#grid");
     const statusEl = document.querySelector("#status");
     const addButton = document.querySelector("#add");
+    const fishRarities = ["Common", "Uncommon", "Rare", "Epic", "Legendary", "Secret", "Mythic", "Divine", "Celestial", "Abyssal", "Transcendent"];
 
     function setStatus(message, isError = false) {
       statusEl.textContent = message;
@@ -847,7 +916,7 @@ const html = `<!doctype html>
 
     function makeEmptyItem() {
       if (state.tab === "fish") {
-        return { id: "new_fish", name: "New Fish", rarity: "Common", baseWeight: 10, minWeight: 1, maxWeight: 5, luckScale: 0, exp: 5, gold: 10, description: "", iconBase64: "" };
+        return { id: "new_fish_" + Date.now(), name: "New Fish", rarity: "Common", baseWeight: 10, minWeight: 1, maxWeight: 5, luckScale: 0, exp: 5, gold: 10, description: "", iconBase64: "" };
       }
       if (state.tab === "admin") {
         return "";
@@ -865,7 +934,24 @@ const html = `<!doctype html>
         || null;
     }
 
+    function captureScrollState() {
+      return {
+        fishGallery: document.querySelector(".fish-gallery")?.scrollTop || 0,
+        playerList: document.querySelector(".player-list")?.scrollTop || 0
+      };
+    }
+
+    function restoreScrollState(scrollState) {
+      requestAnimationFrame(() => {
+        const fishGallery = document.querySelector(".fish-gallery");
+        const playerList = document.querySelector(".player-list");
+        if (fishGallery) fishGallery.scrollTop = scrollState.fishGallery || 0;
+        if (playerList) playerList.scrollTop = scrollState.playerList || 0;
+      });
+    }
+
     function render() {
+      const scrollState = captureScrollState();
       document.querySelectorAll("[data-tab]").forEach((button) => {
         button.classList.toggle("active", button.dataset.tab === state.tab);
       });
@@ -875,6 +961,7 @@ const html = `<!doctype html>
 
       if (state.tab === "players") {
         grid.innerHTML = playerManagementTemplate();
+        restoreScrollState(scrollState);
         return;
       }
 
@@ -885,6 +972,7 @@ const html = `<!doctype html>
           card.innerHTML = adminTemplate(adminDiscordId, index);
           grid.appendChild(card);
         });
+        restoreScrollState(scrollState);
         return;
       }
 
@@ -893,6 +981,7 @@ const html = `<!doctype html>
         card.className = "item";
         card.innerHTML = settingsTemplate();
         grid.appendChild(card);
+        restoreScrollState(scrollState);
         return;
       }
 
@@ -907,6 +996,13 @@ const html = `<!doctype html>
         listCard.className = "item";
         listCard.innerHTML = eventListTemplate();
         grid.appendChild(listCard);
+        restoreScrollState(scrollState);
+        return;
+      }
+
+      if (state.tab === "fish") {
+        grid.innerHTML = fishTabTemplate();
+        restoreScrollState(scrollState);
         return;
       }
 
@@ -914,9 +1010,10 @@ const html = `<!doctype html>
         const card = document.createElement("article");
         card.className = "item";
         const size = iconSize(item);
-        card.innerHTML = state.tab === "fish" ? fishTemplate(item, index, size) : rodTemplate(item, index, size);
+        card.innerHTML = rodTemplate(item, index, size);
         grid.appendChild(card);
       });
+      restoreScrollState(scrollState);
     }
 
     function adminTemplate(adminDiscordId, index) {
@@ -1018,6 +1115,7 @@ const html = `<!doctype html>
           \${field("EXP Multiplier", "expMultiplier", state.settings.expMultiplier, 0, "number", "0.01")}
           \${field("Level EXP Multiplier", "levelExpMultiplier", state.settings.levelExpMultiplier ?? 1, 0, "number", "0.01")}
           \${field("Competition EXP Reward", "fishCompExpReward", state.settings.fishCompExpReward ?? 50, 0, "number", "1")}
+          \${field("Competition Gold Reward", "fishCompGoldReward", state.settings.fishCompGoldReward ?? 0, 0, "number", "1")}
           \${field("Fish Comp Log Interval, ms", "fishCompLogIntervalMs", state.settings.fishCompLogIntervalMs ?? 2500, 0, "number", "100")}
           \${field("Voice Progress Amount", "voiceExpAmount", state.settings.voiceExpAmount ?? 1, 0, "number", "1")}
           \${field("Voice Progress Interval, minutes", "voiceExpIntervalMinutes", state.settings.voiceExpIntervalMinutes ?? 15, 0, "number", "1")}
@@ -1187,6 +1285,67 @@ const html = `<!doctype html>
         </div>\`;
     }
 
+    function rarityRank(rarity) {
+      const index = fishRarities.indexOf(String(rarity || ""));
+      return index === -1 ? fishRarities.length : index;
+    }
+
+    function sortedFishEntries() {
+      return state.fish
+        .map((item, index) => ({ item, index }))
+        .sort((a, b) => {
+          if (state.fishSort === "rarity") {
+            return rarityRank(a.item.rarity) - rarityRank(b.item.rarity)
+              || String(a.item.name || "").localeCompare(String(b.item.name || ""));
+          }
+          return String(a.item.name || "").localeCompare(String(b.item.name || ""))
+            || rarityRank(a.item.rarity) - rarityRank(b.item.rarity);
+        });
+    }
+
+    function selectedFishEntry() {
+      return state.fish
+        .map((item, index) => ({ item, index }))
+        .find((entry) => String(entry.item.id || "") === state.selectedFishId)
+        || null;
+    }
+
+    function fishTabTemplate() {
+      const entries = sortedFishEntries();
+      if (!state.selectedFishId && entries[0]) {
+        state.selectedFishId = String(entries[0].item.id || "");
+      }
+      const selected = selectedFishEntry();
+      const cards = entries.length
+        ? entries.map(({ item, index }) => fishGridCardTemplate(item, index)).join("")
+        : '<div class="small">No fish yet.</div>';
+      return \`
+        <div class="fish-layout">
+          <article class="item">
+            <div class="fish-toolbar">
+              <button data-fish-sort="name" class="\${state.fishSort === "name" ? "primary" : ""}">Sort Name</button>
+              <button data-fish-sort="rarity" class="\${state.fishSort === "rarity" ? "primary" : ""}">Sort Rarity</button>
+              <button data-export-fish>Export JSON</button>
+              <label class="file-picker"><span>Import JSON</span><input type="file" accept="application/json,.json" data-import-fish></label>
+            </div>
+            <div class="fish-gallery">\${cards}</div>
+          </article>
+          <article class="item fish-detail">
+            \${selected ? fishTemplate(selected.item, selected.index, iconSize(selected.item)) : '<div class="small">Click a fish to edit its full panel.</div>'}
+          </article>
+        </div>\`;
+    }
+
+    function fishGridCardTemplate(item, index) {
+      const source = item.iconBase64 || item.iconUrl || "";
+      const active = String(item.id || "") === state.selectedFishId;
+      return \`
+        <button class="fish-card \${active ? "active" : ""}" data-select-fish="\${escapeHtml(String(item.id || ""))}" data-index="\${index}">
+          \${source ? \`<img alt="" src="\${source}">\` : \`<div class="empty-preview">No image</div>\`}
+          <span>\${escapeHtml(item.name || item.id || "Unnamed Fish")}</span>
+        </button>\`;
+    }
+
     function fishTemplate(item, index, size) {
       return \`
         <div class="topline">
@@ -1197,7 +1356,7 @@ const html = `<!doctype html>
           \${field("ID", "id", item.id, index)}
           \${field("Name", "name", item.name, index)}
           <label>Rarity<select data-index="\${index}" data-key="rarity">
-            \${["Common", "Uncommon", "Rare", "Epic", "Legendary", "Secret"].map((rarity) => \`<option \${item.rarity === rarity ? "selected" : ""}>\${rarity}</option>\`).join("")}
+            \${fishRarities.map((rarity) => \`<option \${item.rarity === rarity ? "selected" : ""}>\${rarity}</option>\`).join("")}
           </select></label>
           \${field("Chance Weight", "baseWeight", item.baseWeight, index, "number", "0.01")}
           \${field("Min Kg", "minWeight", item.minWeight, index, "number", "0.01")}
@@ -1249,6 +1408,56 @@ const html = `<!doctype html>
       return value.replace(/[&<>"']/g, (char) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[char]));
     }
 
+    function exportFishJson() {
+      const blob = new Blob([JSON.stringify(state.fish || [], null, 2)], { type: "application/json" });
+      const link = document.createElement("a");
+      link.href = URL.createObjectURL(blob);
+      link.download = "trfishing-fish.json";
+      document.body.appendChild(link);
+      link.click();
+      link.remove();
+      URL.revokeObjectURL(link.href);
+      setStatus("Exported " + state.fish.length + " fish.");
+    }
+
+    function importFishJson(file) {
+      if (!file) return;
+      const reader = new FileReader();
+      reader.onload = () => {
+        try {
+          const parsed = JSON.parse(String(reader.result || ""));
+          const importedFish = Array.isArray(parsed) ? parsed : Array.isArray(parsed.fish) ? parsed.fish : [];
+          if (!importedFish.length) {
+            throw new Error("JSON must be an array of fish, or an object with a fish array.");
+          }
+          let replaced = 0;
+          let added = 0;
+          for (const fish of importedFish) {
+            if (!fish || typeof fish !== "object" || !String(fish.id || "").trim()) {
+              continue;
+            }
+            const normalizedFish = { iconBase64: "", iconUrl: "", ...fish, id: String(fish.id || "").trim().toLowerCase().replace(/[^a-z0-9_]/g, "_") };
+            const existingIndex = state.fish.findIndex((entry) => String(entry.id || "") === normalizedFish.id);
+            if (existingIndex >= 0) {
+              state.fish[existingIndex] = normalizedFish;
+              replaced += 1;
+            } else {
+              state.fish.push(normalizedFish);
+              added += 1;
+            }
+          }
+          if (!state.selectedFishId && state.fish[0]) {
+            state.selectedFishId = String(state.fish[0].id || "");
+          }
+          setStatus("Imported fish JSON. Replaced " + replaced + ", added " + added + ". Press Save to store changes.");
+          render();
+        } catch (error) {
+          setStatus(error.message || "Could not import fish JSON.", true);
+        }
+      };
+      reader.readAsText(file);
+    }
+
     async function loadData() {
       setStatus("Loading from PlayFab...");
       const response = await fetch("/api/data");
@@ -1261,6 +1470,7 @@ const html = `<!doctype html>
       state.activeEvent = payload.activeEvent || null;
       state.events = payload.events || (payload.activeEvent ? [payload.activeEvent] : []);
       state.eventDraft = null;
+      state.selectedFishId = state.fish[0]?.id || "";
       state.lastAnnouncementChannelId = state.activeEvent?.announcementChannelId || state.events[0]?.announcementChannelId || state.lastAnnouncementChannelId;
       if (state.lastAnnouncementChannelId) localStorage.setItem("trfishing:lastAnnouncementChannelId", state.lastAnnouncementChannelId);
       setStatus("Loaded from PlayFab.");
@@ -1503,7 +1713,11 @@ const html = `<!doctype html>
       } else if (state.tab === "event") {
         state.eventDraft = makeEmptyEvent();
       } else {
-        state[state.tab].push(makeEmptyItem());
+        const item = makeEmptyItem();
+        state[state.tab].push(item);
+        if (state.tab === "fish") {
+          state.selectedFishId = item.id;
+        }
       }
       render();
     });
@@ -1579,7 +1793,11 @@ const html = `<!doctype html>
         return;
       }
       if (!target.dataset.key) return;
+      const itemIndex = Number(target.dataset.index);
       updateItem(Number(target.dataset.index), target.dataset.key, target.type === "number" ? Number(target.value) : target.value);
+      if (state.tab === "fish" && target.dataset.key === "id") {
+        state.selectedFishId = state.fish[itemIndex]?.id || "";
+      }
       if (target.dataset.key === "iconUrl") {
         const item = state[state.tab][Number(target.dataset.index)];
         item.iconBase64 = "";
@@ -1587,6 +1805,11 @@ const html = `<!doctype html>
     });
     grid.addEventListener("change", (event) => {
       const target = event.target;
+      if (target.dataset.importFish !== undefined) {
+        importFishJson(target.files[0]);
+        target.value = "";
+        return;
+      }
       if (target.dataset.settingsImage) {
         const file = target.files[0];
         if (!file) return;
@@ -1647,6 +1870,22 @@ const html = `<!doctype html>
       reader.readAsDataURL(file);
     });
     grid.addEventListener("click", (event) => {
+      const selectFishButton = event.target.closest("[data-select-fish]");
+      if (selectFishButton) {
+        state.selectedFishId = selectFishButton.dataset.selectFish;
+        render();
+        return;
+      }
+      const fishSortButton = event.target.closest("[data-fish-sort]");
+      if (fishSortButton) {
+        state.fishSort = fishSortButton.dataset.fishSort;
+        render();
+        return;
+      }
+      if (event.target.closest("[data-export-fish]")) {
+        exportFishJson();
+        return;
+      }
       const selectPlayerButton = event.target.closest("[data-select-player]");
       if (selectPlayerButton) {
         state.selectedPlayerId = selectPlayerButton.dataset.selectPlayer;
@@ -1749,7 +1988,10 @@ const html = `<!doctype html>
       if (state.tab === "admin") {
         state.adminDiscordIds.splice(Number(button.dataset.remove), 1);
       } else {
-        state[state.tab].splice(Number(button.dataset.remove), 1);
+        const removed = state[state.tab].splice(Number(button.dataset.remove), 1)[0];
+        if (state.tab === "fish" && String(removed?.id || "") === state.selectedFishId) {
+          state.selectedFishId = state.fish[0]?.id || "";
+        }
       }
       render();
     });

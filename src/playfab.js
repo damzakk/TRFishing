@@ -100,6 +100,7 @@ const defaultSettings = {
   ],
   fishCompLogIntervalMs: 2500,
   fishCompExpReward: 50,
+  fishCompGoldReward: 0,
   chatCooldownMs: 20_000,
   expMultiplier: 1,
   levelExpMultiplier: 1,
@@ -651,6 +652,7 @@ function cleanSettings(settings) {
     fishCompEvents: cleanFishCompEvents(source.fishCompEvents),
     fishCompLogIntervalMs: Math.max(0, cleanNumber(source.fishCompLogIntervalMs ?? defaultSettings.fishCompLogIntervalMs, defaultSettings.fishCompLogIntervalMs)),
     fishCompExpReward: Math.max(0, cleanNumber(source.fishCompExpReward ?? defaultSettings.fishCompExpReward, defaultSettings.fishCompExpReward)),
+    fishCompGoldReward: Math.max(0, cleanNumber(source.fishCompGoldReward ?? defaultSettings.fishCompGoldReward, defaultSettings.fishCompGoldReward)),
     chatCooldownMs: Math.max(0, Number(source.chatCooldownMs ?? defaultSettings.chatCooldownMs) || defaultSettings.chatCooldownMs),
     expMultiplier: Math.max(0, Number(source.expMultiplier ?? defaultSettings.expMultiplier) || defaultSettings.expMultiplier),
     levelExpMultiplier: Math.max(0.01, Number(source.levelExpMultiplier ?? defaultSettings.levelExpMultiplier) || defaultSettings.levelExpMultiplier),
@@ -725,6 +727,7 @@ function cleanEvent(event) {
     fishId: bonuses[0]?.fishId || "",
     announcementChannelId: String(event.announcementChannelId || "").trim(),
     guildId: String(event.guildId || "").trim(),
+    isAnnounced: event.isAnnounced === true,
     stoppedAt: String(event.stoppedAt || "").trim(),
     deployedAt: String(event.deployedAt || "").trim()
   };
