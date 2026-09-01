@@ -68,13 +68,14 @@ The manager also has:
 - `/fishinventory` - Melihat daftar ikan yang kamu punya secara privat.
 - `/fishstore` - Melihat toko pancingan secara privat.
 - `/fishvoice` - Membuat bot join voice channel kamu dalam keadaan mute/deafen dan mengaktifkan voice progress server.
-- `/fishsetdefaultchannel channel:<channel>` - Admin command untuk set channel default popup fishing kalau player belum punya last fishing channel.
+- `/fishsetpopupchannel channel:<channel>` - Admin command untuk membuat thread `Fishing!` dan mengirim semua popup fishing server ke thread itu.
 - `/fishserver` - Menampilkan status server TRFishing.
 - `/fishleaderboard` - Menampilkan leaderboard jumlah ikan, ikan terbesar, luck score ikan tersulit, dan level.
 - `/sellfish` - Menjual semua ikan secara privat.
 - `/sellfish fish:<fish name or id>` - Menjual satu jenis ikan secara privat.
 - `/fishhelp` - Menampilkan panel bantuan secara privat.
 - `/fishcomp regtime:<minutes> duration:<turns>` - Membuat kompetisi memancing publik dengan tombol Join. Default duration 15 turns.
+- `!fishtest` - Admin command untuk test popup fishing tanpa menyimpan ikan, EXP, atau progress.
 - `!fishcompforcestart` - Admin command untuk memaksa kompetisi yang sedang registrasi agar mulai lebih cepat.
 
 ## How Fishing Works

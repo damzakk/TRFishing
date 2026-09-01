@@ -265,8 +265,16 @@ function getCurrentVoiceSessionMs(userId) {
   return total;
 }
 
-async function fetchFishingMessageChannel(player, guildId = "") {
-  const lastChannelId = String(player.lastFishingChannelId || "").trim();
+async function fetchFishingMessageChannel(player = null, guildId = "") {
+  const defaultChannelId = defaultFishingChannels.get(guildId);
+  if (defaultChannelId) {
+    const channel = await client.channels.fetch(defaultChannelId).catch(() => null);
+    if (channel?.isTextBased?.() && (!guildId || !channel.guildId || channel.guildId === guildId)) {
+      return channel;
+    }
+  }
+
+  const lastChannelId = String(player?.lastFishingChannelId || "").trim();
   if (lastChannelId) {
     const channel = await client.channels.fetch(lastChannelId).catch(() => null);
     if (channel?.isTextBased?.() && (!guildId || !channel.guildId || channel.guildId === guildId)) {
@@ -274,13 +282,25 @@ async function fetchFishingMessageChannel(player, guildId = "") {
     }
   }
 
-  const defaultChannelId = defaultFishingChannels.get(guildId);
-  if (!defaultChannelId) {
+  return null;
+}
+
+async function createFishingPopupThread(channel) {
+  if (!channel?.isTextBased?.()) {
     return null;
   }
-
-  const channel = await client.channels.fetch(defaultChannelId).catch(() => null);
-  return channel?.isTextBased?.() ? channel : null;
+  if (channel.isThread?.()) {
+    return channel;
+  }
+  if (!channel.threads?.create) {
+    return null;
+  }
+  return channel.threads.create({
+    name: "Fishing!",
+    type: channel.type === ChannelType.GuildAnnouncement ? ChannelType.AnnouncementThread : ChannelType.PublicThread,
+    autoArchiveDuration: 1440,
+    reason: "TRFishing popup thread"
+  });
 }
 
 async function sendFishingCatchMessages(channel, user, catches, previousLevel, currentLevel, member = null) {
@@ -289,8 +309,7 @@ async function sendFishingCatchMessages(channel, user, catches, previousLevel, c
   }
 
   for (const result of catches) {
-    const catchEmbed = makeCatchEmbed(user, result.caughtFish, result.catchWeight, result.expGain);
-    await channel.send({ embeds: [catchEmbed.embed], files: catchEmbed.files }).catch((error) => {
+    await channel.send(makeCatchMessage(user, result.caughtFish, result.catchWeight, result.expGain)).catch((error) => {
       console.error("Could not send fishing catch message:", error);
     });
   }
@@ -666,6 +685,10 @@ function addCatch(player, caughtFish, catchWeight, guildId = "") {
   return { expGain, luckScore };
 }
 
+function calculateCatchExp(caughtFish, guildId = "") {
+  return Math.max(0, Math.round(Number(caughtFish.exp || 0) * Number(getSettings().expMultiplier || 1) * getEventMultiplier("exp_multiplier", guildId)));
+}
+
 function formatFishLine(fishEntry, quantity = null) {
   const amount = quantity === null ? "" : ` x${quantity}`;
   const minWeight = Number(fishEntry.minWeight || 0);
@@ -770,7 +793,7 @@ function makeCatchEmbed(user, caughtFish, catchWeight, expGain) {
     .setColor(rarityColors[caughtFish.rarity] || 0x2ecc71)
     .setTitle("Umpan Disambar!")
     .setDescription(
-      `${user} mendapatkan **${caughtFish.name}**!\nKelangkaan: **${caughtFish.rarity}**\nBerat: **${formatKg(catchWeight)}**\nLuck Score: **${luckScore}**\nMendapat **${expGain} EXP**.${descriptionLine}`
+      `**${caughtFish.name}** berhasil ditangkap!!\n\nKelangkaan: **${caughtFish.rarity}**\nBerat: **${formatKg(catchWeight)}**\nLuck Score: **${luckScore}**\nExp: **+${expGain} EXP**\n${descriptionLine}`
     );
 
   const icon = makeIconAttachment(caughtFish, "fish");
@@ -779,6 +802,26 @@ function makeCatchEmbed(user, caughtFish, catchWeight, expGain) {
   }
 
   return { embed, files: icon?.attachment ? [icon.attachment] : [] };
+}
+
+function getUserMentionForMessage(user) {
+  if (user?.id) {
+    return { content: `### 🎣 Tangkapan baru untuk ${formatDiscordMention(user.id)}!\n\n`, allowedMentions: { users: [user.id] } };
+  }
+  const mention = String(user || "").match(/^<@!?(\d+)>$/);
+  if (mention) {
+    return { content: `### 🎣 Tangkapan baru untuk ${formatDiscordMention(mention[1])}!\n\n`, allowedMentions: { users: [mention[1]] } };
+  }
+  return { content: "" };
+}
+
+function makeCatchMessage(user, caughtFish, catchWeight, expGain) {
+  const catchEmbed = makeCatchEmbed(user, caughtFish, catchWeight, expGain);
+  return {
+    ...getUserMentionForMessage(user),
+    embeds: [catchEmbed.embed],
+    files: catchEmbed.files
+  };
 }
 
 function makeLevelUpEmbed(user, level, member = null) {
@@ -1105,7 +1148,7 @@ async function processEnforcedFishingSignal() {
     return;
   }
 
-  const channel = await client.channels.fetch(String(request.channelId || "")).catch(() => null);
+  const channel = await fetchFishingMessageChannel(null, String(request.guildId || "")) || await client.channels.fetch(String(request.channelId || "")).catch(() => null);
   if (!channel?.isTextBased?.()) {
     console.warn("Could not post enforced fishing catch: channel is not available.");
     return;
@@ -1117,8 +1160,7 @@ async function processEnforcedFishingSignal() {
 
   const user = await client.users.fetch(String(request.discordUserId || "")).catch(() => null);
   const mention = user || `<@${request.discordUserId}>`;
-  const catchEmbed = makeCatchEmbed(mention, request.fish, request.catchWeight, request.expGain);
-  await channel.send({ embeds: [catchEmbed.embed], files: catchEmbed.files });
+  await channel.send(makeCatchMessage(mention, request.fish, request.catchWeight, request.expGain));
   fs.writeFileSync(enforcedFishingSignalPath, JSON.stringify({ id: "", processedAt: new Date().toISOString(), processedId: request.id }));
 }
 
@@ -1750,8 +1792,10 @@ async function runCompetition(competition) {
     files: banner?.attachment ? [banner.attachment] : [],
     components: makeCompetitionResultRow(logId)
   }).catch(() => {});
+  await competition.message?.delete().catch(() => {});
+  await competition.pingMessage?.delete().catch(() => {});
   if (competition.logMessage) {
-    await competition.logMessage.edit(makeCompetitionMessage(competition, "complete")).catch(() => {});
+    await competition.logMessage.delete().catch(() => {});
   }
   if (winner?.id && winnerLevel > winnerPreviousLevel) {
     const member = await channel.guild?.members.fetch(winner.id).catch(() => null);
@@ -1795,6 +1839,7 @@ async function cancelCompetition(competition, reason) {
     components: [],
     files: []
   }).catch(() => {});
+  await competition.pingMessage?.delete().catch(() => {});
   competitions.delete(competition.guildId);
 }
 
@@ -1942,8 +1987,8 @@ function fishNow(player, guildId = "") {
   return { ok: true, caughtFish, catchWeight, expGain };
 }
 
-function makeHelpEmbed() {
-  return new EmbedBuilder()
+function makeHelpEmbed(showAdminCommands = false) {
+  const embed = new EmbedBuilder()
     .setColor(0x2ecc71)
     .setTitle("TRFishing · Bantuan")
     .setDescription("# TRFishing Help\nSemua command di bawah ini hanya terlihat oleh kamu.\n\n━━━━━━━━━━━━━━━━━━━━")
@@ -1969,8 +2014,8 @@ function makeHelpEmbed() {
         inline: false
       },
       {
-        name: "/fishsetdefaultchannel channel:<channel>",
-        value: "Admin command untuk set channel default popup fishing saat player belum punya last fishing channel.",
+        name: "/fishsetpopupchannel channel:<channel>",
+        value: "Admin command untuk membuat thread `Fishing!` di channel pilihan dan mengirim semua popup fishing server ke thread itu.",
         inline: false
       },
       {
@@ -2014,10 +2059,42 @@ function makeHelpEmbed() {
         inline: false
       }
     );
+
+  if (showAdminCommands) {
+    embed.addFields(
+      {
+        name: "Admin Commands",
+        value: "Command di bawah ini hanya muncul untuk admin.",
+        inline: false
+      },
+      {
+        name: "/fishsetpopupchannel channel:<channel>",
+        value: "Membuat thread `Fishing!` di channel pilihan dan mengirim semua popup fishing server ke thread itu.",
+        inline: false
+      },
+      {
+        name: "!fish",
+        value: "Test fishing admin yang benar-benar menangkap ikan, memberi EXP, dan menyimpan data.",
+        inline: false
+      },
+      {
+        name: "!fishtest",
+        value: "Test popup fishing admin tanpa menyimpan ikan, EXP, progress, atau data lain.",
+        inline: false
+      },
+      {
+        name: "!fishcompforcestart",
+        value: "Memaksa kompetisi yang sedang registrasi agar mulai lebih cepat.",
+        inline: false
+      }
+    );
+  }
+
+  return embed;
 }
 
-function makeHelpMessage() {
-  return makeMessageWithBanner(makeHelpEmbed(), makeSettingsImage("fishHelpBanner"));
+function makeHelpMessage(showAdminCommands = false) {
+  return makeMessageWithBanner(makeHelpEmbed(showAdminCommands), makeSettingsImage("fishHelpBanner"));
 }
 
 function makeFishGuideEmbed() {
@@ -2272,20 +2349,17 @@ function makeSlashCommands() {
       description: "Minta bot join voice channel kamu untuk mengaktifkan progress voice."
     },
     {
-      name: "fishsetdefaultchannel",
-      description: "Set default channel untuk popup fishing saat channel terakhir pemain belum ada.",
+      name: "fishsetpopupchannel",
+      description: "Buat thread Fishing! untuk semua popup fishing server ini.",
       options: [
         {
           name: "channel",
-          description: "Text channel default untuk pesan fishing.",
+          description: "Text channel tempat thread Fishing! akan dibuat.",
           type: ApplicationCommandOptionType.Channel,
           required: true,
           channel_types: [
             ChannelType.GuildText,
-            ChannelType.GuildAnnouncement,
-            ChannelType.PublicThread,
-            ChannelType.PrivateThread,
-            ChannelType.AnnouncementThread
+            ChannelType.GuildAnnouncement
           ]
         }
       ]
@@ -2401,12 +2475,31 @@ async function handleCommand(message) {
     return;
   }
 
-  if (command !== "fish") {
+  if (command !== "fish" && command !== "fishtest") {
     return;
   }
 
   if (!isAdmin(message.author)) {
     await message.reply("Only admins can use this test fishing command.");
+    return;
+  }
+
+  if (command === "fishtest") {
+    await withPlayerReadOnly(message.author, async (player) => {
+      const rod = getRod(player.rodId);
+      if (!rod || gameData.fish.length === 0) {
+        await message.reply("Fishing data is not ready yet. Check PlayFab item data.");
+        return;
+      }
+      const catchResult = rollFish(rod, message.guildId);
+      if (!catchResult) {
+        await message.reply("No fish are configured yet.");
+        return;
+      }
+      const expGain = calculateCatchExp(catchResult.fish, message.guildId);
+      const popupChannel = await fetchFishingMessageChannel(null, message.guildId) || message.channel;
+      await popupChannel.send(makeCatchMessage(message.author, catchResult.fish, catchResult.catchWeight, expGain));
+    });
     return;
   }
 
@@ -2419,11 +2512,11 @@ async function handleCommand(message) {
       return { save: false };
     }
 
-    const catchEmbed = makeCatchEmbed(message.author, result.caughtFish, result.catchWeight, result.expGain);
-    await message.reply({ embeds: [catchEmbed.embed], files: catchEmbed.files });
+    const popupChannel = await fetchFishingMessageChannel(player, message.guildId) || message.channel;
+    await popupChannel.send(makeCatchMessage(message.author, result.caughtFish, result.catchWeight, result.expGain));
     const currentLevel = getLevel(player.exp);
     if (currentLevel > previousLevel) {
-      await message.channel.send({ embeds: [makeLevelUpEmbed(message.author, currentLevel, message.member)] });
+      await popupChannel.send({ embeds: [makeLevelUpEmbed(message.author, currentLevel, message.member)] });
     }
   });
 }
@@ -2451,13 +2544,13 @@ async function handleFishingProgress(message) {
       return;
     }
 
+    const popupChannel = await fetchFishingMessageChannel(player, message.guildId) || message.channel;
     for (const result of catches) {
-      const catchEmbed = makeCatchEmbed(message.author, result.caughtFish, result.catchWeight, result.expGain);
-      await message.channel.send({ embeds: [catchEmbed.embed], files: catchEmbed.files });
+      await popupChannel.send(makeCatchMessage(message.author, result.caughtFish, result.catchWeight, result.expGain));
     }
     const currentLevel = getLevel(player.exp);
     if (currentLevel > previousLevel) {
-      await message.channel.send({ embeds: [makeLevelUpEmbed(message.author, currentLevel, message.member)] });
+      await popupChannel.send({ embeds: [makeLevelUpEmbed(message.author, currentLevel, message.member)] });
     }
   });
 }
@@ -2678,13 +2771,13 @@ client.on("interactionCreate", async (interaction) => {
       return;
     }
 
-    if (interaction.commandName === "fishsetdefaultchannel") {
+    if (interaction.commandName === "fishsetpopupchannel") {
       if (!interaction.guildId || !interaction.guild) {
         await interaction.reply({ content: "Command ini hanya bisa dipakai di server.", flags: MessageFlags.Ephemeral });
         return;
       }
       if (!isAdmin(interaction.user)) {
-        await interaction.reply({ content: "Only admins can set the default fishing channel.", flags: MessageFlags.Ephemeral });
+        await interaction.reply({ content: "Only admins can set the fishing popup channel.", flags: MessageFlags.Ephemeral });
         return;
       }
 
@@ -2694,12 +2787,19 @@ client.on("interactionCreate", async (interaction) => {
         return;
       }
 
-      defaultFishingChannels.set(interaction.guildId, channel.id);
-      saveDefaultFishingChannels();
-      await interaction.reply({
-        content: `Default fishing channel diset ke ${channel}. Kalau player belum punya last fishing channel, popup fishing akan dikirim ke sana.`,
-        flags: MessageFlags.Ephemeral
+      await interaction.deferReply({ flags: MessageFlags.Ephemeral });
+      const thread = await createFishingPopupThread(channel).catch((error) => {
+        console.error("Could not create fishing popup thread:", error);
+        return null;
       });
+      if (!thread?.id) {
+        await interaction.editReply("Aku belum bisa membuat thread `Fishing!` di channel itu. Pastikan bot punya permission Create Public Threads.");
+        return;
+      }
+
+      defaultFishingChannels.set(interaction.guildId, thread.id);
+      saveDefaultFishingChannels();
+      await interaction.editReply(`Fishing popup channel diset ke ${thread}. Semua popup fishing server ini akan dikirim ke thread itu.`);
       return;
     }
 
@@ -2721,7 +2821,7 @@ client.on("interactionCreate", async (interaction) => {
 
     if (interaction.commandName === "fishhelp") {
       await interaction.reply({
-        ...makeHelpMessage(),
+        ...makeHelpMessage(isAdmin(interaction.user)),
         flags: MessageFlags.Ephemeral
       });
       return;
@@ -2764,16 +2864,17 @@ client.on("interactionCreate", async (interaction) => {
         currentTurn: 0,
         logIntervalMs: Math.max(0, Number(getSettings().fishCompLogIntervalMs || 2500)),
         message: null,
+        pingMessage: null,
         timeout: null
       };
       competitions.set(interaction.guildId, competition);
       await interaction.reply(makeCompetitionMessage(competition, "registration", makeCompetitionJoinRow(false)));
       competition.message = await interaction.fetchReply();
       const fishCompRole = interaction.guild ? await ensureFishCompRole(interaction.guild) : null;
-      await interaction.channel?.send({
+      competition.pingMessage = await interaction.channel?.send({
         content: `Ayo! Kompetisi memancing sudah dimulai!! ${fishCompRole ? fishCompRole.toString() : "@FishComp"}`,
         allowedMentions: fishCompRole ? { roles: [fishCompRole.id] } : { parse: [] }
-      }).catch(() => {});
+      }).catch(() => null);
       competition.timeout = setTimeout(() => {
         if (competition.participants.size < 2) {
           cancelCompetition(competition, competition.participants.size === 0 ? "Tidak ada peserta yang join." : "Butuh minimal 2 peserta untuk memulai kompetisi.");
