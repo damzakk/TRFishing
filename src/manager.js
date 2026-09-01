@@ -101,7 +101,15 @@ function rollFishForManager(data, player) {
     throw new Error("Fishing data is not ready yet.");
   }
   const rodMaxWeight = Number(rod.maxWeight || Infinity);
-  const fishPool = fish.filter((entry) => Number(entry.minWeight || 0) <= rodMaxWeight);
+  const guildId = String(player.lastFishingGuildId || "").trim();
+  const fishSource = fish.filter((entry) => {
+    const serverId = String(entry.serverId || "").trim();
+    return !serverId || (guildId && serverId === guildId);
+  });
+  if (!fishSource.length) {
+    throw new Error("No fish are available for this player's saved server.");
+  }
+  const fishPool = fishSource.filter((entry) => Number(entry.minWeight || 0) <= rodMaxWeight);
   const weightedFish = (fishPool.length ? fishPool : fish).map((entry) => ({
     fish: entry,
     weight: Math.max(0.1, Number(entry.baseWeight || 0) + Number(rod.luck || 0) * Number(entry.luckScale || 0))
@@ -150,6 +158,9 @@ function cleanItem(item, type) {
   if (type === "fish") {
     const minWeight = cleanNumber(item.minWeight, cleanNumber(item.baseWeight, 1));
     const maxWeight = Math.max(minWeight, cleanNumber(item.maxWeight, minWeight));
+    const descriptions = Array.isArray(item.descriptions)
+      ? item.descriptions.map((description) => String(description || "").trim()).filter(Boolean)
+      : String(item.description || "").split(/\r?\n/).map((description) => description.trim()).filter(Boolean);
     return {
       ...common,
       rarity: String(item.rarity || "Common").trim(),
@@ -159,12 +170,15 @@ function cleanItem(item, type) {
       luckScale: cleanNumber(item.luckScale, 0),
       exp: cleanNumber(item.exp, 0),
       gold: cleanNumber(item.gold, 0),
-      description: String(item.description || "").trim()
+      serverId: String(item.serverId || "").trim(),
+      description: descriptions[0] || "",
+      descriptions
     };
   }
 
   return {
     ...common,
+    rarity: String(item.rarity || "Common").trim(),
     price: cleanNumber(item.price, 0),
     speed: Math.max(1, cleanNumber(item.speed, 1)),
     luck: cleanNumber(item.luck, 0),
@@ -205,6 +219,7 @@ function cleanSettings(settings) {
     fishCompLogIntervalMs: Math.max(0, cleanNumber(source.fishCompLogIntervalMs, 2500)),
     fishCompExpReward: Math.max(0, cleanNumber(source.fishCompExpReward, 50)),
     fishCompGoldReward: Math.max(0, cleanNumber(source.fishCompGoldReward, 0)),
+    allowActivity: source.allowActivity !== false,
     chatCooldownMs: Math.max(0, cleanNumber(source.chatCooldownMs, 20_000)),
     expMultiplier: Math.max(0, cleanNumber(source.expMultiplier, 1)),
     levelExpMultiplier: Math.max(0.01, cleanNumber(source.levelExpMultiplier, 1)),
@@ -448,6 +463,49 @@ async function handleApi(request, response) {
           luckScore: gain.luckScore
         }
       });
+      return;
+    }
+
+    if (request.method === "POST" && request.url === "/api/players/enforce-fishing") {
+      const data = await adminGetGameData();
+      const players = await adminListPlayers();
+      const updatedPlayers = [];
+      const catches = [];
+      let queuedCount = 0;
+      let skippedCount = 0;
+
+      for (const record of players) {
+        const player = cleanPlayer(record.player);
+        try {
+          const catchResult = rollFishForManager(data, player);
+          const gain = addManagerCatch(data, player, catchResult.fish, catchResult.catchWeight);
+          const saved = await adminSavePlayerData(record.playFabId, player);
+          updatedPlayers.push(saved);
+          const discordUserId = String(saved.player?.discordUserId || player.discordUserId || record.discordUserId || "").trim();
+          const messageChannel = resolveFishingMessageChannel(player, saved.player);
+          if (discordUserId && messageChannel.channelId) {
+            catches.push({
+              discordUserId,
+              guildId: messageChannel.guildId,
+              channelId: messageChannel.channelId,
+              fish: catchResult.fish,
+              catchWeight: catchResult.catchWeight,
+              expGain: gain.expGain
+            });
+            queuedCount += 1;
+          } else {
+            skippedCount += 1;
+          }
+        } catch (error) {
+          skippedCount += 1;
+          console.error(`Could not enforce fishing for ${record.playFabId}:`, error);
+        }
+      }
+
+      if (catches.length) {
+        signalEnforcedFishing({ catches });
+      }
+      sendJson(response, 200, { ok: true, count: updatedPlayers.length, queuedCount, skippedCount, players: updatedPlayers });
       return;
     }
 
@@ -886,6 +944,33 @@ const html = `<!doctype html>
       position: sticky;
       top: 12px;
     }
+    .info-panel {
+      grid-column: 1 / -1;
+    }
+    .toggle-row {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+    .toggle-row input {
+      width: auto;
+    }
+    .calc-table {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: 13px;
+    }
+    .calc-table th,
+    .calc-table td {
+      border-top: 1px solid var(--line);
+      padding: 8px;
+      text-align: left;
+      vertical-align: top;
+    }
+    .calc-table th {
+      color: var(--muted);
+      font-size: 12px;
+    }
     .hidden-input {
       position: absolute;
       opacity: 0;
@@ -900,6 +985,7 @@ const html = `<!doctype html>
       .fish-layout { grid-template-columns: 1fr; }
       .fish-detail { position: static; }
       .image-grid { grid-template-columns: 1fr; }
+      .calc-table { display: block; overflow-x: auto; }
     }
   </style>
 </head>
@@ -917,11 +1003,11 @@ const html = `<!doctype html>
     <div class="tabs">
       <button class="active" data-tab="fish">Fish</button>
       <button data-tab="rods">Rods</button>
+      <button data-tab="calc">Calc Table</button>
       <button data-tab="admin">Admin Control</button>
       <button data-tab="settings">Settings</button>
       <button data-tab="event">Event</button>
       <button data-tab="players">Player Management</button>
-      <button id="add">Add Fish</button>
     </div>
     <p class="status" id="status"></p>
     <section class="grid" id="grid"></section>
@@ -932,12 +1018,19 @@ const html = `<!doctype html>
       fish: [],
       rods: [],
       adminDiscordIds: [],
-      settings: { rodStoreImageBase64: "", rodStoreImageUrl: "", fishCompBannerBase64: "", fishCompBannerUrl: "", fishCompRegistrationBannerBase64: "", fishCompRegistrationBannerUrl: "", fishCompRunningBannerBase64: "", fishCompRunningBannerUrl: "", fishCompResultBannerBase64: "", fishCompResultBannerUrl: "", fishGuideBannerBase64: "", fishGuideBannerUrl: "", fishHelpBannerBase64: "", fishHelpBannerUrl: "", sellFishBannerBase64: "", sellFishBannerUrl: "", fishCompEvents: [], fishCompLogIntervalMs: 2500, fishCompExpReward: 50, fishCompGoldReward: 0, chatCooldownMs: 20000, expMultiplier: 1, levelExpMultiplier: 1, voiceExpAmount: 1, voiceExpIntervalMinutes: 15 },
+      settings: { rodStoreImageBase64: "", rodStoreImageUrl: "", fishCompBannerBase64: "", fishCompBannerUrl: "", fishCompRegistrationBannerBase64: "", fishCompRegistrationBannerUrl: "", fishCompRunningBannerBase64: "", fishCompRunningBannerUrl: "", fishCompResultBannerBase64: "", fishCompResultBannerUrl: "", fishGuideBannerBase64: "", fishGuideBannerUrl: "", fishHelpBannerBase64: "", fishHelpBannerUrl: "", sellFishBannerBase64: "", sellFishBannerUrl: "", fishCompEvents: [], fishCompLogIntervalMs: 2500, fishCompExpReward: 50, fishCompGoldReward: 0, allowActivity: true, chatCooldownMs: 20000, expMultiplier: 1, levelExpMultiplier: 1, voiceExpAmount: 1, voiceExpIntervalMinutes: 15 },
       activeEvent: null,
       events: [],
       eventDraft: null,
       selectedFishId: "",
+      selectedRodId: "",
       fishSort: "name",
+      rodSort: "name",
+      fishSearch: "",
+      rodSearch: "",
+      calcRodId: "",
+      calcServerId: "",
+      infoCollapsed: { fish: false, rods: false },
       lastAnnouncementChannelId: localStorage.getItem("trfishing:lastAnnouncementChannelId") || "",
       players: [],
       playerSearch: "",
@@ -948,7 +1041,6 @@ const html = `<!doctype html>
     };
     const grid = document.querySelector("#grid");
     const statusEl = document.querySelector("#status");
-    const addButton = document.querySelector("#add");
     const fishRarities = ["Common", "Uncommon", "Rare", "Epic", "Legendary", "Secret", "Mythic", "Divine", "Celestial", "Abyssal", "Transcendent"];
 
     function setStatus(message, isError = false) {
@@ -962,12 +1054,12 @@ const html = `<!doctype html>
 
     function makeEmptyItem() {
       if (state.tab === "fish") {
-        return { id: "new_fish_" + Date.now(), name: "New Fish", rarity: "Common", baseWeight: 10, minWeight: 1, maxWeight: 5, luckScale: 0, exp: 5, gold: 10, description: "", iconBase64: "" };
+        return { id: "new_fish_" + Date.now(), name: "New Fish", rarity: "Common", baseWeight: 10, minWeight: 1, maxWeight: 5, luckScale: 0, exp: 5, gold: 10, serverId: "", description: "", descriptions: [], iconBase64: "" };
       }
       if (state.tab === "admin") {
         return "";
       }
-      return { id: "new_rod", name: "New Rod", price: 100, speed: 5, luck: 1, maxWeight: 10, description: "", iconBase64: "" };
+      return { id: "new_rod_" + Date.now(), name: "New Rod", rarity: "Common", price: 100, speed: 5, luck: 1, maxWeight: 10, description: "", iconBase64: "" };
     }
 
     function updateItem(index, key, value) {
@@ -1001,8 +1093,6 @@ const html = `<!doctype html>
       document.querySelectorAll("[data-tab]").forEach((button) => {
         button.classList.toggle("active", button.dataset.tab === state.tab);
       });
-      addButton.textContent = state.tab === "fish" ? "Add Fish" : state.tab === "rods" ? "Add Rod" : state.tab === "event" ? "Create New Event" : "Add Admin";
-      addButton.hidden = ["settings", "players"].includes(state.tab);
       grid.innerHTML = "";
 
       if (state.tab === "players") {
@@ -1012,12 +1102,7 @@ const html = `<!doctype html>
       }
 
       if (state.tab === "admin") {
-        state.adminDiscordIds.forEach((adminDiscordId, index) => {
-          const card = document.createElement("article");
-          card.className = "item";
-          card.innerHTML = adminTemplate(adminDiscordId, index);
-          grid.appendChild(card);
-        });
+        grid.innerHTML = adminTabTemplate();
         restoreScrollState(scrollState);
         return;
       }
@@ -1052,26 +1137,41 @@ const html = `<!doctype html>
         return;
       }
 
-      state[state.tab].forEach((item, index) => {
-        const card = document.createElement("article");
-        card.className = "item";
-        const size = iconSize(item);
-        card.innerHTML = rodTemplate(item, index, size);
-        grid.appendChild(card);
-      });
+      if (state.tab === "rods") {
+        grid.innerHTML = rodTabTemplate();
+        restoreScrollState(scrollState);
+        return;
+      }
+
+      if (state.tab === "calc") {
+        grid.innerHTML = calcTableTemplate();
+        restoreScrollState(scrollState);
+        return;
+      }
       restoreScrollState(scrollState);
     }
 
     function adminTemplate(adminDiscordId, index) {
       return \`
-        <div class="topline">
-          <div class="small">Admin</div>
-          <button class="danger" data-remove="\${index}">Remove</button>
-        </div>
+        <div class="topline"><div class="small">Admin</div><button class="danger" data-remove="\${index}">Remove</button></div>
         <div class="fields">
           \${field("Discord ID or Username", "adminDiscordId", adminDiscordId, index)}
           <div class="wide small">Use a numeric Discord user ID, or a username like azaralea. Only these admins can use \${escapeHtml("${prefix}")}fish for instant test fishing.</div>
         </div>\`;
+    }
+
+    function adminTabTemplate() {
+      const rows = state.adminDiscordIds.length
+        ? state.adminDiscordIds.map((adminDiscordId, index) => \`<article class="item">\${adminTemplate(adminDiscordId, index)}</article>\`).join("")
+        : '<article class="item"><div class="small">No admins yet.</div></article>';
+      return \`
+        <article class="item wide">
+          <div class="topline">
+            <strong>Admin Control</strong>
+            <button data-add-admin>Add Admin</button>
+          </div>
+        </article>
+        \${rows}\`;
     }
 
     function selectedPlayerRecord() {
@@ -1091,6 +1191,7 @@ const html = `<!doctype html>
             <input data-player-search placeholder="Search Discord ID or username" value="\${escapeHtml(state.playerSearch)}">
             <div class="button-row">
               <button data-search-players>Search</button>
+              <button data-enforce-all-fishing>Enforce Fishing To All Player</button>
               <button class="danger" data-reset-all-players>Reset All Player Data</button>
               <button class="danger" data-delete-all-players>Delete All Players</button>
             </div>
@@ -1169,6 +1270,7 @@ const html = `<!doctype html>
           \${field("Fish Comp Log Interval, ms", "fishCompLogIntervalMs", state.settings.fishCompLogIntervalMs ?? 2500, 0, "number", "100")}
           \${field("Voice Progress Amount", "voiceExpAmount", state.settings.voiceExpAmount ?? 1, 0, "number", "1")}
           \${field("Voice Progress Interval, minutes", "voiceExpIntervalMinutes", state.settings.voiceExpIntervalMinutes ?? 15, 0, "number", "1")}
+          <label class="wide toggle-row"><input type="checkbox" data-key="allowActivity" \${state.settings.allowActivity !== false ? "checked" : ""}> Allow Activity</label>
           <div class="wide small">EXP Multiplier changes EXP gained from fish. Voice Progress Amount and Interval control passive fishing progress from voice.</div>
           <label class="wide">Fish Comp Events JSON<textarea data-settings-json="fishCompEvents">\${escapeHtml(JSON.stringify(state.settings.fishCompEvents || [], null, 2))}</textarea></label>
           <div class="wide small">Use {user} and {target} in event text. Chance is percent per player turn. Types: stun, buff, debuff, empty. luckModifier changes competition luck while active.</div>
@@ -1251,6 +1353,7 @@ const html = `<!doctype html>
         if (bonus.type === "gold_multiplier") return \`Gold x\${bonus.value}\`;
         if (bonus.type === "exp_multiplier") return \`EXP x\${bonus.value}\`;
         if (bonus.type === "fish_chance") return \`\${bonus.fishId || "Fish"} chance x\${bonus.value}\`;
+        if (bonus.type === "fishing_speed") return \`Fishing speed x\${bonus.value}\`;
         return \`Bonus x\${bonus.value}\`;
       }).join(", ") || "No bonus";
     }
@@ -1278,6 +1381,7 @@ const html = `<!doctype html>
       return \`
         <div class="topline">
           <strong>Events</strong>
+          <button data-create-event type="button">Create New Event</button>
         </div>
         <div class="event-scroll">\${rows}</div>\`;
     }
@@ -1323,14 +1427,21 @@ const html = `<!doctype html>
     }
 
     function bonusTemplate(bonus, bonusIndex) {
+      const fishDatalistId = \`fish-id-options-\${bonusIndex}\`;
+      const fishOptions = state.fish
+        .map((fish) => {
+          const fishId = String(fish.id || "");
+          return \`<option value="\${escapeHtml(fishId)}" \${bonus.fishId === fishId ? "selected" : ""}>\${escapeHtml(fish.name || fish.id || "")} (\${escapeHtml(fishId)})</option>\`;
+        })
+        .join("");
       return \`
         <div class="bonus-row wide">
           <div class="fields">
             <label>Event Type<select data-bonus-index="\${bonusIndex}" data-bonus-key="type">
-              \${["gold_multiplier", "exp_multiplier", "fish_chance"].map((type) => \`<option value="\${type}" \${bonus.type === type ? "selected" : ""}>\${type}</option>\`).join("")}
+              \${["gold_multiplier", "exp_multiplier", "fish_chance", "fishing_speed"].map((type) => \`<option value="\${type}" \${bonus.type === type ? "selected" : ""}>\${type}</option>\`).join("")}
             </select></label>
             \${bonusField("Multiplier / Chance Boost", "value", bonus.value, bonusIndex, "number", "0.01")}
-            \${bonusField("Fish ID, for fish_chance", "fishId", bonus.fishId || "", bonusIndex)}
+            \${bonus.type === "fish_chance" ? \`<label>Fish<select data-bonus-index="\${bonusIndex}" data-bonus-key="fishId"><option value="">All fish</option>\${fishOptions}</select><input placeholder="Search fish by typing here" list="\${fishDatalistId}" value="\${escapeHtml(bonus.fishId || "")}" data-bonus-index="\${bonusIndex}" data-bonus-key="fishId"></label><datalist id="\${fishDatalistId}">\${fishOptions}</datalist>\` : ""}
             <button class="danger" data-remove-bonus="\${bonusIndex}" type="button">Remove Bonus</button>
           </div>
         </div>\`;
@@ -1342,8 +1453,10 @@ const html = `<!doctype html>
     }
 
     function sortedFishEntries() {
+      const query = normalizeSearch(state.fishSearch);
       return state.fish
         .map((item, index) => ({ item, index }))
+        .filter(({ item }) => matchesSearch(item, query))
         .sort((a, b) => {
           if (state.fishSort === "rarity") {
             return rarityRank(a.item.rarity) - rarityRank(b.item.rarity)
@@ -1371,9 +1484,12 @@ const html = `<!doctype html>
         ? entries.map(({ item, index }) => fishGridCardTemplate(item, index)).join("")
         : '<div class="small">No fish yet.</div>';
       return \`
+        \${infoPanelTemplate("fish", "Fish Data", "A fish is available when its Server ID is empty or matches the Discord server, and its Min Kg is not above the rod Max Kg. Catch chance uses Chance Weight plus Rod Luck times Luck Scale, then active fish_chance event multipliers. EXP is gained on catch. Sell Gold is used when selling fish.")}
         <div class="fish-layout">
           <article class="item">
             <div class="fish-toolbar">
+              <input data-fish-search placeholder="Search fish name, ID, rarity, server" value="\${escapeHtml(state.fishSearch)}">
+              <button data-add-item="fish">Add Fish</button>
               <button data-fish-sort="name" class="\${state.fishSort === "name" ? "primary" : ""}">Sort Name</button>
               <button data-fish-sort="rarity" class="\${state.fishSort === "rarity" ? "primary" : ""}">Sort Rarity</button>
               <button data-export-fish>Export JSON</button>
@@ -1415,7 +1531,8 @@ const html = `<!doctype html>
           \${field("Luck Scale", "luckScale", item.luckScale, index, "number", "0.01")}
           \${field("EXP", "exp", item.exp, index, "number", "1")}
           \${field("Sell Gold", "gold", item.gold, index, "number", "1")}
-          <label class="wide">Description<textarea data-index="\${index}" data-key="description">\${escapeHtml(item.description || "")}</textarea></label>
+          \${field("Server ID", "serverId", item.serverId || "", index)}
+          <label class="wide">Descriptions, one per line<textarea data-index="\${index}" data-key="description">\${escapeHtml(fishDescriptionsText(item))}</textarea></label>
           \${field("Icon URL Import", "iconUrl", item.iconUrl || "", index, "url")}
           \${iconField(index, size)}
         </div>\`;
@@ -1430,6 +1547,9 @@ const html = `<!doctype html>
         <div class="fields">
           \${field("ID", "id", item.id, index)}
           \${field("Name", "name", item.name, index)}
+          <label>Rarity<select data-index="\${index}" data-key="rarity">
+            \${fishRarities.map((rarity) => \`<option \${item.rarity === rarity ? "selected" : ""}>\${rarity}</option>\`).join("")}
+          </select></label>
           \${field("Price", "price", item.price, index, "number", "1")}
           \${field("Speed, Chats Needed", "speed", item.speed, index, "number", "1")}
           \${field("Luck", "luck", item.luck, index, "number", "1")}
@@ -1439,6 +1559,147 @@ const html = `<!doctype html>
           \${field("Icon URL Import", "iconUrl", item.iconUrl || "", index, "url")}
           \${iconField(index, size)}
         </div>\`;
+    }
+
+    function fishDescriptionsText(item) {
+      const descriptions = Array.isArray(item.descriptions) ? item.descriptions : [];
+      return descriptions.length ? descriptions.join("\\n") : String(item.description || "");
+    }
+
+    function sortedRodEntries() {
+      const query = normalizeSearch(state.rodSearch);
+      return state.rods
+        .map((item, index) => ({ item, index }))
+        .filter(({ item }) => matchesSearch(item, query))
+        .sort((a, b) => {
+          if (state.rodSort === "rarity") {
+            return rarityRank(a.item.rarity) - rarityRank(b.item.rarity)
+              || String(a.item.name || "").localeCompare(String(b.item.name || ""));
+          }
+          if (["price", "speed", "luck", "maxWeight", "accuracy"].includes(state.rodSort)) {
+            return Number(a.item[state.rodSort] || 0) - Number(b.item[state.rodSort] || 0)
+              || String(a.item.name || "").localeCompare(String(b.item.name || ""));
+          }
+          return String(a.item.name || "").localeCompare(String(b.item.name || ""));
+        });
+    }
+
+    function selectedRodEntry() {
+      return state.rods
+        .map((item, index) => ({ item, index }))
+        .find((entry) => String(entry.item.id || "") === state.selectedRodId)
+        || null;
+    }
+
+    function rodTabTemplate() {
+      const entries = sortedRodEntries();
+      if (!state.selectedRodId && entries[0]) {
+        state.selectedRodId = String(entries[0].item.id || "");
+      }
+      const selected = selectedRodEntry();
+      const cards = entries.length
+        ? entries.map(({ item, index }) => rodGridCardTemplate(item, index)).join("")
+        : '<div class="small">No rods yet.</div>';
+      return \`
+        \${infoPanelTemplate("rods", "Rod Data", "Speed is how many valid chat progress points are needed before a catch roll. Luck changes fish odds through each fish Luck Scale. Max Kg limits which fish can be caught and caps rolled catch weight. Accuracy is stored for rod balance/display. Price is used by the rod store.")}
+        <div class="fish-layout">
+          <article class="item">
+            <div class="fish-toolbar">
+              <input data-rod-search placeholder="Search rods name, ID, stats" value="\${escapeHtml(state.rodSearch)}">
+              <button data-add-item="rods">Add Rod</button>
+              <button data-rod-sort="name" class="\${state.rodSort === "name" ? "primary" : ""}">Sort Name</button>
+              <button data-rod-sort="rarity" class="\${state.rodSort === "rarity" ? "primary" : ""}">Sort Rarity</button>
+              <button data-rod-sort="price" class="\${state.rodSort === "price" ? "primary" : ""}">Sort Price</button>
+              <button data-rod-sort="speed" class="\${state.rodSort === "speed" ? "primary" : ""}">Sort Speed</button>
+              <button data-rod-sort="luck" class="\${state.rodSort === "luck" ? "primary" : ""}">Sort Luck</button>
+              <button data-export-rods>Export JSON</button>
+              <label class="file-picker"><span>Import JSON</span><input type="file" accept="application/json,.json" data-import-rods></label>
+            </div>
+            <div class="fish-gallery">\${cards}</div>
+          </article>
+          <article class="item fish-detail">
+            \${selected ? rodTemplate(selected.item, selected.index, iconSize(selected.item)) : '<div class="small">Click a rod to edit its full panel.</div>'}
+          </article>
+        </div>\`;
+    }
+
+    function rodGridCardTemplate(item, index) {
+      const source = item.iconBase64 || item.iconUrl || "";
+      const active = String(item.id || "") === state.selectedRodId;
+      return \`
+        <button class="fish-card \${active ? "active" : ""}" data-select-rod="\${escapeHtml(String(item.id || ""))}" data-index="\${index}">
+          \${source ? \`<img alt="" src="\${source}">\` : \`<div class="empty-preview">No image</div>\`}
+          <span>\${escapeHtml(item.name || item.id || "Unnamed Rod")}</span>
+        </button>\`;
+    }
+
+    function infoPanelTemplate(key, title, body) {
+      const collapsed = state.infoCollapsed[key] === true;
+      return \`
+        <article class="item info-panel">
+          <div class="topline">
+            <strong>\${escapeHtml(title)}</strong>
+            <button data-toggle-info="\${key}">\${collapsed ? "Show Info" : "Minimize"}</button>
+          </div>
+          \${collapsed ? "" : \`<div class="small">\${escapeHtml(body)}</div>\`}
+        </article>\`;
+    }
+
+    function calcTableTemplate() {
+      if (!state.calcRodId && state.rods[0]) state.calcRodId = state.rods[0].id;
+      const rod = state.rods.find((entry) => entry.id === state.calcRodId) || state.rods[0];
+      const rows = rod ? calculateFishChances(rod, state.calcServerId).map((entry) => \`
+        <tr>
+          <td>\${escapeHtml(entry.fish.name || entry.fish.id || "")}</td>
+          <td>\${escapeHtml(entry.fish.rarity || "")}</td>
+          <td>\${escapeHtml(entry.available ? "Yes" : "No")}</td>
+          <td>\${entry.available ? entry.chance.toFixed(2) + "%" : "-"}</td>
+          <td>\${entry.weight.toFixed(2)}</td>
+          <td>\${escapeHtml(entry.reason)}</td>
+        </tr>\`).join("") : "";
+      return \`
+        <article class="item wide">
+          <div class="topline"><strong>Calc Table</strong></div>
+          <div class="fields">
+            <label>Rod<select data-calc-rod>
+              \${state.rods.map((item) => \`<option value="\${escapeHtml(item.id || "")}" \${rod?.id === item.id ? "selected" : ""}>\${escapeHtml(item.name || item.id || "")}</option>\`).join("")}
+            </select></label>
+            <label>Server ID<input data-calc-server placeholder="Empty means global fish only" value="\${escapeHtml(state.calcServerId)}"></label>
+          </div>
+          <table class="calc-table">
+            <thead><tr><th>Fish</th><th>Rarity</th><th>Available</th><th>Chance</th><th>Weight</th><th>Reason</th></tr></thead>
+            <tbody>\${rows || '<tr><td colspan="6">No rod or fish data yet.</td></tr>'}</tbody>
+          </table>
+        </article>\`;
+    }
+
+    function calculateFishChances(rod, serverId) {
+      const rodMaxWeight = Number(rod.maxWeight || Infinity);
+      const guildId = String(serverId || "").trim();
+      const entries = state.fish.map((fish) => {
+        const fishServerId = String(fish.serverId || "").trim();
+        const serverOk = !fishServerId || (guildId && fishServerId === guildId);
+        const weightOk = Number(fish.minWeight || 0) <= rodMaxWeight;
+        const weight = Math.max(0.1, Number(fish.baseWeight || 0) + Number(rod.luck || 0) * Number(fish.luckScale || 0));
+        return {
+          fish,
+          weight,
+          available: serverOk && weightOk,
+          reason: !serverOk ? \`Server: \${fishServerId}\` : !weightOk ? "Over rod Max Kg" : "Available"
+        };
+      });
+      const total = entries.filter((entry) => entry.available).reduce((sum, entry) => sum + entry.weight, 0);
+      return entries.map((entry) => ({ ...entry, chance: entry.available && total > 0 ? entry.weight / total * 100 : 0 }));
+    }
+
+    function normalizeSearch(value) {
+      return String(value || "").trim().toLowerCase();
+    }
+
+    function matchesSearch(item, query) {
+      if (!query) return true;
+      return [item.id, item.name, item.rarity, item.serverId, item.price, item.speed, item.luck, item.maxWeight, item.accuracy]
+        .some((value) => String(value ?? "").toLowerCase().includes(query));
     }
 
     function field(label, key, value, index, type = "text", step = "") {
@@ -1460,50 +1721,70 @@ const html = `<!doctype html>
     }
 
     function exportFishJson() {
-      const blob = new Blob([JSON.stringify(state.fish || [], null, 2)], { type: "application/json" });
+      exportItemsJson("fish", "trfishing-fish.json");
+    }
+
+    function exportRodsJson() {
+      exportItemsJson("rods", "trfishing-rods.json");
+    }
+
+    function exportItemsJson(collectionName, fileName) {
+      const items = state[collectionName] || [];
+      const blob = new Blob([JSON.stringify(items, null, 2)], { type: "application/json" });
       const link = document.createElement("a");
       link.href = URL.createObjectURL(blob);
-      link.download = "trfishing-fish.json";
+      link.download = fileName;
       document.body.appendChild(link);
       link.click();
       link.remove();
       URL.revokeObjectURL(link.href);
-      setStatus("Exported " + state.fish.length + " fish.");
+      setStatus("Exported " + items.length + " " + collectionName + ".");
     }
 
     function importFishJson(file) {
+      importItemsJson(file, "fish", "fish");
+    }
+
+    function importRodsJson(file) {
+      importItemsJson(file, "rods", "rods");
+    }
+
+    function importItemsJson(file, collectionName, payloadKey) {
       if (!file) return;
       const reader = new FileReader();
       reader.onload = () => {
         try {
           const parsed = JSON.parse(String(reader.result || ""));
-          const importedFish = Array.isArray(parsed) ? parsed : Array.isArray(parsed.fish) ? parsed.fish : [];
-          if (!importedFish.length) {
-            throw new Error("JSON must be an array of fish, or an object with a fish array.");
+          const importedItems = Array.isArray(parsed) ? parsed : Array.isArray(parsed[payloadKey]) ? parsed[payloadKey] : [];
+          if (!importedItems.length) {
+            throw new Error("JSON must be an array of " + payloadKey + ", or an object with a " + payloadKey + " array.");
           }
           let replaced = 0;
           let added = 0;
-          for (const fish of importedFish) {
-            if (!fish || typeof fish !== "object" || !String(fish.id || "").trim()) {
+          for (const item of importedItems) {
+            if (!item || typeof item !== "object" || !String(item.id || "").trim()) {
               continue;
             }
-            const normalizedFish = { iconBase64: "", iconUrl: "", ...fish, id: String(fish.id || "").trim().toLowerCase().replace(/[^a-z0-9_]/g, "_") };
-            const existingIndex = state.fish.findIndex((entry) => String(entry.id || "") === normalizedFish.id);
+            const normalizedItem = { iconBase64: "", iconUrl: "", ...item, id: String(item.id || "").trim().toLowerCase().replace(/[^a-z0-9_]/g, "_") };
+            const existingIndex = state[collectionName].findIndex((entry) => String(entry.id || "") === normalizedItem.id);
             if (existingIndex >= 0) {
-              state.fish[existingIndex] = normalizedFish;
+              state[collectionName][existingIndex] = normalizedItem;
               replaced += 1;
             } else {
-              state.fish.push(normalizedFish);
+              state[collectionName].push(normalizedItem);
               added += 1;
             }
           }
-          if (!state.selectedFishId && state.fish[0]) {
+          if (collectionName === "fish" && !state.selectedFishId && state.fish[0]) {
             state.selectedFishId = String(state.fish[0].id || "");
           }
-          setStatus("Imported fish JSON. Replaced " + replaced + ", added " + added + ". Press Save to store changes.");
+          if (collectionName === "rods" && !state.selectedRodId && state.rods[0]) {
+            state.selectedRodId = String(state.rods[0].id || "");
+          }
+          setStatus("Imported " + payloadKey + " JSON. Replaced " + replaced + ", added " + added + ". Press Save to store changes.");
           render();
         } catch (error) {
-          setStatus(error.message || "Could not import fish JSON.", true);
+          setStatus(error.message || "Could not import JSON.", true);
         }
       };
       reader.readAsText(file);
@@ -1522,6 +1803,8 @@ const html = `<!doctype html>
       state.events = payload.events || (payload.activeEvent ? [payload.activeEvent] : []);
       state.eventDraft = null;
       state.selectedFishId = state.fish[0]?.id || "";
+      state.selectedRodId = state.rods[0]?.id || "";
+      state.calcRodId = state.rods[0]?.id || "";
       state.lastAnnouncementChannelId = state.activeEvent?.announcementChannelId || state.events[0]?.announcementChannelId || state.lastAnnouncementChannelId;
       if (state.lastAnnouncementChannelId) localStorage.setItem("trfishing:lastAnnouncementChannelId", state.lastAnnouncementChannelId);
       setStatus("Loaded from PlayFab.");
@@ -1636,6 +1919,19 @@ const html = `<!doctype html>
       const discordStatus = payload.messageQueued ? " Discord catch message queued." : " No last Discord channel is saved for this player yet.";
       state.catchNotice = \`Caught \${payload.catch.fish.name}, \${Number(payload.catch.catchWeight || 0).toFixed(2)} kg, +\${payload.catch.expGain} EXP, Luck Score \${payload.catch.luckScore}. Progress reset.\${discordStatus}\`;
       setStatus(payload.messageQueued ? "Fishing enforced and Discord message queued." : "Fishing enforced, but no Discord channel was saved.");
+      render();
+    }
+
+    async function enforceFishingForAllPlayers() {
+      if (!confirm("Enforce one fishing catch for every PlayFab player? Discord messages are queued immediately for players with a saved popup channel.")) return;
+      setStatus("Forcing fishing catches for all players...");
+      const response = await fetch("/api/players/enforce-fishing", { method: "POST" });
+      const payload = await response.json();
+      if (!response.ok) throw new Error(payload.error || "Could not enforce fishing for all players.");
+      state.players = payload.players || state.players;
+      state.selectedPlayerId = state.players.some((player) => player.playFabId === state.selectedPlayerId) ? state.selectedPlayerId : state.players[0]?.playFabId || "";
+      state.catchNotice = \`Enforced fishing for \${payload.count || 0} players. Discord catch messages queued: \${payload.queuedCount || 0}. Skipped/no channel: \${payload.skippedCount || 0}.\`;
+      setStatus("Fishing enforced for all players.");
       render();
     }
 
@@ -1781,20 +2077,6 @@ const html = `<!doctype html>
         }
       });
     });
-    addButton.addEventListener("click", () => {
-      if (state.tab === "admin") {
-        state.adminDiscordIds.push("");
-      } else if (state.tab === "event") {
-        state.eventDraft = makeEmptyEvent();
-      } else {
-        const item = makeEmptyItem();
-        state[state.tab].push(item);
-        if (state.tab === "fish") {
-          state.selectedFishId = item.id;
-        }
-      }
-      render();
-    });
     grid.addEventListener("input", (event) => {
       const target = event.target;
       if (state.tab === "players") {
@@ -1839,7 +2121,7 @@ const html = `<!doctype html>
           return;
         }
         if (!target.dataset.key) return;
-        state.settings[target.dataset.key] = target.type === "number" ? Number(target.value) : target.value;
+        state.settings[target.dataset.key] = target.type === "checkbox" ? target.checked : target.type === "number" ? Number(target.value) : target.value;
         if (target.dataset.key === "rodStoreImageUrl") {
           state.settings.rodStoreImageBase64 = "";
           delete state.uploadNames.rodStoreImageBase64;
@@ -1858,6 +2140,12 @@ const html = `<!doctype html>
         if (target.dataset.bonusKey) {
           const bonus = getEvent().bonuses[Number(target.dataset.bonusIndex)];
           bonus[target.dataset.bonusKey] = target.type === "number" ? Number(target.value) : target.value;
+          if (target.dataset.bonusKey === "type" && target.value !== "fish_chance") {
+            bonus.fishId = "";
+          }
+          if (target.dataset.bonusKey === "type") {
+            render();
+          }
           return;
         }
         const key = target.dataset.eventKey || target.dataset.key;
@@ -1870,11 +2158,37 @@ const html = `<!doctype html>
         }
         return;
       }
+      if (target.dataset.fishSearch !== undefined) {
+        state.fishSearch = target.value;
+        render();
+        return;
+      }
+      if (target.dataset.rodSearch !== undefined) {
+        state.rodSearch = target.value;
+        render();
+        return;
+      }
+      if (target.dataset.calcRod !== undefined) {
+        state.calcRodId = target.value;
+        render();
+        return;
+      }
+      if (target.dataset.calcServer !== undefined) {
+        state.calcServerId = target.value;
+        render();
+        return;
+      }
       if (!target.dataset.key) return;
       const itemIndex = Number(target.dataset.index);
       updateItem(Number(target.dataset.index), target.dataset.key, target.type === "number" ? Number(target.value) : target.value);
+      if (state.tab === "fish" && target.dataset.key === "description") {
+        state.fish[itemIndex].descriptions = String(target.value || "").split(/\\r?\\n/).map((description) => description.trim()).filter(Boolean);
+      }
       if (state.tab === "fish" && target.dataset.key === "id") {
         state.selectedFishId = state.fish[itemIndex]?.id || "";
+      }
+      if (state.tab === "rods" && target.dataset.key === "id") {
+        state.selectedRodId = state.rods[itemIndex]?.id || "";
       }
       if (target.dataset.key === "iconUrl") {
         const item = state[state.tab][Number(target.dataset.index)];
@@ -1885,6 +2199,11 @@ const html = `<!doctype html>
       const target = event.target;
       if (target.dataset.importFish !== undefined) {
         importFishJson(target.files[0]);
+        target.value = "";
+        return;
+      }
+      if (target.dataset.importRods !== undefined) {
+        importRodsJson(target.files[0]);
         target.value = "";
         return;
       }
@@ -1954,14 +2273,64 @@ const html = `<!doctype html>
         render();
         return;
       }
+      const selectRodButton = event.target.closest("[data-select-rod]");
+      if (selectRodButton) {
+        state.selectedRodId = selectRodButton.dataset.selectRod;
+        render();
+        return;
+      }
+      const toggleInfoButton = event.target.closest("[data-toggle-info]");
+      if (toggleInfoButton) {
+        const key = toggleInfoButton.dataset.toggleInfo;
+        state.infoCollapsed[key] = !state.infoCollapsed[key];
+        render();
+        return;
+      }
       const fishSortButton = event.target.closest("[data-fish-sort]");
       if (fishSortButton) {
         state.fishSort = fishSortButton.dataset.fishSort;
         render();
         return;
       }
+      const rodSortButton = event.target.closest("[data-rod-sort]");
+      if (rodSortButton) {
+        state.rodSort = rodSortButton.dataset.rodSort;
+        render();
+        return;
+      }
+      const addItemButton = event.target.closest("[data-add-item]");
+      if (addItemButton) {
+        const collectionName = addItemButton.dataset.addItem;
+        const previousTab = state.tab;
+        state.tab = collectionName;
+        const item = makeEmptyItem();
+        state[collectionName].push(item);
+        if (collectionName === "fish") {
+          state.selectedFishId = item.id;
+        }
+        if (collectionName === "rods") {
+          state.selectedRodId = item.id;
+        }
+        state.tab = previousTab;
+        render();
+        return;
+      }
+      if (event.target.closest("[data-add-admin]")) {
+        state.adminDiscordIds.push("");
+        render();
+        return;
+      }
+      if (event.target.closest("[data-create-event]")) {
+        state.eventDraft = makeEmptyEvent();
+        render();
+        return;
+      }
       if (event.target.closest("[data-export-fish]")) {
         exportFishJson();
+        return;
+      }
+      if (event.target.closest("[data-export-rods]")) {
+        exportRodsJson();
         return;
       }
       const selectPlayerButton = event.target.closest("[data-select-player]");
@@ -1989,6 +2358,10 @@ const html = `<!doctype html>
       }
       if (event.target.closest("[data-enforce-fishing]")) {
         enforceFishingForSelectedPlayer().catch((error) => setStatus(error.message, true));
+        return;
+      }
+      if (event.target.closest("[data-enforce-all-fishing]")) {
+        enforceFishingForAllPlayers().catch((error) => setStatus(error.message, true));
         return;
       }
       if (event.target.closest("[data-give-money]")) {
@@ -2073,6 +2446,9 @@ const html = `<!doctype html>
         const removed = state[state.tab].splice(Number(button.dataset.remove), 1)[0];
         if (state.tab === "fish" && String(removed?.id || "") === state.selectedFishId) {
           state.selectedFishId = state.fish[0]?.id || "";
+        }
+        if (state.tab === "rods" && String(removed?.id || "") === state.selectedRodId) {
+          state.selectedRodId = state.rods[0]?.id || "";
         }
       }
       render();

@@ -88,6 +88,7 @@ let gameData = {
     fishCompLogIntervalMs: 2500,
     fishCompExpReward: 50,
     fishCompGoldReward: 0,
+    allowActivity: true,
     chatCooldownMs: 20_000,
     expMultiplier: 1,
     levelExpMultiplier: 1,
@@ -160,6 +161,7 @@ function getSettings() {
     fishCompLogIntervalMs: 2500,
     fishCompExpReward: 50,
     fishCompGoldReward: 0,
+    allowActivity: true,
     chatCooldownMs: 20_000,
     expMultiplier: 1,
     levelExpMultiplier: 1,
@@ -184,7 +186,8 @@ function addFishingProgress(player, progressAmount = 1, guildId = "") {
 
   const catches = [];
   const speed = Math.max(1, Number(rod.speed || 1));
-  player.progress = Math.max(0, Number(player.progress || 0)) + Math.max(0, Number(progressAmount || 0));
+  const progressMultiplier = getEventMultiplier("fishing_speed", guildId);
+  player.progress = Math.max(0, Number(player.progress || 0)) + Math.max(0, Number(progressAmount || 0) * progressMultiplier);
   while (player.progress >= speed) {
     player.progress -= speed;
     const catchResult = rollFish(rod, guildId);
@@ -407,6 +410,9 @@ function startVoiceSession(member, channelId) {
 }
 
 async function processVoiceSession(key, forceSave = false) {
+  if (!isActivityAllowed()) {
+    return;
+  }
   const session = activeVoiceSessions.get(key);
   if (!session) {
     return;
@@ -684,10 +690,27 @@ function isValidFishingChat(message, player) {
   return true;
 }
 
+function isActivityAllowed() {
+  return getSettings().allowActivity !== false;
+}
+
+function activityBlockedMessage() {
+  return "Saat ini aktivitas sedang dibatas, mohon menunggu ya";
+}
+
+function getAvailableFish(guildId = "") {
+  const selectedGuildId = String(guildId || "").trim();
+  return gameData.fish.filter((entry) => {
+    const fishServerId = String(entry.serverId || "").trim();
+    return !fishServerId || (selectedGuildId && fishServerId === selectedGuildId);
+  });
+}
+
 function rollFish(rod, guildId = "") {
   const rodMaxWeight = Number(rod.maxWeight || Infinity);
-  const catchableFish = gameData.fish.filter((entry) => Number(entry.minWeight || 0) <= rodMaxWeight);
-  const fishPool = catchableFish.length ? catchableFish : gameData.fish;
+  const availableFish = getAvailableFish(guildId);
+  const catchableFish = availableFish.filter((entry) => Number(entry.minWeight || 0) <= rodMaxWeight);
+  const fishPool = catchableFish.length ? catchableFish : availableFish;
   const weightedFish = fishPool.map((entry) => {
     const luckWeight = Number(entry.baseWeight || 0) + Number(rod.luck || 0) * Number(entry.luckScale || 0);
     return {
@@ -804,7 +827,7 @@ function makeProfileRodOptions(player) {
     .slice(0, 25)
     .map((rod) => ({
       label: truncateText(rod.name, 100),
-      description: truncateText(`Speed ${rod.speed} · Luck ${rod.luck} · Max ${rod.maxWeight || "?"} kg · Acc ${rod.accuracy ?? 50}%`, 100),
+      description: truncateText(`${rod.rarity || "Common"} · Speed ${rod.speed} · Luck ${rod.luck} · Max ${rod.maxWeight || "?"} kg · Acc ${rod.accuracy ?? 50}%`, 100),
       value: rod.id,
       default: rod.id === player.rodId
     }));
@@ -837,8 +860,17 @@ function makeProfileMessage(user, player, member = null) {
   };
 }
 
+function getRandomFishDescription(caughtFish) {
+  const descriptions = Array.isArray(caughtFish.descriptions)
+    ? caughtFish.descriptions.map((description) => String(description || "").trim()).filter(Boolean)
+    : [];
+  const pool = descriptions.length ? descriptions : String(caughtFish.description || "").split(/\r?\n/).map((description) => description.trim()).filter(Boolean);
+  return pool.length ? pool[Math.floor(Math.random() * pool.length)] : "";
+}
+
 function makeCatchEmbed(user, caughtFish, catchWeight, expGain) {
-  const descriptionLine = caughtFish.description ? `\n${caughtFish.description}` : "";
+  const description = getRandomFishDescription(caughtFish);
+  const descriptionLine = description ? `\n${description}` : "";
   const luckScore = formatFishLuckScore(caughtFish.luckScale);
   const embed = new EmbedBuilder()
     .setColor(rarityColors[caughtFish.rarity] || 0x2ecc71)
@@ -867,10 +899,19 @@ function getUserMentionForMessage(user, options = {}) {
   return { content: "" };
 }
 
-function makeCatchShareRow() {
+function getCatchOwnerId(user) {
+  if (user?.id) {
+    return String(user.id);
+  }
+  const mention = String(user || "").match(/^<@!?(\d+)>$/);
+  return mention ? mention[1] : "";
+}
+
+function makeCatchShareRow(user) {
+  const ownerId = getCatchOwnerId(user);
   return new ActionRowBuilder().addComponents(
     new ButtonBuilder()
-      .setCustomId("catch_showcase")
+      .setCustomId(`catch_showcase:${ownerId || "unknown"}`)
       .setLabel("Pamerkan")
       .setStyle(ButtonStyle.Primary)
   );
@@ -882,7 +923,7 @@ function makeCatchMessage(user, caughtFish, catchWeight, expGain, options = {}) 
     ...getUserMentionForMessage(user, options),
     embeds: [catchEmbed.embed],
     files: catchEmbed.files,
-    components: [makeCatchShareRow()]
+    components: [makeCatchShareRow(user)]
   };
 }
 
@@ -924,7 +965,8 @@ function makeEventEmbed(event) {
   const typeLines = normalizeEventBonuses(event).map((bonus) => ({
     gold_multiplier: `Gold x${bonus.value}`,
     exp_multiplier: `EXP x${bonus.value}`,
-    fish_chance: `${bonus.fishId || "Ikan tertentu"} chance x${bonus.value}`
+    fish_chance: `${bonus.fishId || "Ikan tertentu"} chance x${bonus.value}`,
+    fishing_speed: `Fishing speed x${bonus.value}`
   }[bonus.type] || `Multiplier x${bonus.value}`)).join("\n");
   const endsAt = event.endsAt ? `<t:${Math.floor(Date.parse(event.endsAt) / 1000)}:R>` : "Belum ditentukan";
   const description = [
@@ -1002,7 +1044,8 @@ function describeEventBonus(bonus) {
   return {
     gold_multiplier: `Gold x${bonus.value}`,
     exp_multiplier: `EXP x${bonus.value}`,
-    fish_chance: `${bonus.fishId || "Ikan tertentu"} chance x${bonus.value}`
+    fish_chance: `${bonus.fishId || "Ikan tertentu"} chance x${bonus.value}`,
+    fishing_speed: `Fishing speed x${bonus.value}`
   }[bonus.type] || `Multiplier x${bonus.value}`;
 }
 
@@ -1209,24 +1252,29 @@ async function processEnforcedFishingSignal() {
     return;
   }
   processedEnforcedFishingIds.add(request.id);
-  if (!request.fish?.id || !request.discordUserId || !request.channelId) {
-    console.warn("Could not post enforced fishing catch: signal payload is incomplete.");
-    return;
-  }
+  const catches = Array.isArray(request.catches) && request.catches.length ? request.catches : [request];
+  for (const entry of catches) {
+    if (!entry.fish?.id || !entry.discordUserId || !entry.channelId) {
+      console.warn("Could not post enforced fishing catch: signal payload is incomplete.");
+      continue;
+    }
 
-  const channel = await fetchFishingMessageChannel(null, String(request.guildId || "")) || await client.channels.fetch(String(request.channelId || "")).catch(() => null);
-  if (!channel?.isTextBased?.()) {
-    console.warn("Could not post enforced fishing catch: channel is not available.");
-    return;
-  }
-  if (request.guildId && channel.guildId && request.guildId !== channel.guildId) {
-    console.warn("Could not post enforced fishing catch: channel guild does not match saved player guild.");
-    return;
-  }
+    const channel = await fetchFishingMessageChannel(null, String(entry.guildId || "")) || await client.channels.fetch(String(entry.channelId || "")).catch(() => null);
+    if (!channel?.isTextBased?.()) {
+      console.warn("Could not post enforced fishing catch: channel is not available.");
+      continue;
+    }
+    if (entry.guildId && channel.guildId && entry.guildId !== channel.guildId) {
+      console.warn("Could not post enforced fishing catch: channel guild does not match saved player guild.");
+      continue;
+    }
 
-  const user = await client.users.fetch(String(request.discordUserId || "")).catch(() => null);
-  const mention = user || `<@${request.discordUserId}>`;
-  await channel.send(makeCatchMessage(mention, request.fish, request.catchWeight, request.expGain, { enforced: true }));
+    const user = await client.users.fetch(String(entry.discordUserId || "")).catch(() => null);
+    const mention = user || `<@${entry.discordUserId}>`;
+    await channel.send(makeCatchMessage(mention, entry.fish, entry.catchWeight, entry.expGain, { enforced: true })).catch((error) => {
+      console.error("Could not post enforced fishing catch:", error);
+    });
+  }
   fs.writeFileSync(enforcedFishingSignalPath, JSON.stringify({ id: "", processedAt: new Date().toISOString(), processedId: request.id }));
 }
 
@@ -1352,8 +1400,9 @@ function makeRodStoreImageAttachment(player) {
       <rect x="${x}" y="${y}" width="${cardWidth}" height="${cardHeight}" rx="8" fill="#272933" stroke="#444755" />
       ${image}
       <text x="${x + 12}" y="${y + 108}" font-size="16" font-weight="700" fill="#ffffff">${escapeXml(truncateText(rod.name, 18))}</text>
-      <text x="${x + 12}" y="${y + 132}" font-size="13" fill="#c9cad3">SPD ${rod.speed} · LUCK ${rod.luck}</text>
-      <text x="${x + 12}" y="${y + 151}" font-size="13" fill="${equipped ? "#36c28a" : owned ? "#86a8ff" : "#f1c40f"}">${escapeXml(status)}</text>
+      <text x="${x + 12}" y="${y + 128}" font-size="12" fill="#f1c40f">${escapeXml(rod.rarity || "Common")}</text>
+      <text x="${x + 12}" y="${y + 145}" font-size="13" fill="#c9cad3">SPD ${rod.speed} · LUCK ${rod.luck}</text>
+      <text x="${x + 12}" y="${y + 160}" font-size="13" fill="${equipped ? "#36c28a" : owned ? "#86a8ff" : "#f1c40f"}">${escapeXml(status)}</text>
     `;
   }).join("");
   const svg = `
@@ -1377,7 +1426,7 @@ function makeRodSelectOptions(player) {
     const price = owned ? "-" : `${rod.price} gold`;
     return {
       label: truncateText(`${rod.name} ${status}`.trim(), 100),
-      description: truncateText(`Speed ${rod.speed} · Luck ${rod.luck} · Max ${rod.maxWeight || "?"} kg · Acc ${rod.accuracy ?? 50}% · Price ${price}`, 100),
+      description: truncateText(`${rod.rarity || "Common"} · Speed ${rod.speed} · Luck ${rod.luck} · Max ${rod.maxWeight || "?"} kg · Acc ${rod.accuracy ?? 50}% · Price ${price}`, 100),
       value: rod.id
     };
   });
@@ -2617,6 +2666,11 @@ async function handleCommand(message) {
     return;
   }
 
+  if (command === "fish" && !isActivityAllowed()) {
+    await message.reply(activityBlockedMessage());
+    return;
+  }
+
   if (!isAdmin(message.author)) {
     await message.reply("Only admins can use this test fishing command.");
     return;
@@ -2660,6 +2714,9 @@ async function handleCommand(message) {
 }
 
 async function handleFishingProgress(message) {
+  if (!isActivityAllowed()) {
+    return;
+  }
   if (!isPotentialFishingChat(message)) {
     return;
   }
@@ -2739,6 +2796,10 @@ client.on("interactionCreate", async (interaction) => {
     }
 
     if (interaction.isButton() && interaction.customId.startsWith("rod_buy:")) {
+      if (!isActivityAllowed()) {
+        await interaction.reply({ content: activityBlockedMessage(), flags: MessageFlags.Ephemeral });
+        return;
+      }
       const selectedRodId = interaction.customId.split(":")[1] || "";
       await interaction.deferUpdate();
       await withPlayer(interaction.user, async (player) => {
@@ -2749,7 +2810,14 @@ client.on("interactionCreate", async (interaction) => {
       return;
     }
 
-    if (interaction.isButton() && interaction.customId === "catch_showcase") {
+    if (interaction.isButton() && (interaction.customId === "catch_showcase" || interaction.customId.startsWith("catch_showcase:"))) {
+      const ownerId = interaction.customId.startsWith("catch_showcase:")
+        ? interaction.customId.slice("catch_showcase:".length)
+        : "";
+      if (ownerId && ownerId !== "unknown" && ownerId !== interaction.user.id) {
+        await interaction.reply({ content: "Hey, bukan ikan kamu, enak aja kamu pamer pamer 😤💢", flags: MessageFlags.Ephemeral });
+        return;
+      }
       await handleCatchShowcase(interaction);
       return;
     }
@@ -2772,6 +2840,10 @@ client.on("interactionCreate", async (interaction) => {
     }
 
     if (interaction.isButton() && interaction.customId === "fishcomp_join") {
+      if (!isActivityAllowed()) {
+        await interaction.reply({ content: activityBlockedMessage(), flags: MessageFlags.Ephemeral });
+        return;
+      }
       const competition = competitions.get(interaction.guildId);
       if (!competition || competition.status !== "registration") {
         await interaction.reply({ content: "Registrasi sudah ditutup.", flags: MessageFlags.Ephemeral });
@@ -2850,6 +2922,11 @@ client.on("interactionCreate", async (interaction) => {
     }
 
     if (!interaction.isChatInputCommand()) {
+      return;
+    }
+
+    if (["sellfish", "fishstore", "fishvoice", "fishcomp"].includes(interaction.commandName) && !isActivityAllowed()) {
+      await interaction.reply({ content: activityBlockedMessage(), flags: MessageFlags.Ephemeral });
       return;
     }
 

@@ -47,6 +47,7 @@ function parseGameData() {
         exp: readNumber(parts[7], 0),
         gold: readNumber(parts[8], 0),
         description: parts.slice(9).join(" | "),
+        serverId: "",
         iconBase64: ""
       });
     }
@@ -55,6 +56,7 @@ function parseGameData() {
       rods.push({
         id: cleanId(parts[0]),
         name: parts[1],
+        rarity: "Common",
         price: readNumber(parts[2], 0),
         speed: Math.max(1, readNumber(parts[3], 1)),
         luck: readNumber(parts[4], 0),
