@@ -33,6 +33,7 @@ const configRefreshMs = Number(process.env.CONFIG_REFRESH_MS || 300_000);
 const runtimeDirectory = path.join(__dirname, "..", ".runtime");
 const configSignalPath = path.join(runtimeDirectory, "config-refresh.json");
 const enforcedFishingSignalPath = path.join(runtimeDirectory, "enforced-fishing.json");
+const giveMoneySignalPath = path.join(runtimeDirectory, "give-money.json");
 const fishVoiceChannelsPath = path.join(runtimeDirectory, "fish-voice-channels.json");
 const defaultFishingChannelsPath = path.join(runtimeDirectory, "default-fishing-channels.json");
 const processStartedAt = Date.now();
@@ -81,6 +82,8 @@ let gameData = {
     fishGuideBannerUrl: "",
     fishHelpBannerBase64: "",
     fishHelpBannerUrl: "",
+    sellFishBannerBase64: "",
+    sellFishBannerUrl: "",
     fishCompEvents: [],
     fishCompLogIntervalMs: 2500,
     fishCompExpReward: 50,
@@ -104,7 +107,9 @@ const defaultFishingChannels = new Map();
 const activeVoiceSessions = new Map();
 let voiceTickTimer = null;
 let enforcedFishingTimer = null;
+let giveMoneyTimer = null;
 const processedEnforcedFishingIds = new Set();
+const processedGiveMoneyIds = new Set();
 
 async function refreshGameData() {
   gameData = await getGameData();
@@ -149,6 +154,8 @@ function getSettings() {
     fishGuideBannerUrl: "",
     fishHelpBannerBase64: "",
     fishHelpBannerUrl: "",
+    sellFishBannerBase64: "",
+    sellFishBannerUrl: "",
     fishCompEvents: [],
     fishCompLogIntervalMs: 2500,
     fishCompExpReward: 50,
@@ -319,6 +326,50 @@ async function sendFishingCatchMessages(channel, user, catches, previousLevel, c
       console.error("Could not send fishing level-up message:", error);
     });
   }
+}
+
+async function resolveCatchShowcaseChannel(interaction) {
+  const channel = interaction.channel;
+  if (!channel?.isTextBased?.()) {
+    return null;
+  }
+  if (!channel.isThread?.()) {
+    return channel;
+  }
+  if (channel.parent?.isTextBased?.()) {
+    return channel.parent;
+  }
+  if (channel.parentId) {
+    return client.channels.fetch(channel.parentId).catch(() => null);
+  }
+  return null;
+}
+
+async function handleCatchShowcase(interaction) {
+  const targetChannel = await resolveCatchShowcaseChannel(interaction);
+  if (!targetChannel?.isTextBased?.()) {
+    await interaction.reply({ content: "Aku belum bisa menemukan channel utama untuk pamer tangkapan ini.", flags: MessageFlags.Ephemeral });
+    return;
+  }
+
+  const embeds = interaction.message.embeds.map((embed) => EmbedBuilder.from(embed));
+  if (!embeds.length) {
+    await interaction.reply({ content: "Popup tangkapan ini tidak bisa dipamerkan.", flags: MessageFlags.Ephemeral });
+    return;
+  }
+
+  const files = [...interaction.message.attachments.values()].map((attachment) => ({
+    attachment: attachment.url,
+    name: attachment.name || undefined
+  }));
+
+  await targetChannel.send({
+    content: `${formatDiscordMention(interaction.user.id)} meminta izin untuk pamer nih bos!`,
+    embeds,
+    files,
+    allowedMentions: { users: [interaction.user.id] }
+  });
+  await interaction.reply({ content: "Tangkapanmu sudah dipamerkan di channel utama.", flags: MessageFlags.Ephemeral });
 }
 
 function isCountedVoiceState(voiceState) {
@@ -804,23 +855,34 @@ function makeCatchEmbed(user, caughtFish, catchWeight, expGain) {
   return { embed, files: icon?.attachment ? [icon.attachment] : [] };
 }
 
-function getUserMentionForMessage(user) {
+function getUserMentionForMessage(user, options = {}) {
+  const suffix = options.enforced ? ", hasil dari sedekah atmin" : "";
   if (user?.id) {
-    return { content: `### 🎣 Tangkapan baru untuk ${formatDiscordMention(user.id)}!\n\n`, allowedMentions: { users: [user.id] } };
+    return { content: `### 🎣 Tangkapan baru untuk ${formatDiscordMention(user.id)}${suffix}!\n\n`, allowedMentions: { users: [user.id] } };
   }
   const mention = String(user || "").match(/^<@!?(\d+)>$/);
   if (mention) {
-    return { content: `### 🎣 Tangkapan baru untuk ${formatDiscordMention(mention[1])}!\n\n`, allowedMentions: { users: [mention[1]] } };
+    return { content: `### 🎣 Tangkapan baru untuk ${formatDiscordMention(mention[1])}${suffix}!\n\n`, allowedMentions: { users: [mention[1]] } };
   }
   return { content: "" };
 }
 
-function makeCatchMessage(user, caughtFish, catchWeight, expGain) {
+function makeCatchShareRow() {
+  return new ActionRowBuilder().addComponents(
+    new ButtonBuilder()
+      .setCustomId("catch_showcase")
+      .setLabel("Pamerkan")
+      .setStyle(ButtonStyle.Primary)
+  );
+}
+
+function makeCatchMessage(user, caughtFish, catchWeight, expGain, options = {}) {
   const catchEmbed = makeCatchEmbed(user, caughtFish, catchWeight, expGain);
   return {
-    ...getUserMentionForMessage(user),
+    ...getUserMentionForMessage(user, options),
     embeds: [catchEmbed.embed],
-    files: catchEmbed.files
+    files: catchEmbed.files,
+    components: [makeCatchShareRow()]
   };
 }
 
@@ -930,6 +992,10 @@ function makeMessageWithBanner(embed, banner) {
     embeds: [embed],
     files: banner?.attachment ? [banner.attachment] : []
   };
+}
+
+function formatGoldAmount(value) {
+  return `${Math.max(0, Math.floor(Number(value || 0))).toLocaleString("id-ID")} Gold`;
 }
 
 function describeEventBonus(bonus) {
@@ -1160,8 +1226,41 @@ async function processEnforcedFishingSignal() {
 
   const user = await client.users.fetch(String(request.discordUserId || "")).catch(() => null);
   const mention = user || `<@${request.discordUserId}>`;
-  await channel.send(makeCatchMessage(mention, request.fish, request.catchWeight, request.expGain));
+  await channel.send(makeCatchMessage(mention, request.fish, request.catchWeight, request.expGain, { enforced: true }));
   fs.writeFileSync(enforcedFishingSignalPath, JSON.stringify({ id: "", processedAt: new Date().toISOString(), processedId: request.id }));
+}
+
+async function processGiveMoneySignal() {
+  if (!fs.existsSync(giveMoneySignalPath)) {
+    return;
+  }
+
+  const request = JSON.parse(fs.readFileSync(giveMoneySignalPath, "utf8"));
+  if (!request?.id || processedGiveMoneyIds.has(request.id)) {
+    return;
+  }
+  processedGiveMoneyIds.add(request.id);
+  if (!request.discordUserId || !request.channelId || Number(request.amount || 0) <= 0) {
+    console.warn("Could not post give money message: signal payload is incomplete.");
+    return;
+  }
+
+  const channel = await fetchFishingMessageChannel(null, String(request.guildId || "")) || await client.channels.fetch(String(request.channelId || "")).catch(() => null);
+  if (!channel?.isTextBased?.()) {
+    console.warn("Could not post give money message: channel is not available.");
+    return;
+  }
+  if (request.guildId && channel.guildId && request.guildId !== channel.guildId) {
+    console.warn("Could not post give money message: channel guild does not match saved player guild.");
+    return;
+  }
+
+  const amount = Math.max(0, Math.floor(Number(request.amount || 0)));
+  await channel.send({
+    content: `## Atmin telah memberikan sedekah kepada <@${request.discordUserId}> sebesar ${amount} Gold.\n-# *Jangan lupa bilang terima kasih ya wahai anak muda.*`,
+    allowedMentions: { users: [String(request.discordUserId)] }
+  });
+  fs.writeFileSync(giveMoneySignalPath, JSON.stringify({ id: "", processedAt: new Date().toISOString(), processedId: request.id }));
 }
 
 function scheduleEnforcedFishingSignal() {
@@ -1169,6 +1268,14 @@ function scheduleEnforcedFishingSignal() {
   enforcedFishingTimer = setTimeout(() => {
     processEnforcedFishingSignal()
       .catch((error) => console.error("Could not post enforced fishing catch from manager signal:", error));
+  }, 250);
+}
+
+function scheduleGiveMoneySignal() {
+  clearTimeout(giveMoneyTimer);
+  giveMoneyTimer = setTimeout(() => {
+    processGiveMoneySignal()
+      .catch((error) => console.error("Could not post give money message from manager signal:", error));
   }, 250);
 }
 
@@ -1180,6 +1287,16 @@ function watchEnforcedFishingSignal() {
 
   fs.watch(enforcedFishingSignalPath, scheduleEnforcedFishingSignal);
   console.log("Watching manager enforced fishing signal.");
+}
+
+function watchGiveMoneySignal() {
+  fs.mkdirSync(runtimeDirectory, { recursive: true });
+  if (!fs.existsSync(giveMoneySignalPath)) {
+    fs.writeFileSync(giveMoneySignalPath, JSON.stringify({ id: "", createdAt: new Date().toISOString() }));
+  }
+
+  fs.watch(giveMoneySignalPath, scheduleGiveMoneySignal);
+  console.log("Watching manager give money signal.");
 }
 
 function makeInventoryEmbed(user, player) {
@@ -1860,12 +1977,14 @@ function sellFish(player, fishName, guildId = "") {
     : null;
 
   if (fishName && !selectedFish) {
-    return { ok: false, message: "Ikan itu tidak ditemukan." };
+    return { ok: false, message: { content: "Ikan itu tidak ditemukan." } };
   }
 
   const fishToSell = selectedFish ? [selectedFish] : gameData.fish;
+  const goldBefore = Math.max(0, Math.floor(Number(player.gold || 0)));
   let totalGold = 0;
   let totalCount = 0;
+  const soldLines = [];
 
   for (const fishEntry of fishToSell) {
     const quantity = player.inventory[fishEntry.id] || 0;
@@ -1873,22 +1992,41 @@ function sellFish(player, fishName, guildId = "") {
       continue;
     }
 
+    const earnedGold = Math.max(0, Math.round(quantity * Number(fishEntry.gold || 0) * getEventMultiplier("gold_multiplier", guildId)));
     totalCount += quantity;
-    totalGold += Math.max(0, Math.round(quantity * Number(fishEntry.gold || 0) * getEventMultiplier("gold_multiplier", guildId)));
+    totalGold += earnedGold;
+    soldLines.push(`${fishEntry.name} x${quantity} = ${formatGoldAmount(earnedGold)}`);
     delete player.inventory[fishEntry.id];
   }
 
   if (totalCount === 0) {
     return {
       ok: false,
-      message: selectedFish ? `Kamu tidak punya ${selectedFish.name}.` : "Kamu tidak punya ikan untuk dijual."
+      message: { content: selectedFish ? `Kamu tidak punya ${selectedFish.name}.` : "Kamu tidak punya ikan untuk dijual." }
     };
   }
 
-  player.gold += totalGold;
+  player.gold = goldBefore + totalGold;
+  const remainingFishCount = Object.values(player.inventory || {}).reduce((sum, quantity) => sum + Math.max(0, Math.floor(Number(quantity || 0))), 0);
+  const inventoryStatus = selectedFish
+    ? `${selectedFish.name} sekarang **0** di inventory kamu. Total ikan tersisa: **${remainingFishCount}**.`
+    : remainingFishCount === 0
+      ? "Semua ikan di inventory sekarang **0**. Inventory ikan kamu kosong."
+      : `Ikan yang dijual sudah **0**. Total ikan tersisa: **${remainingFishCount}**.`;
+  const embed = new EmbedBuilder()
+    .setColor(0xf1c40f)
+    .setTitle("Ikan Berhasil Dijual")
+    .setDescription(`Kamu menjual **${totalCount}** ikan dan mendapatkan **${formatGoldAmount(totalGold)}**.`)
+    .addFields(
+      { name: "Gold Sebelum", value: formatGoldAmount(goldBefore), inline: true },
+      { name: "Gold Sesudah", value: formatGoldAmount(player.gold), inline: true },
+      { name: "Inventory", value: inventoryStatus },
+      { name: "Rincian", value: truncateText(soldLines.join("\n"), 1024) }
+    );
+  const banner = makeSettingsImage("sellFishBanner");
   return {
     ok: true,
-    message: `Berhasil menjual ${totalCount} ikan seharga ${totalGold} gold.`
+    message: makeMessageWithBanner(embed, banner)
   };
 }
 
@@ -2611,6 +2749,11 @@ client.on("interactionCreate", async (interaction) => {
       return;
     }
 
+    if (interaction.isButton() && interaction.customId === "catch_showcase") {
+      await handleCatchShowcase(interaction);
+      return;
+    }
+
     if (interaction.isButton() && interaction.customId.startsWith("fishcomp_history:")) {
       cleanupFinishedCompetitionLogs();
       const logId = interaction.customId.slice("fishcomp_history:".length);
@@ -2872,7 +3015,7 @@ client.on("interactionCreate", async (interaction) => {
       competition.message = await interaction.fetchReply();
       const fishCompRole = interaction.guild ? await ensureFishCompRole(interaction.guild) : null;
       competition.pingMessage = await interaction.channel?.send({
-        content: `Ayo! Kompetisi memancing sudah dimulai!! ${fishCompRole ? fishCompRole.toString() : "@FishComp"}`,
+        content: `## Ayo! Kompetisi memancing sudah dimulai!! ${fishCompRole ? fishCompRole.toString() : "@FishComp"}\n-# *buka /fishprofile dan tekan tombol untuk mendapatkan role @FishComp*`,
         allowedMentions: fishCompRole ? { roles: [fishCompRole.id] } : { parse: [] }
       }).catch(() => null);
       competition.timeout = setTimeout(() => {
@@ -2950,6 +3093,7 @@ async function start() {
   loadDefaultFishingChannels();
   watchManagerConfigSignal();
   watchEnforcedFishingSignal();
+  watchGiveMoneySignal();
   setInterval(() => {
     refreshGameData()
       .then(() => announceEventUpdates())

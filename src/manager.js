@@ -19,6 +19,7 @@ const prefix = process.env.PREFIX || "!";
 const runtimeDirectory = path.join(__dirname, "..", ".runtime");
 const configSignalPath = path.join(runtimeDirectory, "config-refresh.json");
 const enforcedFishingSignalPath = path.join(runtimeDirectory, "enforced-fishing.json");
+const giveMoneySignalPath = path.join(runtimeDirectory, "give-money.json");
 const defaultFishingChannelsPath = path.join(runtimeDirectory, "default-fishing-channels.json");
 
 function sendJson(response, statusCode, payload) {
@@ -182,6 +183,7 @@ function cleanSettings(settings) {
   const fishCompResultBannerUrl = String(source.fishCompResultBannerUrl || "").trim();
   const fishGuideBannerUrl = String(source.fishGuideBannerUrl || "").trim();
   const fishHelpBannerUrl = String(source.fishHelpBannerUrl || "").trim();
+  const sellFishBannerUrl = String(source.sellFishBannerUrl || "").trim();
   return {
     rodStoreImageBase64: String(source.rodStoreImageBase64 || ""),
     rodStoreImageUrl,
@@ -197,6 +199,8 @@ function cleanSettings(settings) {
     fishGuideBannerUrl,
     fishHelpBannerBase64: String(source.fishHelpBannerBase64 || ""),
     fishHelpBannerUrl,
+    sellFishBannerBase64: String(source.sellFishBannerBase64 || ""),
+    sellFishBannerUrl,
     fishCompEvents: cleanFishCompEvents(source.fishCompEvents),
     fishCompLogIntervalMs: Math.max(0, cleanNumber(source.fishCompLogIntervalMs, 2500)),
     fishCompExpReward: Math.max(0, cleanNumber(source.fishCompExpReward, 50)),
@@ -330,6 +334,15 @@ function signalEnforcedFishing(payload) {
   }));
 }
 
+function signalGiveMoney(payload) {
+  fs.mkdirSync(runtimeDirectory, { recursive: true });
+  fs.writeFileSync(giveMoneySignalPath, JSON.stringify({
+    id: `${Date.now()}:${Math.random().toString(36).slice(2)}`,
+    createdAt: new Date().toISOString(),
+    ...payload
+  }));
+}
+
 function readDefaultFishingChannels() {
   if (!fs.existsSync(defaultFishingChannelsPath)) {
     return {};
@@ -434,6 +447,38 @@ async function handleApi(request, response) {
           expGain: gain.expGain,
           luckScore: gain.luckScore
         }
+      });
+      return;
+    }
+
+    if (request.method === "POST" && request.url === "/api/player/give-money") {
+      const body = JSON.parse(await readBody(request));
+      const playFabId = String(body.playFabId || "").trim();
+      if (!playFabId) throw new Error("Missing PlayFab ID.");
+      const amount = Math.max(0, Math.floor(cleanNumber(body.amount, 0)));
+      if (amount <= 0) throw new Error("Money amount must be greater than 0.");
+      const player = cleanPlayer(body.player);
+      const goldBefore = Math.max(0, Math.floor(Number(player.gold || 0)));
+      player.gold = goldBefore + amount;
+      const saved = await adminSavePlayerData(playFabId, player);
+      const discordUserId = String(saved.player?.discordUserId || player.discordUserId || "").trim();
+      const messageChannel = resolveFishingMessageChannel(player, saved.player);
+      const channelId = messageChannel.channelId;
+      if (discordUserId && channelId) {
+        signalGiveMoney({
+          discordUserId,
+          guildId: messageChannel.guildId,
+          channelId,
+          amount
+        });
+      }
+      sendJson(response, 200, {
+        ok: true,
+        messageQueued: Boolean(discordUserId && channelId),
+        player: saved,
+        goldBefore,
+        goldAfter: player.gold,
+        amount
       });
       return;
     }
@@ -887,7 +932,7 @@ const html = `<!doctype html>
       fish: [],
       rods: [],
       adminDiscordIds: [],
-      settings: { rodStoreImageBase64: "", rodStoreImageUrl: "", fishCompBannerBase64: "", fishCompBannerUrl: "", fishCompRegistrationBannerBase64: "", fishCompRegistrationBannerUrl: "", fishCompRunningBannerBase64: "", fishCompRunningBannerUrl: "", fishCompResultBannerBase64: "", fishCompResultBannerUrl: "", fishGuideBannerBase64: "", fishGuideBannerUrl: "", fishHelpBannerBase64: "", fishHelpBannerUrl: "", fishCompEvents: [], fishCompLogIntervalMs: 2500, fishCompExpReward: 50, fishCompGoldReward: 0, chatCooldownMs: 20000, expMultiplier: 1, levelExpMultiplier: 1, voiceExpAmount: 1, voiceExpIntervalMinutes: 15 },
+      settings: { rodStoreImageBase64: "", rodStoreImageUrl: "", fishCompBannerBase64: "", fishCompBannerUrl: "", fishCompRegistrationBannerBase64: "", fishCompRegistrationBannerUrl: "", fishCompRunningBannerBase64: "", fishCompRunningBannerUrl: "", fishCompResultBannerBase64: "", fishCompResultBannerUrl: "", fishGuideBannerBase64: "", fishGuideBannerUrl: "", fishHelpBannerBase64: "", fishHelpBannerUrl: "", sellFishBannerBase64: "", sellFishBannerUrl: "", fishCompEvents: [], fishCompLogIntervalMs: 2500, fishCompExpReward: 50, fishCompGoldReward: 0, chatCooldownMs: 20000, expMultiplier: 1, levelExpMultiplier: 1, voiceExpAmount: 1, voiceExpIntervalMinutes: 15 },
       activeEvent: null,
       events: [],
       eventDraft: null,
@@ -898,6 +943,7 @@ const html = `<!doctype html>
       playerSearch: "",
       selectedPlayerId: "",
       catchNotice: "",
+      giveMoneyAmount: 0,
       uploadNames: {}
     };
     const grid = document.querySelector("#grid");
@@ -1092,6 +1138,10 @@ const html = `<!doctype html>
           <label class="wide">Heaviest Fish JSON<textarea data-player-json="heaviestFish">\${escapeHtml(JSON.stringify(player.heaviestFish || null, null, 2))}</textarea></label>
           <label class="wide">Luckiest Fish JSON<textarea data-player-json="luckiestFish">\${escapeHtml(JSON.stringify(player.luckiestFish || null, null, 2))}</textarea></label>
           <div class="wide button-row">
+            <label>Give Money Amount<input type="number" step="1" min="1" data-give-money-amount value="\${escapeHtml(String(state.giveMoneyAmount || ""))}"></label>
+            <button data-give-money>Give Money</button>
+          </div>
+          <div class="wide button-row">
             <button class="primary" data-save-player>Save Player</button>
             <button data-enforce-fishing>Enforce Fishing</button>
             <button data-make-admin>Make Admin</button>
@@ -1129,6 +1179,7 @@ const html = `<!doctype html>
             \${settingsImageFields("Fish Comp Result Banner", "fishCompResultBanner")}
             \${settingsImageFields("Fish Guide Banner", "fishGuideBanner")}
             \${settingsImageFields("Fish Help Banner", "fishHelpBanner")}
+            \${settingsImageFields("Sell Fish Banner", "sellFishBanner")}
             \${settingsImageFields("Legacy Fish Comp Banner", "fishCompBanner")}
           </div>
         </div>\`;
@@ -1588,6 +1639,29 @@ const html = `<!doctype html>
       render();
     }
 
+    async function giveMoneyToSelectedPlayer() {
+      const selected = selectedPlayerRecord();
+      if (!selected) return;
+      const amount = Math.max(0, Math.floor(Number(state.giveMoneyAmount || 0)));
+      if (amount <= 0) {
+        setStatus("Enter a money amount greater than 0.", true);
+        return;
+      }
+      setStatus("Giving money...");
+      const response = await fetch("/api/player/give-money", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ playFabId: selected.playFabId, player: selected.player, amount })
+      });
+      const payload = await response.json();
+      if (!response.ok) throw new Error(payload.error || "Could not give money.");
+      updateSelectedPlayer(payload.player);
+      const discordStatus = payload.messageQueued ? " Discord message queued." : " No last Discord channel is saved for this player yet.";
+      state.catchNotice = \`Gave \${payload.amount} Gold. Gold: \${payload.goldBefore} -> \${payload.goldAfter}.\${discordStatus}\`;
+      setStatus(payload.messageQueued ? "Money given and Discord message queued." : "Money given, but no Discord channel was saved.");
+      render();
+    }
+
     async function resetAllPlayers() {
       if (!confirm("Reset fishing data for every loaded PlayFab player?")) return;
       setStatus("Resetting all players...");
@@ -1726,6 +1800,10 @@ const html = `<!doctype html>
       if (state.tab === "players") {
         if (target.dataset.playerSearch !== undefined) {
           state.playerSearch = target.value;
+          return;
+        }
+        if (target.dataset.giveMoneyAmount !== undefined) {
+          state.giveMoneyAmount = Number(target.value);
           return;
         }
         const selected = selectedPlayerRecord();
@@ -1911,6 +1989,10 @@ const html = `<!doctype html>
       }
       if (event.target.closest("[data-enforce-fishing]")) {
         enforceFishingForSelectedPlayer().catch((error) => setStatus(error.message, true));
+        return;
+      }
+      if (event.target.closest("[data-give-money]")) {
+        giveMoneyToSelectedPlayer().catch((error) => setStatus(error.message, true));
         return;
       }
       if (event.target.closest("[data-make-admin]")) {

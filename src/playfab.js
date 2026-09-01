@@ -31,6 +31,8 @@ const defaultSettings = {
   fishGuideBannerUrl: "",
   fishHelpBannerBase64: "",
   fishHelpBannerUrl: "",
+  sellFishBannerBase64: "",
+  sellFishBannerUrl: "",
   fishCompEvents: [
     {
       id: "slip_pool",
@@ -630,6 +632,7 @@ function cleanSettings(settings) {
   const fishCompResultBannerUrl = String(source.fishCompResultBannerUrl || "").trim();
   const fishGuideBannerUrl = String(source.fishGuideBannerUrl || "").trim();
   const fishHelpBannerUrl = String(source.fishHelpBannerUrl || "").trim();
+  const sellFishBannerUrl = String(source.sellFishBannerUrl || "").trim();
   return {
     rodStoreImageBase64: String(source.rodStoreImageBase64 || ""),
     rodStoreImageUrl,
@@ -649,6 +652,8 @@ function cleanSettings(settings) {
     fishGuideBannerUrl,
     fishHelpBannerBase64: String(source.fishHelpBannerBase64 || ""),
     fishHelpBannerUrl,
+    sellFishBannerBase64: String(source.sellFishBannerBase64 || ""),
+    sellFishBannerUrl,
     fishCompEvents: cleanFishCompEvents(source.fishCompEvents),
     fishCompLogIntervalMs: Math.max(0, cleanNumber(source.fishCompLogIntervalMs ?? defaultSettings.fishCompLogIntervalMs, defaultSettings.fishCompLogIntervalMs)),
     fishCompExpReward: Math.max(0, cleanNumber(source.fishCompExpReward ?? defaultSettings.fishCompExpReward, defaultSettings.fishCompExpReward)),
@@ -990,7 +995,8 @@ function withoutConfigAssets(config) {
       fishCompRunningBannerBase64: "",
       fishCompResultBannerBase64: "",
       fishGuideBannerBase64: "",
-      fishHelpBannerBase64: ""
+      fishHelpBannerBase64: "",
+      sellFishBannerBase64: ""
     },
     activeEvent: activeEvent
       ? {
@@ -1033,7 +1039,9 @@ async function attachConfigAssets(config, useSecretKey = false) {
       fishGuideBannerBase64: "",
       fishGuideBannerUrl: settings.fishGuideBannerUrl,
       fishHelpBannerBase64: "",
-      fishHelpBannerUrl: settings.fishHelpBannerUrl
+      fishHelpBannerUrl: settings.fishHelpBannerUrl,
+      sellFishBannerBase64: "",
+      sellFishBannerUrl: settings.sellFishBannerUrl
     },
     activeEvent: activeEvent
       ? {
@@ -1168,6 +1176,12 @@ async function adminSaveGameData({ fish, rods, adminDiscordIds, settings, active
     sourceUrl: cleanSettingsValue.fishHelpBannerUrl,
     keyForExtension: (extension) => settingsImageContentKeyFor("fish-help-banner", extension)
   });
+  const sellFishBannerUrl = await saveContentImage({
+    currentUrl: cleanSettingsValue.sellFishBannerUrl,
+    dataUrl: cleanSettingsValue.sellFishBannerBase64,
+    sourceUrl: cleanSettingsValue.sellFishBannerUrl,
+    keyForExtension: (extension) => settingsImageContentKeyFor("sell-fish-banner", extension)
+  });
   const bannerUrl = cleanEventValue
     ? await saveContentImage({
       currentUrl: cleanEventValue.bannerUrl,
@@ -1226,7 +1240,8 @@ async function adminSaveGameData({ fish, rods, adminDiscordIds, settings, active
       fishCompRunningBannerUrl,
       fishCompResultBannerUrl,
       fishGuideBannerUrl,
-      fishHelpBannerUrl
+      fishHelpBannerUrl,
+      sellFishBannerUrl
     },
     activeEvent: cleanEventValue
       ? {
