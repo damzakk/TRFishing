@@ -36,6 +36,8 @@ const enforcedFishingSignalPath = path.join(runtimeDirectory, "enforced-fishing.
 const giveMoneySignalPath = path.join(runtimeDirectory, "give-money.json");
 const fishVoiceChannelsPath = path.join(runtimeDirectory, "fish-voice-channels.json");
 const defaultFishingChannelsPath = path.join(runtimeDirectory, "default-fishing-channels.json");
+const fishRaidStatePath = path.join(runtimeDirectory, "fish-raid-state.json");
+const fishRaidSignalPath = path.join(runtimeDirectory, "fish-raid-signal.json");
 const processStartedAt = Date.now();
 const voiceTickMs = 60_000;
 
@@ -85,9 +87,29 @@ let gameData = {
     sellFishBannerBase64: "",
     sellFishBannerUrl: "",
     fishCompEvents: [],
+    fishRaidRegistrationBannerBase64: "",
+    fishRaidRegistrationBannerUrl: "",
+    fishRaidRunningBannerBase64: "",
+    fishRaidRunningBannerUrl: "",
+    fishRaidResultBannerBase64: "",
+    fishRaidResultBannerUrl: "",
+    fishRaidBannerBase64: "",
+    fishRaidBannerUrl: "",
+    fishRaidEvents: [],
+    fishRaidBosses: [],
     fishCompLogIntervalMs: 2500,
     fishCompExpReward: 50,
     fishCompGoldReward: 0,
+    fishRaidLogIntervalMs: 2500,
+    fishRaidCooldownMinutes: 60,
+    fishRaidParticipantExpReward: 25,
+    fishRaidParticipantGoldReward: 0,
+    fishRaidMvpExpReward: 75,
+    fishRaidMvpGoldReward: 0,
+    fishRaidClearParticipantExpReward: 50,
+    fishRaidClearParticipantGoldReward: 0,
+    fishRaidClearMvpExpReward: 150,
+    fishRaidClearMvpGoldReward: 0,
     allowActivity: true,
     chatCooldownMs: 20_000,
     expMultiplier: 1,
@@ -102,6 +124,8 @@ const playerQueues = new Map();
 const announcedEvents = new Set();
 const announcedEndedEvents = new Set();
 const competitions = new Map();
+const fishRaids = new Map();
+const dailyFishRaids = new Map();
 const finishedCompetitionLogs = new Map();
 const fishVoiceChannels = new Map();
 const defaultFishingChannels = new Map();
@@ -109,8 +133,11 @@ const activeVoiceSessions = new Map();
 let voiceTickTimer = null;
 let enforcedFishingTimer = null;
 let giveMoneyTimer = null;
+let fishRaidSignalTimer = null;
+let fishRaidMidnightTimer = null;
 const processedEnforcedFishingIds = new Set();
 const processedGiveMoneyIds = new Set();
+const processedFishRaidSignalIds = new Set();
 
 async function refreshGameData() {
   gameData = await getGameData();
@@ -158,9 +185,29 @@ function getSettings() {
     sellFishBannerBase64: "",
     sellFishBannerUrl: "",
     fishCompEvents: [],
+    fishRaidRegistrationBannerBase64: "",
+    fishRaidRegistrationBannerUrl: "",
+    fishRaidRunningBannerBase64: "",
+    fishRaidRunningBannerUrl: "",
+    fishRaidResultBannerBase64: "",
+    fishRaidResultBannerUrl: "",
+    fishRaidBannerBase64: "",
+    fishRaidBannerUrl: "",
+    fishRaidEvents: [],
+    fishRaidBosses: [],
     fishCompLogIntervalMs: 2500,
     fishCompExpReward: 50,
     fishCompGoldReward: 0,
+    fishRaidLogIntervalMs: 2500,
+    fishRaidCooldownMinutes: 60,
+    fishRaidParticipantExpReward: 25,
+    fishRaidParticipantGoldReward: 0,
+    fishRaidMvpExpReward: 75,
+    fishRaidMvpGoldReward: 0,
+    fishRaidClearParticipantExpReward: 50,
+    fishRaidClearParticipantGoldReward: 0,
+    fishRaidClearMvpExpReward: 150,
+    fishRaidClearMvpGoldReward: 0,
     allowActivity: true,
     chatCooldownMs: 20_000,
     expMultiplier: 1,
@@ -1026,6 +1073,31 @@ function makeFishCompImage(status = "registration") {
   return makeSettingsImage(bannerKey, "fishCompBanner");
 }
 
+function makeFishRaidImage(status = "registration", boss = null) {
+  const bossKey = {
+    registration: "registrationBanner",
+    closed: "registrationBanner",
+    running: "runningBanner",
+    result: "resultBanner",
+    fulfilled: "fulfilledBanner",
+    failed: "failedBanner"
+  }[status] || "registrationBanner";
+  const bossImageUrl = getPublicImageUrl(boss?.[`${bossKey}Url`]);
+  if (bossImageUrl) {
+    return { url: bossImageUrl, attachment: null };
+  }
+  const bossImage = parseDataImage(boss?.[`${bossKey}Base64`]);
+  if (bossImage) {
+    const fileName = `fish-raid-${bossKey.replace(/[A-Z]/g, (letter) => `-${letter.toLowerCase()}`)}.${bossImage.extension}`;
+    return {
+      attachment: new AttachmentBuilder(bossImage.buffer, { name: fileName }),
+      url: `attachment://${fileName}`
+    };
+  }
+
+  return null;
+}
+
 function makeMessageWithBanner(embed, banner) {
   if (banner?.url) {
     embed.setImage(banner.url);
@@ -1311,6 +1383,133 @@ async function processGiveMoneySignal() {
   fs.writeFileSync(giveMoneySignalPath, JSON.stringify({ id: "", processedAt: new Date().toISOString(), processedId: request.id }));
 }
 
+async function fetchRaidAnnouncementChannel(state, channelId = "") {
+  const selectedChannelId = String(channelId || state?.channelId || "").trim();
+  if (!selectedChannelId) {
+    return null;
+  }
+  const channel = await client.channels.fetch(selectedChannelId).catch(() => null);
+  return channel?.isTextBased?.() ? channel : null;
+}
+
+function makeFishRaidFulfilledMessage(state, forced = false) {
+  const dailyResults = getSortedRaidResults(Object.values(state.participants || {}));
+  const embed = new EmbedBuilder()
+    .setColor(0x2ecc71)
+    .setTitle(forced ? "Fish Raid · Quota Dipenuhi Admin" : "Fish Raid · Quota Terpenuhi")
+    .setDescription([
+      `Boss: **${state.boss?.name || "Raid Boss"}**`,
+      formatRaidQuotaLine(state),
+      "",
+      "**Ranking Harian**",
+      dailyResults.length ? dailyResults.map((result, index) => `${index + 1}. ${formatCompetitionResultLine(result)}`).join("\n") : "Belum ada peserta.",
+      "",
+      forced ? "Quota hari ini sudah ditandai terpenuhi oleh admin." : "Quota hari ini sudah terpenuhi."
+    ].join("\n"));
+  const banner = makeFishRaidImage("fulfilled", state.boss);
+  return makeMessageWithBanner(embed, banner);
+}
+
+function makeFishRaidFailedMessage(state) {
+  const dailyResults = getSortedRaidResults(Object.values(state.participants || {}));
+  const embed = new EmbedBuilder()
+    .setColor(0xe74c3c)
+    .setTitle("Fish Raid Gagal")
+    .setDescription([
+      "Waktu sudah lewat 00:00 dan quota raid belum terpenuhi.",
+      "",
+      `Boss: **${state.boss?.name || "Raid Boss"}**`,
+      formatRaidQuotaLine(state),
+      "",
+      "**Kontribusi Harian**",
+      dailyResults.length ? dailyResults.map((result, index) => `${index + 1}. ${formatCompetitionResultLine(result)}`).join("\n") : "Belum ada peserta.",
+      "",
+      "Raid hari ini gagal. Boss dan quota akan direset untuk hari baru."
+    ].join("\n"));
+  const banner = makeFishRaidImage("failed", state.boss);
+  return makeMessageWithBanner(embed, banner);
+}
+
+async function resetTodayFishRaid(guildId, channelId = "", reason = "manual") {
+  const activeRaid = fishRaids.get(guildId);
+  if (activeRaid) {
+    await cancelCompetition(activeRaid, "Raid direset oleh admin.");
+  }
+  const previousState = dailyFishRaids.get(guildId) || null;
+  dailyFishRaids.delete(guildId);
+  const nextState = normalizeDailyRaidState(guildId);
+  nextState.channelId = String(channelId || previousState?.channelId || "").trim();
+  saveFishRaidState();
+  return { previousState, nextState, reason };
+}
+
+async function forceClearFishRaid(guildId, channelId = "") {
+  const state = normalizeDailyRaidState(guildId);
+  state.filledKg = Math.max(1, Number(state.quotaKg || 1));
+  state.fulfilledAt = new Date().toISOString();
+  state.channelId = String(channelId || state.channelId || "").trim();
+  saveFishRaidState();
+  const channel = await fetchRaidAnnouncementChannel(state, channelId);
+  if (channel) {
+    await channel.send(makeFishRaidFulfilledMessage(state, true)).catch((error) => {
+      console.error("Could not post forced fish raid clear message:", error);
+    });
+  }
+}
+
+function resetFishRaidCooldown(guildId, channelId = "") {
+  const state = normalizeDailyRaidState(guildId);
+  state.lastRaidEndedAt = 0;
+  state.channelId = String(channelId || state.channelId || "").trim();
+  saveFishRaidState();
+}
+
+async function processFishRaidSignal() {
+  if (!fs.existsSync(fishRaidSignalPath)) {
+    return;
+  }
+
+  const request = JSON.parse(fs.readFileSync(fishRaidSignalPath, "utf8"));
+  if (!request?.id || processedFishRaidSignalIds.has(request.id)) {
+    return;
+  }
+  processedFishRaidSignalIds.add(request.id);
+  const guildId = String(request.guildId || "").trim();
+  if (!guildId) {
+    console.warn("Could not process fish raid signal: missing guild ID.");
+    return;
+  }
+
+  if (request.action === "reset") {
+    await resetTodayFishRaid(guildId, request.channelId || "", "manager");
+  } else if (request.action === "force_clear") {
+    await forceClearFishRaid(guildId, request.channelId || "");
+  } else if (request.action === "reset_cooldown") {
+    resetFishRaidCooldown(guildId, request.channelId || "");
+  }
+  fs.writeFileSync(fishRaidSignalPath, JSON.stringify({ id: "", processedAt: new Date().toISOString(), processedId: request.id }));
+}
+
+async function processFishRaidMidnightReset() {
+  const today = getLocalDateKey();
+  for (const [guildId, state] of [...dailyFishRaids.entries()]) {
+    if (!state?.dateKey || state.dateKey === today) {
+      continue;
+    }
+    const hadActivity = Number(state.filledKg || 0) > 0 || Object.keys(state.participants || {}).length > 0 || Number(state.lastRaidEndedAt || 0) > 0;
+    if (!state.fulfilledAt && hadActivity) {
+      const channel = await fetchRaidAnnouncementChannel(state);
+      if (channel) {
+        await channel.send(makeFishRaidFailedMessage(state)).catch((error) => {
+          console.error("Could not post fish raid failed message:", error);
+        });
+      }
+    }
+    dailyFishRaids.delete(guildId);
+  }
+  saveFishRaidState();
+}
+
 function scheduleEnforcedFishingSignal() {
   clearTimeout(enforcedFishingTimer);
   enforcedFishingTimer = setTimeout(() => {
@@ -1325,6 +1524,27 @@ function scheduleGiveMoneySignal() {
     processGiveMoneySignal()
       .catch((error) => console.error("Could not post give money message from manager signal:", error));
   }, 250);
+}
+
+function scheduleFishRaidSignal() {
+  clearTimeout(fishRaidSignalTimer);
+  fishRaidSignalTimer = setTimeout(() => {
+    processFishRaidSignal()
+      .catch((error) => console.error("Could not process fish raid manager signal:", error));
+  }, 250);
+}
+
+function scheduleFishRaidMidnightReset() {
+  clearTimeout(fishRaidMidnightTimer);
+  const now = new Date();
+  const nextMidnight = new Date(now);
+  nextMidnight.setDate(now.getDate() + 1);
+  nextMidnight.setHours(0, 0, 0, 0);
+  fishRaidMidnightTimer = setTimeout(() => {
+    processFishRaidMidnightReset()
+      .catch((error) => console.error("Could not process fish raid midnight reset:", error))
+      .finally(scheduleFishRaidMidnightReset);
+  }, Math.max(1000, nextMidnight.getTime() - now.getTime()));
 }
 
 function watchEnforcedFishingSignal() {
@@ -1345,6 +1565,16 @@ function watchGiveMoneySignal() {
 
   fs.watch(giveMoneySignalPath, scheduleGiveMoneySignal);
   console.log("Watching manager give money signal.");
+}
+
+function watchFishRaidSignal() {
+  fs.mkdirSync(runtimeDirectory, { recursive: true });
+  if (!fs.existsSync(fishRaidSignalPath)) {
+    fs.writeFileSync(fishRaidSignalPath, JSON.stringify({ id: "", createdAt: new Date().toISOString() }));
+  }
+
+  fs.watch(fishRaidSignalPath, scheduleFishRaidSignal);
+  console.log("Watching manager fish raid signal.");
 }
 
 function makeInventoryEmbed(user, player) {
@@ -1466,15 +1696,17 @@ function makeStoreMessage(player, selectedRodId = null, status = "") {
 
 function makeCompetitionEmbed(competition, status = "registration") {
   const startsAt = Math.floor(competition.startsAt / 1000);
+  const isRaid = competition.mode === "raid";
+  const raidState = isRaid ? normalizeDailyRaidState(competition.guildId) : null;
   const embed = new EmbedBuilder()
-    .setColor(0xe67e22)
-    .setTitle("Kompetisi Memancing");
+    .setColor(isRaid ? 0x3ba1ff : 0xe67e22)
+    .setTitle(isRaid ? "Fish Raid" : "Kompetisi Memancing");
 
   if (status === "closed") {
     embed.setDescription(
       [
         "Registrasi sudah ditutup.",
-        "Kompetisi sedang disiapkan."
+        isRaid ? "Raid sedang disiapkan." : "Kompetisi sedang disiapkan."
       ].join("\n")
     );
     return embed;
@@ -1484,16 +1716,25 @@ function makeCompetitionEmbed(competition, status = "registration") {
     embed.setColor(0x2ecc71);
     embed.setDescription(
       [
-        "Kompetisi sudah selesai.",
-        "Hasil kompetisi sudah keluar."
+        isRaid ? "Raid sudah selesai." : "Kompetisi sudah selesai.",
+        isRaid ? "Hasil raid sudah keluar." : "Hasil kompetisi sudah keluar."
       ].join("\n")
     );
     return embed;
   }
 
   const participants = listCompetitionParticipants(competition, true);
+  const raidIntro = isRaid
+    ? [
+      `Boss: **${raidState.boss.name}**`,
+      raidState.boss.description || "",
+      formatRaidQuotaLine(raidState),
+      ""
+    ].filter(Boolean)
+    : [];
   embed.setDescription(
     [
+      ...raidIntro,
       `Dimulai: <t:${startsAt}:R> · <t:${startsAt}:T>`,
       `Durasi: **${competition.turns} turn**`,
       `Peserta: **${competition.participants.size}/${competition.maxParticipants}**`,
@@ -1508,9 +1749,10 @@ function makeCompetitionEmbed(competition, status = "registration") {
     const recentLogs = formatCompetitionLogs(visibleLogs) || "Menunggu hasil...";
     embed.setDescription(
       [
+        ...(isRaid ? [`Boss: **${raidState.boss.name}**`, formatRaidQuotaLine({ ...raidState, filledKg: Math.min(raidState.quotaKg, Number(raidState.filledKg || 0) + Number(competition.raidGainedWeight || 0)) }), ""] : []),
         scoreboard || "Belum ada hasil.",
         "",
-        "Kompetisi sedang berjalan.",
+        isRaid ? "Raid sedang berjalan." : "Kompetisi sedang berjalan.",
         `Turn: **${competition.currentTurn}/${competition.turns}**`,
         "",
         recentLogs
@@ -1518,7 +1760,7 @@ function makeCompetitionEmbed(competition, status = "registration") {
     );
   }
   if (status !== "complete") {
-    const banner = makeFishCompImage(status);
+    const banner = isRaid ? makeFishRaidImage(status, raidState.boss) : makeFishCompImage(status);
     if (banner?.url) {
       embed.setImage(banner.url);
     }
@@ -1528,7 +1770,9 @@ function makeCompetitionEmbed(competition, status = "registration") {
 
 function makeCompetitionMessage(competition, status = "registration", components = []) {
   const embed = makeCompetitionEmbed(competition, status);
-  const banner = status === "closed" || status === "complete" ? null : makeFishCompImage(status);
+  const banner = status === "closed" || status === "complete"
+    ? null
+    : competition.mode === "raid" ? makeFishRaidImage(status, normalizeDailyRaidState(competition.guildId).boss) : makeFishCompImage(status);
   return {
     embeds: [embed],
     files: banner?.attachment ? [banner.attachment] : [],
@@ -1589,8 +1833,9 @@ function shuffleCompetitionParticipants(participants) {
   return shuffleList(participants);
 }
 
-function getFishCompEvents() {
-  return (Array.isArray(getSettings().fishCompEvents) ? getSettings().fishCompEvents : [])
+function getFishCompEvents(mode = "competition") {
+  const settingsKey = mode === "raid" ? "fishRaidEvents" : "fishCompEvents";
+  return (Array.isArray(getSettings()[settingsKey]) ? getSettings()[settingsKey] : [])
     .filter((event) => event && Number(event.chance || 0) > 0 && event.startText);
 }
 
@@ -1627,8 +1872,8 @@ function makeCompEventState(event, type, durationTurns, luckModifier, activeText
   };
 }
 
-function pickCompetitionEvent() {
-  for (const event of shuffleList(getFishCompEvents())) {
+function pickCompetitionEvent(competition) {
+  for (const event of shuffleList(getFishCompEvents(competition?.mode))) {
     if (Math.random() * 100 < Number(event.chance || 0)) {
       return event;
     }
@@ -1674,7 +1919,7 @@ function applyExistingCompetitionEvents(competition, participant, turn) {
 }
 
 function applyNewCompetitionEvent(competition, participant, turn) {
-  const event = pickCompetitionEvent();
+  const event = pickCompetitionEvent(competition);
   if (!event) {
     return { canFish: true, luckModifier: 0 };
   }
@@ -1729,7 +1974,29 @@ function makeCompetitionJoinRow(disabled = false) {
         .setStyle(ButtonStyle.Success)
         .setDisabled(disabled),
       new ButtonBuilder()
+        .setCustomId("fishcomp_leave")
+        .setLabel("Leave")
+        .setStyle(ButtonStyle.Secondary)
+        .setDisabled(disabled),
+      new ButtonBuilder()
         .setCustomId("fishcomp_cancel")
+        .setLabel("Cancel")
+        .setStyle(ButtonStyle.Danger)
+        .setDisabled(disabled)
+    )
+  ];
+}
+
+function makeFishRaidJoinRow(disabled = false) {
+  return [
+    new ActionRowBuilder().addComponents(
+      new ButtonBuilder()
+        .setCustomId("fishraid_join")
+        .setLabel("Join Raid")
+        .setStyle(ButtonStyle.Success)
+        .setDisabled(disabled),
+      new ButtonBuilder()
+        .setCustomId("fishraid_cancel")
         .setLabel("Cancel")
         .setStyle(ButtonStyle.Danger)
         .setDisabled(disabled)
@@ -1748,7 +2015,183 @@ function makeCompetitionResultRow(logId) {
   ];
 }
 
+function makeFishRaidResultRow(logId) {
+  return [
+    new ActionRowBuilder().addComponents(
+      new ButtonBuilder()
+        .setCustomId(`fishraid_history:${logId}`)
+        .setLabel("📜 View Full History")
+        .setStyle(ButtonStyle.Secondary)
+    )
+  ];
+}
+
+function getLocalDateKey(date = new Date()) {
+  const year = date.getFullYear();
+  const month = String(date.getMonth() + 1).padStart(2, "0");
+  const day = String(date.getDate()).padStart(2, "0");
+  return `${year}-${month}-${day}`;
+}
+
+function loadFishRaidState() {
+  fs.mkdirSync(runtimeDirectory, { recursive: true });
+  if (!fs.existsSync(fishRaidStatePath)) {
+    return;
+  }
+  try {
+    const saved = JSON.parse(fs.readFileSync(fishRaidStatePath, "utf8"));
+    const guilds = saved && typeof saved === "object" && !Array.isArray(saved) ? saved.guilds || saved : {};
+    for (const [guildId, state] of Object.entries(guilds)) {
+      if (state && typeof state === "object") {
+        dailyFishRaids.set(guildId, state);
+      }
+    }
+  } catch (error) {
+    console.error("Could not read fish raid state:", error);
+  }
+}
+
+function saveFishRaidState() {
+  fs.mkdirSync(runtimeDirectory, { recursive: true });
+  fs.writeFileSync(fishRaidStatePath, JSON.stringify({ guilds: Object.fromEntries(dailyFishRaids) }, null, 2));
+}
+
+function cleanRaidBosses() {
+  const bosses = Array.isArray(getSettings().fishRaidBosses) ? getSettings().fishRaidBosses : [];
+  const cleaned = bosses.map((boss, index) => {
+    const source = boss && typeof boss === "object" ? boss : {};
+    const id = String(source.id || `raid_boss_${index + 1}`).trim().toLowerCase().replace(/[^a-z0-9_]/g, "_");
+    const name = String(source.name || source.title || id || `Raid Boss ${index + 1}`).trim();
+    return {
+      id,
+      name,
+      description: String(source.description || "").trim(),
+      quotaKg: Math.max(1, Number(source.quotaKg || source.quota || getSettings().fishRaidDailyQuotaKg || 100)),
+      registrationBannerBase64: String(source.registrationBannerBase64 || ""),
+      registrationBannerUrl: String(source.registrationBannerUrl || "").trim(),
+      registrationBannerRef: source.registrationBannerRef && typeof source.registrationBannerRef === "object" ? source.registrationBannerRef : null,
+      runningBannerBase64: String(source.runningBannerBase64 || ""),
+      runningBannerUrl: String(source.runningBannerUrl || "").trim(),
+      runningBannerRef: source.runningBannerRef && typeof source.runningBannerRef === "object" ? source.runningBannerRef : null,
+      resultBannerBase64: String(source.resultBannerBase64 || ""),
+      resultBannerUrl: String(source.resultBannerUrl || "").trim(),
+      resultBannerRef: source.resultBannerRef && typeof source.resultBannerRef === "object" ? source.resultBannerRef : null,
+      fulfilledBannerBase64: String(source.fulfilledBannerBase64 || ""),
+      fulfilledBannerUrl: String(source.fulfilledBannerUrl || "").trim(),
+      fulfilledBannerRef: source.fulfilledBannerRef && typeof source.fulfilledBannerRef === "object" ? source.fulfilledBannerRef : null,
+      failedBannerBase64: String(source.failedBannerBase64 || ""),
+      failedBannerUrl: String(source.failedBannerUrl || "").trim(),
+      failedBannerRef: source.failedBannerRef && typeof source.failedBannerRef === "object" ? source.failedBannerRef : null
+    };
+  }).filter((boss) => boss.id && boss.name);
+
+  return cleaned.length ? cleaned : [
+    { id: "big_order", name: "Big Fish Order", description: "Pesanan ikan besar hari ini sudah menunggu.", quotaKg: Math.max(1, Number(getSettings().fishRaidDailyQuotaKg || 100)) }
+  ];
+}
+
+function pickDailyRaidBoss(dateKey, guildId) {
+  const bosses = cleanRaidBosses();
+  let seed = 0;
+  for (const char of `${dateKey}:${guildId}`) {
+    seed = (seed * 31 + char.charCodeAt(0)) >>> 0;
+  }
+  return bosses[seed % bosses.length];
+}
+
+function getRaidBossById(bossId) {
+  return cleanRaidBosses().find((boss) => boss.id === bossId) || null;
+}
+
+function normalizeDailyRaidState(guildId) {
+  const dateKey = getLocalDateKey();
+  const current = dailyFishRaids.get(guildId);
+  if (current?.dateKey === dateKey && current?.boss?.id) {
+    current.boss = getRaidBossById(current.boss.id) || current.boss;
+    current.quotaKg = Math.max(1, Number(current.quotaKg || current.boss.quotaKg || 100));
+    current.filledKg = Math.max(0, Number(current.filledKg || 0));
+    current.participants = current.participants && typeof current.participants === "object" && !Array.isArray(current.participants) ? current.participants : {};
+    return current;
+  }
+
+  const boss = pickDailyRaidBoss(dateKey, guildId);
+  const next = {
+    dateKey,
+    boss,
+    quotaKg: boss.quotaKg,
+    filledKg: 0,
+    participants: {},
+    fulfilledAt: "",
+    lastRaidEndedAt: 0,
+    channelId: ""
+  };
+  dailyFishRaids.set(guildId, next);
+  saveFishRaidState();
+  return next;
+}
+
+function getDailyRaidResult(state, participant) {
+  if (!state.participants[participant.id]) {
+    state.participants[participant.id] = {
+      id: participant.id,
+      username: participant.username,
+      globalName: participant.globalName,
+      displayName: participant.displayName,
+      logName: participant.logName,
+      count: 0,
+      totalWeight: 0,
+      heaviestWeight: 0,
+      heaviestName: ""
+    };
+  }
+  return state.participants[participant.id];
+}
+
+function addRaidResultToDailyState(raid) {
+  const state = normalizeDailyRaidState(raid.guildId);
+  for (const result of raid.results.values()) {
+    const daily = getDailyRaidResult(state, result);
+    daily.username = result.username;
+    daily.globalName = result.globalName;
+    daily.displayName = result.displayName;
+    daily.logName = result.logName;
+    daily.count += result.count;
+    daily.totalWeight += result.totalWeight;
+    if (result.heaviestWeight > daily.heaviestWeight) {
+      daily.heaviestWeight = result.heaviestWeight;
+      daily.heaviestName = result.heaviestName;
+    }
+  }
+  state.filledKg = Math.min(state.quotaKg, Math.max(0, Number(state.filledKg || 0)) + Math.max(0, Number(raid.raidGainedWeight || 0)));
+  if (!state.fulfilledAt && state.filledKg >= state.quotaKg) {
+    state.fulfilledAt = new Date().toISOString();
+  }
+  state.lastRaidEndedAt = Date.now();
+  saveFishRaidState();
+  return state;
+}
+
+function getSortedRaidResults(results) {
+  return [...results]
+    .sort((a, b) => b.totalWeight - a.totalWeight || b.count - a.count || a.username.localeCompare(b.username));
+}
+
+function formatRaidQuotaLine(state) {
+  const filled = Math.max(0, Number(state.filledKg || 0));
+  const quota = Math.max(1, Number(state.quotaKg || 1));
+  return `Quota: **${formatKg(filled)} / ${formatKg(quota)}**\n${makeProgressBar(filled, quota, 18)}`;
+}
+
+function getRaidCooldownRemainingMs(guildId) {
+  const state = normalizeDailyRaidState(guildId);
+  const cooldownMs = Math.max(0, Number(getSettings().fishRaidCooldownMinutes ?? 60)) * 60_000;
+  return Math.max(0, Number(state.lastRaidEndedAt || 0) + cooldownMs - Date.now());
+}
+
 function getSortedCompetitionResults(competition) {
+  if (competition.mode === "raid") {
+    return getSortedRaidResults(competition.results.values());
+  }
   return [...competition.results.values()]
     .sort((a, b) => b.count - a.count || b.totalWeight - a.totalWeight || a.username.localeCompare(b.username));
 }
@@ -1767,6 +2210,45 @@ function getCompetitionRewardExp(competition) {
 
 function getCompetitionRewardGold(competition) {
   return Math.round(Number(getSettings().fishCompGoldReward ?? 0) * getEventMultiplier("gold_multiplier", competition.guildId));
+}
+
+function getRaidRewardAmount(key, guildId, multiplierType = "") {
+  const multiplier = multiplierType ? getEventMultiplier(multiplierType, guildId) : 1;
+  return Math.round(Number(getSettings()[key] ?? 0) * multiplier);
+}
+
+async function giveRaidReward(userId, expReward, goldReward) {
+  const rewardExp = Math.max(0, Math.round(Number(expReward || 0)));
+  const rewardGold = Math.max(0, Math.round(Number(goldReward || 0)));
+  if (!userId || (rewardExp <= 0 && rewardGold <= 0)) {
+    return { previousLevel: 0, level: 0 };
+  }
+
+  let previousLevel = 0;
+  let level = 0;
+  await withPlayer(userId, async (player) => {
+    previousLevel = getLevel(player.exp);
+    player.exp += rewardExp;
+    player.gold = Math.max(0, Math.floor(Number(player.gold || 0))) + rewardGold;
+    level = getLevel(player.exp);
+  });
+  return { previousLevel, level };
+}
+
+function summarizeRaidResults(results, state) {
+  const sorted = getSortedRaidResults(results);
+  if (!sorted.length) {
+    return "Tidak ada peserta.";
+  }
+  const mvp = sorted[0];
+  const mostFish = [...sorted].sort((a, b) => b.count - a.count || b.totalWeight - a.totalWeight)[0];
+  const heaviestFish = [...sorted].sort((a, b) => b.heaviestWeight - a.heaviestWeight)[0];
+  return [
+    `MVP Berat Total: **${mvp.displayName}** (${formatKg(mvp.totalWeight)})`,
+    `Paling Banyak Ikan: **${mostFish.displayName}** (${mostFish.count} ikan)`,
+    `Ikan Terberat: **${heaviestFish.displayName}** (${heaviestFish.heaviestName || "-"} ${formatKg(heaviestFish.heaviestWeight)})`,
+    state.fulfilledAt ? "Quota hari ini sudah terpenuhi." : "Quota hari ini belum terpenuhi."
+  ].join("\n");
 }
 
 function summarizeCompetition(competition) {
@@ -1843,6 +2325,110 @@ async function revealPendingCompetitionLogs(competition) {
   }
 }
 
+async function finishFishRaid(raid, channel) {
+  const state = addRaidResultToDailyState(raid);
+  const raidWinner = getSortedRaidResults(raid.results.values())[0];
+  const dailyResults = getSortedRaidResults(Object.values(state.participants || {}));
+  const dailyMvp = dailyResults[0];
+  const fulfilled = Boolean(state.fulfilledAt);
+  const participantExp = getRaidRewardAmount("fishRaidParticipantExpReward", raid.guildId, "exp_multiplier");
+  const participantGold = getRaidRewardAmount("fishRaidParticipantGoldReward", raid.guildId, "gold_multiplier");
+  const mvpExp = getRaidRewardAmount("fishRaidMvpExpReward", raid.guildId, "exp_multiplier");
+  const mvpGold = getRaidRewardAmount("fishRaidMvpGoldReward", raid.guildId, "gold_multiplier");
+  const clearParticipantExp = fulfilled ? getRaidRewardAmount("fishRaidClearParticipantExpReward", raid.guildId, "exp_multiplier") : 0;
+  const clearParticipantGold = fulfilled ? getRaidRewardAmount("fishRaidClearParticipantGoldReward", raid.guildId, "gold_multiplier") : 0;
+  const clearMvpExp = fulfilled ? getRaidRewardAmount("fishRaidClearMvpExpReward", raid.guildId, "exp_multiplier") : 0;
+  const clearMvpGold = fulfilled ? getRaidRewardAmount("fishRaidClearMvpGoldReward", raid.guildId, "gold_multiplier") : 0;
+  const levelUps = [];
+
+  for (const result of raid.results.values()) {
+    const reward = await giveRaidReward(result.id, participantExp, participantGold);
+    if (reward.level > reward.previousLevel) {
+      levelUps.push({ id: result.id, level: reward.level });
+    }
+  }
+  if (raidWinner?.id) {
+    const reward = await giveRaidReward(raidWinner.id, mvpExp, mvpGold);
+    if (reward.level > reward.previousLevel) {
+      levelUps.push({ id: raidWinner.id, level: reward.level });
+    }
+  }
+  if (fulfilled) {
+    for (const result of dailyResults) {
+      const reward = await giveRaidReward(result.id, clearParticipantExp, clearParticipantGold);
+      if (reward.level > reward.previousLevel) {
+        levelUps.push({ id: result.id, level: reward.level });
+      }
+    }
+  }
+  if (fulfilled && dailyMvp?.id) {
+    const reward = await giveRaidReward(dailyMvp.id, clearMvpExp, clearMvpGold);
+    if (reward.level > reward.previousLevel) {
+      levelUps.push({ id: dailyMvp.id, level: reward.level });
+    }
+  }
+
+  const rewardLines = [
+    `Peserta raid ini: **${participantExp} EXP** dan **${participantGold} gold**`,
+    raidWinner ? `MVP raid ini (${raidWinner.displayName}): **${mvpExp} EXP** dan **${mvpGold} gold**` : "",
+    fulfilled ? `Bonus quota terpenuhi untuk semua peserta harian: **${clearParticipantExp} EXP** dan **${clearParticipantGold} gold**` : "",
+    fulfilled && dailyMvp ? `Bonus quota terpenuhi untuk MVP harian (${dailyMvp.displayName}): **${clearMvpExp} EXP** dan **${clearMvpGold} gold**` : ""
+  ].filter(Boolean);
+
+  const embed = new EmbedBuilder()
+    .setColor(fulfilled ? 0x2ecc71 : 0x3ba1ff)
+    .setTitle(fulfilled ? "Fish Raid Selesai · Quota Terpenuhi" : "Fish Raid Selesai")
+    .setDescription(
+      [
+        `Boss: **${state.boss.name}**`,
+        formatRaidQuotaLine(state),
+        "",
+        "**Ranking Harian**",
+        dailyResults.length ? dailyResults.map((result, index) => `${index + 1}. ${formatCompetitionResultLine(result)}`).join("\n") : "Tidak ada peserta.",
+        "",
+        dailyMvp ? `# MVP Harian: ${dailyMvp.displayName}` : "# MVP Harian: -",
+        rewardLines.join("\n") || "Tidak ada reward.",
+        "",
+        summarizeRaidResults(dailyResults, state)
+      ].join("\n")
+    );
+  const logId = `${raid.guildId}:raid:${Date.now()}`;
+  finishedCompetitionLogs.set(logId, {
+    createdAt: Date.now(),
+    fileName: "fishraid_log.txt",
+    content: buildCompetitionLogFile(raid)
+  });
+  const banner = makeFishRaidImage(fulfilled ? "fulfilled" : "result", state.boss);
+  if (banner?.url) {
+    embed.setImage(banner.url);
+  }
+  await channel.send({
+    embeds: [embed],
+    files: banner?.attachment ? [banner.attachment] : [],
+    components: makeFishRaidResultRow(logId)
+  }).catch(() => {});
+  await raid.message?.delete().catch(() => {});
+  await raid.pingMessage?.delete().catch(() => {});
+  if (raid.logMessage) {
+    await raid.logMessage.delete().catch(() => {});
+  }
+  const highestLevelUps = [...levelUps.reduce((map, entry) => {
+    const previous = map.get(entry.id);
+    if (!previous || entry.level > previous.level) {
+      map.set(entry.id, entry);
+    }
+    return map;
+  }, new Map()).values()];
+  for (const levelUp of highestLevelUps) {
+    const member = await channel.guild?.members.fetch(levelUp.id).catch(() => null);
+    const user = member?.user || await client.users.fetch(levelUp.id).catch(() => null);
+    if (user) {
+      await channel.send({ embeds: [makeLevelUpEmbed(user, levelUp.level, member)] }).catch(() => {});
+    }
+  }
+  fishRaids.delete(raid.guildId);
+}
+
 function runCompetitionTurnForParticipant(competition, participant, turn, turnEffect = null) {
   const existingStateEffect = applyExistingCompetitionEvents(competition, participant, turn);
   const existingEffect = turnEffect
@@ -1876,6 +2462,9 @@ function runCompetitionTurnForParticipant(competition, participant, turn, turnEf
 
   result.count += 1;
   result.totalWeight += catchResult.catchWeight;
+  if (competition.mode === "raid") {
+    competition.raidGainedWeight = Math.max(0, Number(competition.raidGainedWeight || 0)) + catchResult.catchWeight;
+  }
   if (catchResult.catchWeight > result.heaviestWeight) {
     result.heaviestWeight = catchResult.catchWeight;
     result.heaviestName = catchResult.fish.name;
@@ -1894,7 +2483,11 @@ async function runCompetition(competition) {
   competition.status = "running";
   competition.currentTurn = 0;
   competition.visibleLogs = [];
-  await competition.message.edit(makeCompetitionMessage(competition, "closed", makeCompetitionJoinRow(true))).catch(() => {});
+  await competition.message.edit(makeCompetitionMessage(
+    competition,
+    "closed",
+    competition.mode === "raid" ? makeFishRaidJoinRow(true) : makeCompetitionJoinRow(true)
+  )).catch(() => {});
   for (const participant of competition.participants.values()) {
     await prepareCompetitionParticipant(participant);
   }
@@ -1915,6 +2508,11 @@ async function runCompetition(competition) {
   }
 
   competition.status = "finished";
+  if (competition.mode === "raid") {
+    await finishFishRaid(competition, channel);
+    return;
+  }
+
   const summary = summarizeCompetition(competition);
   const winner = getSortedCompetitionResults(competition)[0];
   const winnerRewardExp = winner ? getCompetitionRewardExp(competition) : 0;
@@ -1975,7 +2573,7 @@ async function runCompetition(competition) {
 
 function buildCompetitionLogFile(competition) {
   return [
-    "TRFishing Competition Match Log",
+    competition.mode === "raid" ? "TRFishing Fish Raid Match Log" : "TRFishing Competition Match Log",
     `Guild ID: ${competition.guildId}`,
     `Channel ID: ${competition.channelId}`,
     `Turns: ${competition.turns}`,
@@ -2006,7 +2604,11 @@ async function cancelCompetition(competition, reason) {
     files: []
   }).catch(() => {});
   await competition.pingMessage?.delete().catch(() => {});
-  competitions.delete(competition.guildId);
+  if (competition.mode === "raid") {
+    fishRaids.delete(competition.guildId);
+  } else {
+    competitions.delete(competition.guildId);
+  }
 }
 
 function cleanupFinishedCompetitionLogs() {
@@ -2241,6 +2843,11 @@ function makeHelpEmbed(showAdminCommands = false) {
         inline: false
       },
       {
+        name: "/fishraid regtime:<menit>",
+        value: "Memulai boss raid harian selama 25 turn. Peserta mengumpulkan total berat ikan untuk memenuhi quota hari itu.",
+        inline: false
+      },
+      {
         name: "/fishleaderboard",
         value: "Melihat leaderboard jumlah ikan, ikan terbesar, luck score ikan tersulit, dan level.",
         inline: false
@@ -2272,6 +2879,11 @@ function makeHelpEmbed(showAdminCommands = false) {
       {
         name: "!fishcompforcestart",
         value: "Memaksa kompetisi yang sedang registrasi agar mulai lebih cepat.",
+        inline: false
+      },
+      {
+        name: "!fishraidforcestart",
+        value: "Memaksa raid yang sedang registrasi agar mulai lebih cepat.",
         inline: false
       }
     );
@@ -2321,6 +2933,11 @@ function makeFishGuideEmbed() {
       {
         name: "Kompetisi",
         value: "Gunakan `/fishcomp regtime:<menit> duration:<turn>` untuk membuat kompetisi. Peserta menekan tombol Join, lalu setiap turn semua peserta mencoba memancing memakai stat pancingannya. Ikan kompetisi tidak masuk inventory dan tidak memberi EXP normal.",
+        inline: false
+      },
+      {
+        name: "Fish Raid",
+        value: "Gunakan `/fishraid regtime:<menit>` untuk membuka boss raid harian 25 turn. Berat ikan peserta mengisi quota bersama, dan result menampilkan ranking harian.",
         inline: false
       },
       {
@@ -2432,12 +3049,35 @@ function makeCompetitionGuideEmbed() {
     ].join("\n"));
 }
 
+function makeFishRaidGuideEmbed() {
+  return new EmbedBuilder()
+    .setColor(0x3498db)
+    .setTitle("TRFishing · Fish Raid Guide")
+    .setDescription([
+      "# Fish Raid Guide",
+      "Fish Raid adalah boss raid harian untuk memenuhi quota berat ikan bersama.",
+      "",
+      "━━━━━━━━━━━━━━━━━━━━",
+      "## Cara Mulai",
+      "Gunakan `/fishraid regtime:<menit>`. Raid selalu berjalan 25 turn. Pemain ikut dengan tombol Join selama masa registrasi.",
+      "",
+      "## Saat Berjalan",
+      "Setiap turn, peserta mencoba memancing memakai stat rod mereka. Berat ikan yang tertangkap masuk ke quota harian, bukan inventory.",
+      "",
+      "## Hasil",
+      "Saat raid berjalan, ranking hanya menghitung peserta raid itu. Saat result, ranking menampilkan total kontribusi seluruh hari. Setelah quota terpenuhi, raid hari itu terkunci sampai reset harian berikutnya.",
+      "",
+      "Hanya ada satu raid berjalan dalam satu server, dan raid berikutnya punya cooldown 1 jam setelah raid selesai."
+    ].join("\n"));
+}
+
 function makeFishGuideMessage(info = "") {
   const embed = {
     level: makeLevelGuideEmbed,
     inventory: makeInventoryGuideEmbed,
     store: makeStoreGuideEmbed,
-    competition: makeCompetitionGuideEmbed
+    competition: makeCompetitionGuideEmbed,
+    fishraid: makeFishRaidGuideEmbed
   }[info]?.() || makeFishGuideEmbed();
   return makeMessageWithBanner(embed, makeSettingsImage("fishGuideBanner"));
 }
@@ -2597,6 +3237,10 @@ function makeSlashCommands() {
             {
               name: "competition",
               value: "competition"
+            },
+            {
+              name: "fishraid",
+              value: "fishraid"
             }
           ]
         }
@@ -2615,6 +3259,18 @@ function makeSlashCommands() {
         {
           name: "duration",
       description: "Durasi kompetisi dalam jumlah turn. Default 15.",
+          type: ApplicationCommandOptionType.Integer,
+          required: false
+        }
+      ]
+    },
+    {
+      name: "fishraid",
+      description: "Mulai boss raid ikan harian di server ini.",
+      options: [
+        {
+          name: "regtime",
+          description: "Waktu daftar dalam menit. Default 5.",
           type: ApplicationCommandOptionType.Integer,
           required: false
         }
@@ -2658,6 +3314,27 @@ async function handleCommand(message) {
     runCompetition(competition).catch((error) => {
       console.error("Competition force start failed:", error);
       competitions.delete(competition.guildId);
+    });
+    return;
+  }
+
+  if (command === "fishraidforcestart") {
+    if (!isAdmin(message.author)) {
+      await message.reply("Only admins can force-start a fish raid.");
+      return;
+    }
+    const raid = fishRaids.get(message.guildId);
+    if (!raid || raid.status !== "registration") {
+      return;
+    }
+    if (raid.participants.size < 1) {
+      await message.reply("Butuh minimal 1 peserta untuk memulai raid.");
+      return;
+    }
+    await message.reply("Raid dipaksa mulai sekarang.");
+    runCompetition(raid).catch((error) => {
+      console.error("Fish raid force start failed:", error);
+      fishRaids.delete(raid.guildId);
     });
     return;
   }
@@ -2839,6 +3516,23 @@ client.on("interactionCreate", async (interaction) => {
       return;
     }
 
+    if (interaction.isButton() && interaction.customId.startsWith("fishraid_history:")) {
+      cleanupFinishedCompetitionLogs();
+      const logId = interaction.customId.slice("fishraid_history:".length);
+      const log = finishedCompetitionLogs.get(logId);
+      if (!log) {
+        await interaction.reply({ content: "History log raid ini sudah tidak tersedia. Log disimpan sementara setelah raid selesai.", flags: MessageFlags.Ephemeral });
+        return;
+      }
+      await interaction.reply({
+        files: [
+          new AttachmentBuilder(Buffer.from(log.content, "utf8"), { name: log.fileName || "fishraid_log.txt" })
+        ],
+        flags: MessageFlags.Ephemeral
+      });
+      return;
+    }
+
     if (interaction.isButton() && interaction.customId === "fishcomp_join") {
       if (!isActivityAllowed()) {
         await interaction.reply({ content: activityBlockedMessage(), flags: MessageFlags.Ephemeral });
@@ -2874,6 +3568,23 @@ client.on("interactionCreate", async (interaction) => {
       return;
     }
 
+    if (interaction.isButton() && interaction.customId === "fishcomp_leave") {
+      const competition = competitions.get(interaction.guildId);
+      if (!competition || competition.status !== "registration") {
+        await interaction.reply({ content: "Registrasi sudah ditutup.", flags: MessageFlags.Ephemeral });
+        return;
+      }
+      if (!competition.participants.has(interaction.user.id)) {
+        await interaction.reply({ content: "Kamu belum join kompetisi ini.", flags: MessageFlags.Ephemeral });
+        return;
+      }
+
+      competition.participants.delete(interaction.user.id);
+      competition.results.delete(interaction.user.id);
+      await interaction.update(makeCompetitionMessage(competition, "registration", makeCompetitionJoinRow(false)));
+      return;
+    }
+
     if (interaction.isButton() && interaction.customId === "fishcomp_cancel") {
       const competition = competitions.get(interaction.guildId);
       if (!competition || competition.status !== "registration") {
@@ -2887,6 +3598,57 @@ client.on("interactionCreate", async (interaction) => {
 
       await interaction.deferUpdate();
       await cancelCompetition(competition, "Kompetisi dibatalkan.");
+      return;
+    }
+
+    if (interaction.isButton() && interaction.customId === "fishraid_join") {
+      if (!isActivityAllowed()) {
+        await interaction.reply({ content: activityBlockedMessage(), flags: MessageFlags.Ephemeral });
+        return;
+      }
+      const raid = fishRaids.get(interaction.guildId);
+      if (!raid || raid.status !== "registration") {
+        await interaction.reply({ content: "Registrasi raid sudah ditutup.", flags: MessageFlags.Ephemeral });
+        return;
+      }
+
+      const memberDisplayName = interaction.member?.displayName || interaction.user.globalName || interaction.user.username;
+      const globalDisplayName = interaction.user.globalName || interaction.user.username;
+      raid.participants.set(interaction.user.id, {
+        id: interaction.user.id,
+        username: interaction.user.username,
+        globalName: globalDisplayName,
+        displayName: formatDiscordMention(interaction.user.id),
+        logName: memberDisplayName
+      });
+      raid.results.set(interaction.user.id, {
+        id: interaction.user.id,
+        username: interaction.user.username,
+        globalName: globalDisplayName,
+        displayName: formatDiscordMention(interaction.user.id),
+        logName: memberDisplayName,
+        count: 0,
+        totalWeight: 0,
+        heaviestWeight: 0,
+        heaviestName: ""
+      });
+      await interaction.update(makeCompetitionMessage(raid, "registration", makeFishRaidJoinRow(false)));
+      return;
+    }
+
+    if (interaction.isButton() && interaction.customId === "fishraid_cancel") {
+      const raid = fishRaids.get(interaction.guildId);
+      if (!raid || raid.status !== "registration") {
+        await interaction.reply({ content: "Raid ini sudah tidak bisa dibatalkan.", flags: MessageFlags.Ephemeral });
+        return;
+      }
+      if (interaction.user.id !== raid.creatorId && !isAdmin(interaction.user)) {
+        await interaction.reply({ content: "Hanya pembuat raid atau admin yang bisa membatalkan raid ini.", flags: MessageFlags.Ephemeral });
+        return;
+      }
+
+      await interaction.deferUpdate();
+      await cancelCompetition(raid, "Raid dibatalkan.");
       return;
     }
 
@@ -2925,7 +3687,7 @@ client.on("interactionCreate", async (interaction) => {
       return;
     }
 
-    if (["sellfish", "fishstore", "fishvoice", "fishcomp"].includes(interaction.commandName) && !isActivityAllowed()) {
+    if (["sellfish", "fishstore", "fishvoice", "fishcomp", "fishraid"].includes(interaction.commandName) && !isActivityAllowed()) {
       await interaction.reply({ content: activityBlockedMessage(), flags: MessageFlags.Ephemeral });
       return;
     }
@@ -3105,6 +3867,72 @@ client.on("interactionCreate", async (interaction) => {
           competitions.delete(competition.guildId);
         });
       }, registrationMinutes * 60_000);
+      return;
+    }
+
+    if (interaction.commandName === "fishraid") {
+      if (!interaction.guildId) {
+        await interaction.reply({ content: "Raid hanya bisa dibuat di server.", flags: MessageFlags.Ephemeral });
+        return;
+      }
+      const dailyState = normalizeDailyRaidState(interaction.guildId);
+      if (dailyState.fulfilledAt) {
+        await interaction.reply({ content: "Quota raid hari ini sudah terpenuhi. Raid berikutnya tersedia setelah reset harian.", flags: MessageFlags.Ephemeral });
+        return;
+      }
+      if (fishRaids.has(interaction.guildId)) {
+        await interaction.reply({ content: "Masih ada fish raid yang berjalan di server ini.", flags: MessageFlags.Ephemeral });
+        return;
+      }
+      const cooldownRemainingMs = getRaidCooldownRemainingMs(interaction.guildId);
+      if (cooldownRemainingMs > 0) {
+        await interaction.reply({ content: `Fish raid masih cooldown. Coba lagi dalam ${formatDurationIndonesian(cooldownRemainingMs)}.`, flags: MessageFlags.Ephemeral });
+        return;
+      }
+
+      const registrationMinutes = Math.max(1, Math.min(30, interaction.options.getInteger("regtime") || 5));
+      const turns = 25;
+      dailyState.channelId = interaction.channelId;
+      saveFishRaidState();
+      const raid = {
+        mode: "raid",
+        guildId: interaction.guildId,
+        channelId: interaction.channelId,
+        creatorId: interaction.user.id,
+        startsAt: Date.now() + registrationMinutes * 60_000,
+        turns,
+        maxParticipants: 25,
+        status: "registration",
+        participants: new Map(),
+        results: new Map(),
+        logs: [],
+        eventStates: new Map(),
+        currentTurnEffects: new Map(),
+        currentTurn: 0,
+        raidGainedWeight: 0,
+        logIntervalMs: Math.max(0, Number(getSettings().fishRaidLogIntervalMs ?? getSettings().fishCompLogIntervalMs ?? 2500)),
+        message: null,
+        pingMessage: null,
+        timeout: null
+      };
+      fishRaids.set(interaction.guildId, raid);
+      await interaction.reply(makeCompetitionMessage(raid, "registration", makeFishRaidJoinRow(false)));
+      raid.message = await interaction.fetchReply();
+      const fishCompRole = interaction.guild ? await ensureFishCompRole(interaction.guild) : null;
+      raid.pingMessage = await interaction.channel?.send({
+        content: `## Fish Raid dibuka! ${fishCompRole ? fishCompRole.toString() : "@FishComp"}\nBoss hari ini: **${dailyState.boss.name}** · Quota **${formatKg(dailyState.quotaKg)}**\n-# *Join raid untuk bantu memenuhi pesanan ikan hari ini.*`,
+        allowedMentions: fishCompRole ? { roles: [fishCompRole.id] } : { parse: [] }
+      }).catch(() => null);
+      raid.timeout = setTimeout(() => {
+        if (raid.participants.size < 1) {
+          cancelCompetition(raid, "Tidak ada peserta yang join.");
+          return;
+        }
+        runCompetition(raid).catch((error) => {
+          console.error("Fish raid failed:", error);
+          fishRaids.delete(raid.guildId);
+        });
+      }, registrationMinutes * 60_000);
     }
   } catch (error) {
     console.error("Interaction handling failed:", error);
@@ -3166,11 +3994,14 @@ async function start() {
   }
 
   await refreshGameData();
+  loadFishRaidState();
   loadFishVoiceChannels();
   loadDefaultFishingChannels();
   watchManagerConfigSignal();
   watchEnforcedFishingSignal();
   watchGiveMoneySignal();
+  watchFishRaidSignal();
+  scheduleFishRaidMidnightReset();
   setInterval(() => {
     refreshGameData()
       .then(() => announceEventUpdates())
@@ -3178,6 +4009,7 @@ async function start() {
   }, configRefreshMs);
 
   await client.login(token);
+  await processFishRaidMidnightReset().catch((error) => console.error("Could not process fish raid midnight catch-up:", error));
   await announceEventUpdates().catch((error) => console.error("Could not announce event updates:", error));
 }
 

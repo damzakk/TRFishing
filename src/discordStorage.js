@@ -98,6 +98,11 @@ function sanitizeFileName(fileName) {
 }
 
 async function uploadDiscordImage({ buffer, contentType, fileName }) {
+  const uploaded = await uploadDiscordImageWithRef({ buffer, contentType, fileName });
+  return uploaded.url;
+}
+
+async function uploadDiscordImageWithRef({ buffer, contentType, fileName }) {
   const channelId = await findStorageChannelId();
   const formData = new FormData();
   const safeFileName = sanitizeFileName(fileName);
@@ -117,9 +122,34 @@ async function uploadDiscordImage({ buffer, contentType, fileName }) {
     throw new Error("Discord upload succeeded but did not return an attachment URL.");
   }
 
-  return attachmentUrl;
+  return {
+    url: attachmentUrl,
+    ref: {
+      storage: "discord_attachment",
+      channelId,
+      messageId: message.id || "",
+      attachmentId: message.attachments?.[0]?.id || "",
+      fileName: safeFileName,
+      contentType
+    }
+  };
+}
+
+async function getDiscordImageUrl(ref) {
+  if (!ref || ref.storage !== "discord_attachment" || !ref.channelId || !ref.messageId) {
+    return "";
+  }
+
+  const message = await callDiscordApi(`/channels/${ref.channelId}/messages/${ref.messageId}`);
+  const attachment = (message.attachments || []).find((entry) => (
+    String(entry.id || "") === String(ref.attachmentId || "")
+    || String(entry.filename || "") === String(ref.fileName || "")
+  )) || message.attachments?.[0];
+  return attachment?.url || "";
 }
 
 module.exports = {
-  uploadDiscordImage
+  getDiscordImageUrl,
+  uploadDiscordImage,
+  uploadDiscordImageWithRef
 };

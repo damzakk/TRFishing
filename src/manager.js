@@ -21,6 +21,8 @@ const configSignalPath = path.join(runtimeDirectory, "config-refresh.json");
 const enforcedFishingSignalPath = path.join(runtimeDirectory, "enforced-fishing.json");
 const giveMoneySignalPath = path.join(runtimeDirectory, "give-money.json");
 const defaultFishingChannelsPath = path.join(runtimeDirectory, "default-fishing-channels.json");
+const fishRaidStatePath = path.join(runtimeDirectory, "fish-raid-state.json");
+const fishRaidSignalPath = path.join(runtimeDirectory, "fish-raid-signal.json");
 
 function sendJson(response, statusCode, payload) {
   response.writeHead(statusCode, { "Content-Type": "application/json" });
@@ -93,12 +95,20 @@ function rollCatchWeight(fish, rod) {
   return minWeight + Math.random() * (maxWeight - minWeight);
 }
 
-function rollFishForManager(data, player) {
+function rollFishForManager(data, player, selectedFishId = "") {
   const rods = Array.isArray(data.rods) ? data.rods : [];
   const fish = Array.isArray(data.fish) ? data.fish : [];
   const rod = rods.find((entry) => entry.id === player.rodId) || rods[0];
   if (!rod || !fish.length) {
     throw new Error("Fishing data is not ready yet.");
+  }
+  const forcedFishId = String(selectedFishId || "").trim();
+  if (forcedFishId) {
+    const selectedFish = fish.find((entry) => String(entry.id || "") === forcedFishId);
+    if (!selectedFish) {
+      throw new Error("Selected fish was not found.");
+    }
+    return { fish: selectedFish, catchWeight: rollCatchWeight(selectedFish, rod) };
   }
   const rodMaxWeight = Number(rod.maxWeight || Infinity);
   const guildId = String(player.lastFishingGuildId || "").trim();
@@ -148,7 +158,8 @@ function cleanItem(item, type) {
     id: String(item.id || "").trim().toLowerCase().replace(/[^a-z0-9_]/g, "_"),
     name: String(item.name || "").trim(),
     iconBase64: String(item.iconBase64 || ""),
-    iconUrl: String(item.iconUrl || "").trim()
+    iconUrl: String(item.iconUrl || "").trim(),
+    iconRef: item.iconRef && typeof item.iconRef === "object" ? item.iconRef : null
   };
 
   if (!common.id || !common.name) {
@@ -195,30 +206,66 @@ function cleanSettings(settings) {
   const fishCompRegistrationBannerUrl = String(source.fishCompRegistrationBannerUrl || "").trim();
   const fishCompRunningBannerUrl = String(source.fishCompRunningBannerUrl || "").trim();
   const fishCompResultBannerUrl = String(source.fishCompResultBannerUrl || "").trim();
+  const fishRaidBannerUrl = String(source.fishRaidBannerUrl || "").trim();
+  const fishRaidRegistrationBannerUrl = String(source.fishRaidRegistrationBannerUrl || "").trim();
+  const fishRaidRunningBannerUrl = String(source.fishRaidRunningBannerUrl || "").trim();
+  const fishRaidResultBannerUrl = String(source.fishRaidResultBannerUrl || "").trim();
   const fishGuideBannerUrl = String(source.fishGuideBannerUrl || "").trim();
   const fishHelpBannerUrl = String(source.fishHelpBannerUrl || "").trim();
   const sellFishBannerUrl = String(source.sellFishBannerUrl || "").trim();
   return {
     rodStoreImageBase64: String(source.rodStoreImageBase64 || ""),
     rodStoreImageUrl,
+    rodStoreImageRef: source.rodStoreImageRef && typeof source.rodStoreImageRef === "object" ? source.rodStoreImageRef : null,
     fishCompBannerBase64: String(source.fishCompBannerBase64 || ""),
     fishCompBannerUrl,
+    fishCompBannerRef: source.fishCompBannerRef && typeof source.fishCompBannerRef === "object" ? source.fishCompBannerRef : null,
     fishCompRegistrationBannerBase64: String(source.fishCompRegistrationBannerBase64 || ""),
     fishCompRegistrationBannerUrl,
+    fishCompRegistrationBannerRef: source.fishCompRegistrationBannerRef && typeof source.fishCompRegistrationBannerRef === "object" ? source.fishCompRegistrationBannerRef : null,
     fishCompRunningBannerBase64: String(source.fishCompRunningBannerBase64 || ""),
     fishCompRunningBannerUrl,
+    fishCompRunningBannerRef: source.fishCompRunningBannerRef && typeof source.fishCompRunningBannerRef === "object" ? source.fishCompRunningBannerRef : null,
     fishCompResultBannerBase64: String(source.fishCompResultBannerBase64 || ""),
     fishCompResultBannerUrl,
+    fishCompResultBannerRef: source.fishCompResultBannerRef && typeof source.fishCompResultBannerRef === "object" ? source.fishCompResultBannerRef : null,
+    fishRaidBannerBase64: String(source.fishRaidBannerBase64 || ""),
+    fishRaidBannerUrl,
+    fishRaidBannerRef: source.fishRaidBannerRef && typeof source.fishRaidBannerRef === "object" ? source.fishRaidBannerRef : null,
+    fishRaidRegistrationBannerBase64: String(source.fishRaidRegistrationBannerBase64 || ""),
+    fishRaidRegistrationBannerUrl,
+    fishRaidRegistrationBannerRef: source.fishRaidRegistrationBannerRef && typeof source.fishRaidRegistrationBannerRef === "object" ? source.fishRaidRegistrationBannerRef : null,
+    fishRaidRunningBannerBase64: String(source.fishRaidRunningBannerBase64 || ""),
+    fishRaidRunningBannerUrl,
+    fishRaidRunningBannerRef: source.fishRaidRunningBannerRef && typeof source.fishRaidRunningBannerRef === "object" ? source.fishRaidRunningBannerRef : null,
+    fishRaidResultBannerBase64: String(source.fishRaidResultBannerBase64 || ""),
+    fishRaidResultBannerUrl,
+    fishRaidResultBannerRef: source.fishRaidResultBannerRef && typeof source.fishRaidResultBannerRef === "object" ? source.fishRaidResultBannerRef : null,
     fishGuideBannerBase64: String(source.fishGuideBannerBase64 || ""),
     fishGuideBannerUrl,
+    fishGuideBannerRef: source.fishGuideBannerRef && typeof source.fishGuideBannerRef === "object" ? source.fishGuideBannerRef : null,
     fishHelpBannerBase64: String(source.fishHelpBannerBase64 || ""),
     fishHelpBannerUrl,
+    fishHelpBannerRef: source.fishHelpBannerRef && typeof source.fishHelpBannerRef === "object" ? source.fishHelpBannerRef : null,
     sellFishBannerBase64: String(source.sellFishBannerBase64 || ""),
     sellFishBannerUrl,
+    sellFishBannerRef: source.sellFishBannerRef && typeof source.sellFishBannerRef === "object" ? source.sellFishBannerRef : null,
     fishCompEvents: cleanFishCompEvents(source.fishCompEvents),
+    fishRaidEvents: cleanFishCompEvents(source.fishRaidEvents),
+    fishRaidBosses: cleanFishRaidBosses(source.fishRaidBosses),
     fishCompLogIntervalMs: Math.max(0, cleanNumber(source.fishCompLogIntervalMs, 2500)),
     fishCompExpReward: Math.max(0, cleanNumber(source.fishCompExpReward, 50)),
     fishCompGoldReward: Math.max(0, cleanNumber(source.fishCompGoldReward, 0)),
+    fishRaidLogIntervalMs: Math.max(0, cleanNumber(source.fishRaidLogIntervalMs, 2500)),
+    fishRaidCooldownMinutes: Math.max(0, cleanNumber(source.fishRaidCooldownMinutes, 60)),
+    fishRaidParticipantExpReward: Math.max(0, cleanNumber(source.fishRaidParticipantExpReward, 25)),
+    fishRaidParticipantGoldReward: Math.max(0, cleanNumber(source.fishRaidParticipantGoldReward, 0)),
+    fishRaidMvpExpReward: Math.max(0, cleanNumber(source.fishRaidMvpExpReward, 75)),
+    fishRaidMvpGoldReward: Math.max(0, cleanNumber(source.fishRaidMvpGoldReward, 0)),
+    fishRaidClearParticipantExpReward: Math.max(0, cleanNumber(source.fishRaidClearParticipantExpReward, 50)),
+    fishRaidClearParticipantGoldReward: Math.max(0, cleanNumber(source.fishRaidClearParticipantGoldReward, 0)),
+    fishRaidClearMvpExpReward: Math.max(0, cleanNumber(source.fishRaidClearMvpExpReward, 150)),
+    fishRaidClearMvpGoldReward: Math.max(0, cleanNumber(source.fishRaidClearMvpGoldReward, 0)),
     allowActivity: source.allowActivity !== false,
     chatCooldownMs: Math.max(0, cleanNumber(source.chatCooldownMs, 20_000)),
     expMultiplier: Math.max(0, cleanNumber(source.expMultiplier, 1)),
@@ -254,6 +301,29 @@ function cleanFishCompEvents(events) {
       otherEndText: String(source.otherEndText || "").trim()
     };
   }).filter((event) => event.id && event.chance > 0 && event.startText);
+}
+
+function cleanFishRaidBosses(bosses) {
+  return (Array.isArray(bosses) && bosses.length ? bosses : [{ id: "big_order", name: "Big Fish Order", quotaKg: 100, description: "Pesanan ikan besar hari ini sudah menunggu." }]).map((boss, index) => {
+    const source = boss && typeof boss === "object" ? boss : {};
+    const id = String(source.id || `raid_boss_${index + 1}`).trim().toLowerCase().replace(/[^a-z0-9_]/g, "_");
+    return {
+      id,
+      name: String(source.name || source.title || id || `Raid Boss ${index + 1}`).trim(),
+      quotaKg: Math.max(1, cleanNumber(source.quotaKg ?? source.quota ?? 100, 100)),
+      description: String(source.description || "").trim(),
+      registrationBannerBase64: String(source.registrationBannerBase64 || ""),
+      registrationBannerUrl: String(source.registrationBannerUrl || "").trim(),
+      runningBannerBase64: String(source.runningBannerBase64 || ""),
+      runningBannerUrl: String(source.runningBannerUrl || "").trim(),
+      resultBannerBase64: String(source.resultBannerBase64 || ""),
+      resultBannerUrl: String(source.resultBannerUrl || "").trim(),
+      fulfilledBannerBase64: String(source.fulfilledBannerBase64 || ""),
+      fulfilledBannerUrl: String(source.fulfilledBannerUrl || "").trim(),
+      failedBannerBase64: String(source.failedBannerBase64 || ""),
+      failedBannerUrl: String(source.failedBannerUrl || "").trim()
+    };
+  }).filter((boss) => boss.id && boss.name);
 }
 
 function cleanEventBonus(bonus) {
@@ -358,6 +428,29 @@ function signalGiveMoney(payload) {
   }));
 }
 
+function signalFishRaid(payload) {
+  fs.mkdirSync(runtimeDirectory, { recursive: true });
+  fs.writeFileSync(fishRaidSignalPath, JSON.stringify({
+    id: `${Date.now()}:${Math.random().toString(36).slice(2)}`,
+    createdAt: new Date().toISOString(),
+    ...payload
+  }));
+}
+
+function readFishRaidState() {
+  if (!fs.existsSync(fishRaidStatePath)) {
+    return {};
+  }
+
+  try {
+    const state = JSON.parse(fs.readFileSync(fishRaidStatePath, "utf8"));
+    return state && typeof state === "object" && !Array.isArray(state) ? state.guilds || state : {};
+  } catch (error) {
+    console.error("Could not read fish raid state:", error);
+    return {};
+  }
+}
+
 function readDefaultFishingChannels() {
   if (!fs.existsSync(defaultFishingChannelsPath)) {
     return {};
@@ -401,6 +494,11 @@ async function handleApi(request, response) {
       return;
     }
 
+    if (request.method === "GET" && requestUrl.pathname === "/api/fishraid/state") {
+      sendJson(response, 200, { guilds: readFishRaidState() });
+      return;
+    }
+
     if (request.method === "GET" && requestUrl.pathname === "/api/players") {
       sendJson(response, 200, { players: await adminListPlayers(requestUrl.searchParams.get("search") || "") });
       return;
@@ -436,7 +534,7 @@ async function handleApi(request, response) {
       if (!playFabId) throw new Error("Missing PlayFab ID.");
       const data = await adminGetGameData();
       const player = cleanPlayer(body.player);
-      const catchResult = rollFishForManager(data, player);
+      const catchResult = rollFishForManager(data, player, body.fishId);
       const gain = addManagerCatch(data, player, catchResult.fish, catchResult.catchWeight);
       const saved = await adminSavePlayerData(playFabId, player);
       const discordUserId = String(saved.player?.discordUserId || player.discordUserId || "").trim();
@@ -506,6 +604,45 @@ async function handleApi(request, response) {
         signalEnforcedFishing({ catches });
       }
       sendJson(response, 200, { ok: true, count: updatedPlayers.length, queuedCount, skippedCount, players: updatedPlayers });
+      return;
+    }
+
+    if (request.method === "POST" && request.url === "/api/fishraid/reset") {
+      const body = JSON.parse(await readBody(request));
+      const guildId = String(body.guildId || "").trim();
+      if (!guildId) throw new Error("Missing Discord server ID.");
+      signalFishRaid({
+        action: "reset",
+        guildId,
+        channelId: String(body.channelId || "").trim()
+      });
+      sendJson(response, 200, { ok: true });
+      return;
+    }
+
+    if (request.method === "POST" && request.url === "/api/fishraid/force-clear") {
+      const body = JSON.parse(await readBody(request));
+      const guildId = String(body.guildId || "").trim();
+      if (!guildId) throw new Error("Missing Discord server ID.");
+      signalFishRaid({
+        action: "force_clear",
+        guildId,
+        channelId: String(body.channelId || "").trim()
+      });
+      sendJson(response, 200, { ok: true });
+      return;
+    }
+
+    if (request.method === "POST" && request.url === "/api/fishraid/reset-cooldown") {
+      const body = JSON.parse(await readBody(request));
+      const guildId = String(body.guildId || "").trim();
+      if (!guildId) throw new Error("Missing Discord server ID.");
+      signalFishRaid({
+        action: "reset_cooldown",
+        guildId,
+        channelId: String(body.channelId || "").trim()
+      });
+      sendJson(response, 200, { ok: true });
       return;
     }
 
@@ -1015,10 +1152,11 @@ const html = `<!doctype html>
   <script>
     const state = {
       tab: "fish",
+      settingsTab: "general",
       fish: [],
       rods: [],
       adminDiscordIds: [],
-      settings: { rodStoreImageBase64: "", rodStoreImageUrl: "", fishCompBannerBase64: "", fishCompBannerUrl: "", fishCompRegistrationBannerBase64: "", fishCompRegistrationBannerUrl: "", fishCompRunningBannerBase64: "", fishCompRunningBannerUrl: "", fishCompResultBannerBase64: "", fishCompResultBannerUrl: "", fishGuideBannerBase64: "", fishGuideBannerUrl: "", fishHelpBannerBase64: "", fishHelpBannerUrl: "", sellFishBannerBase64: "", sellFishBannerUrl: "", fishCompEvents: [], fishCompLogIntervalMs: 2500, fishCompExpReward: 50, fishCompGoldReward: 0, allowActivity: true, chatCooldownMs: 20000, expMultiplier: 1, levelExpMultiplier: 1, voiceExpAmount: 1, voiceExpIntervalMinutes: 15 },
+      settings: { rodStoreImageBase64: "", rodStoreImageUrl: "", fishCompBannerBase64: "", fishCompBannerUrl: "", fishCompRegistrationBannerBase64: "", fishCompRegistrationBannerUrl: "", fishCompRunningBannerBase64: "", fishCompRunningBannerUrl: "", fishCompResultBannerBase64: "", fishCompResultBannerUrl: "", fishRaidBannerBase64: "", fishRaidBannerUrl: "", fishRaidRegistrationBannerBase64: "", fishRaidRegistrationBannerUrl: "", fishRaidRunningBannerBase64: "", fishRaidRunningBannerUrl: "", fishRaidResultBannerBase64: "", fishRaidResultBannerUrl: "", fishGuideBannerBase64: "", fishGuideBannerUrl: "", fishHelpBannerBase64: "", fishHelpBannerUrl: "", sellFishBannerBase64: "", sellFishBannerUrl: "", fishCompEvents: [], fishRaidEvents: [], fishRaidBosses: [{ id: "big_order", name: "Big Fish Order", quotaKg: 100, description: "Pesanan ikan besar hari ini sudah menunggu.", registrationBannerBase64: "", registrationBannerUrl: "", runningBannerBase64: "", runningBannerUrl: "", resultBannerBase64: "", resultBannerUrl: "", fulfilledBannerBase64: "", fulfilledBannerUrl: "", failedBannerBase64: "", failedBannerUrl: "" }], fishCompLogIntervalMs: 2500, fishCompExpReward: 50, fishCompGoldReward: 0, fishRaidLogIntervalMs: 2500, fishRaidParticipantExpReward: 25, fishRaidParticipantGoldReward: 0, fishRaidMvpExpReward: 75, fishRaidMvpGoldReward: 0, fishRaidClearParticipantExpReward: 50, fishRaidClearParticipantGoldReward: 0, fishRaidClearMvpExpReward: 150, fishRaidClearMvpGoldReward: 0, allowActivity: true, chatCooldownMs: 20000, expMultiplier: 1, levelExpMultiplier: 1, voiceExpAmount: 1, voiceExpIntervalMinutes: 15 },
       activeEvent: null,
       events: [],
       eventDraft: null,
@@ -1030,11 +1168,17 @@ const html = `<!doctype html>
       rodSearch: "",
       calcRodId: "",
       calcServerId: "",
+      calcSort: "chance",
+      selectedRaidBossId: "big_order",
+      fishRaidControlGuildId: localStorage.getItem("trfishing:fishRaidControlGuildId") || "",
+      fishRaidControlChannelId: localStorage.getItem("trfishing:fishRaidControlChannelId") || "",
+      fishRaidState: {},
       infoCollapsed: { fish: false, rods: false },
       lastAnnouncementChannelId: localStorage.getItem("trfishing:lastAnnouncementChannelId") || "",
       players: [],
       playerSearch: "",
       selectedPlayerId: "",
+      enforceFishId: "",
       catchNotice: "",
       giveMoneyAmount: 0,
       uploadNames: {}
@@ -1244,6 +1388,10 @@ const html = `<!doctype html>
           </div>
           <div class="wide button-row">
             <button class="primary" data-save-player>Save Player</button>
+            <label>Fish<select data-enforce-fish>
+              <option value="">Random</option>
+              \${state.fish.map((fish) => \`<option value="\${escapeHtml(String(fish.id || ""))}" \${state.enforceFishId === String(fish.id || "") ? "selected" : ""}>\${escapeHtml(fish.name || fish.id || "Unnamed Fish")}</option>\`).join("")}
+            </select></label>
             <button data-enforce-fishing>Enforce Fishing</button>
             <button data-make-admin>Make Admin</button>
             <button class="danger" data-reset-player>Reset Player Data</button>
@@ -1257,34 +1405,194 @@ const html = `<!doctype html>
     }
 
     function settingsTemplate() {
+      const tabs = \`
+        <div class="tabs wide">
+          <button class="\${state.settingsTab === "general" ? "active" : ""}" data-settings-tab="general" type="button">General</button>
+          <button class="\${state.settingsTab === "fishcomp" ? "active" : ""}" data-settings-tab="fishcomp" type="button">FishComp</button>
+          <button class="\${state.settingsTab === "fishraid" ? "active" : ""}" data-settings-tab="fishraid" type="button">FishRaid</button>
+        </div>\`;
+      const body = {
+        general: settingsGeneralTemplate,
+        fishcomp: settingsFishCompTemplate,
+        fishraid: settingsFishRaidTemplate
+      }[state.settingsTab]?.() || settingsGeneralTemplate();
       return \`
         <div class="topline">
           <strong>Game Settings</strong>
         </div>
+        \${tabs}
+        \${body}\`;
+    }
+
+    function settingsGeneralTemplate() {
+      return \`
         <div class="fields">
           \${field("Chat Cooldown, ms", "chatCooldownMs", state.settings.chatCooldownMs, 0, "number", "100")}
           \${field("EXP Multiplier", "expMultiplier", state.settings.expMultiplier, 0, "number", "0.01")}
           \${field("Level EXP Multiplier", "levelExpMultiplier", state.settings.levelExpMultiplier ?? 1, 0, "number", "0.01")}
-          \${field("Competition EXP Reward", "fishCompExpReward", state.settings.fishCompExpReward ?? 50, 0, "number", "1")}
-          \${field("Competition Gold Reward", "fishCompGoldReward", state.settings.fishCompGoldReward ?? 0, 0, "number", "1")}
-          \${field("Fish Comp Log Interval, ms", "fishCompLogIntervalMs", state.settings.fishCompLogIntervalMs ?? 2500, 0, "number", "100")}
           \${field("Voice Progress Amount", "voiceExpAmount", state.settings.voiceExpAmount ?? 1, 0, "number", "1")}
           \${field("Voice Progress Interval, minutes", "voiceExpIntervalMinutes", state.settings.voiceExpIntervalMinutes ?? 15, 0, "number", "1")}
           <label class="wide toggle-row"><input type="checkbox" data-key="allowActivity" \${state.settings.allowActivity !== false ? "checked" : ""}> Allow Activity</label>
           <div class="wide small">EXP Multiplier changes EXP gained from fish. Voice Progress Amount and Interval control passive fishing progress from voice.</div>
-          <label class="wide">Fish Comp Events JSON<textarea data-settings-json="fishCompEvents">\${escapeHtml(JSON.stringify(state.settings.fishCompEvents || [], null, 2))}</textarea></label>
-          <div class="wide small">Use {user} and {target} in event text. Chance is percent per player turn. Types: stun, buff, debuff, empty. luckModifier changes competition luck while active.</div>
           <div class="image-grid">
             \${settingsImageFields("Rod Store Image", "rodStoreImage")}
-            \${settingsImageFields("Fish Comp Registration Banner", "fishCompRegistrationBanner")}
-            \${settingsImageFields("Fish Comp Competition Banner", "fishCompRunningBanner")}
-            \${settingsImageFields("Fish Comp Result Banner", "fishCompResultBanner")}
             \${settingsImageFields("Fish Guide Banner", "fishGuideBanner")}
             \${settingsImageFields("Fish Help Banner", "fishHelpBanner")}
             \${settingsImageFields("Sell Fish Banner", "sellFishBanner")}
+          </div>
+        </div>\`;
+    }
+
+    function settingsFishCompTemplate() {
+      return \`
+        <div class="fields">
+          \${field("Competition EXP Reward", "fishCompExpReward", state.settings.fishCompExpReward ?? 50, 0, "number", "1")}
+          \${field("Competition Gold Reward", "fishCompGoldReward", state.settings.fishCompGoldReward ?? 0, 0, "number", "1")}
+          \${field("Fish Comp Log Interval, ms", "fishCompLogIntervalMs", state.settings.fishCompLogIntervalMs ?? 2500, 0, "number", "100")}
+          <label class="wide">Fish Comp Events JSON<textarea data-settings-json="fishCompEvents">\${escapeHtml(JSON.stringify(state.settings.fishCompEvents || [], null, 2))}</textarea></label>
+          <div class="wide small">Use {user} and {target} in event text. Chance is percent per player turn. Types: stun, buff, debuff, empty. luckModifier changes competition luck while active.</div>
+          <div class="image-grid">
+            \${settingsImageFields("Fish Comp Registration Banner", "fishCompRegistrationBanner")}
+            \${settingsImageFields("Fish Comp Competition Banner", "fishCompRunningBanner")}
+            \${settingsImageFields("Fish Comp Result Banner", "fishCompResultBanner")}
             \${settingsImageFields("Legacy Fish Comp Banner", "fishCompBanner")}
           </div>
         </div>\`;
+    }
+
+    function settingsFishRaidTemplate() {
+      return \`
+        <div class="fields">
+          \${field("Raid Participant EXP Reward", "fishRaidParticipantExpReward", state.settings.fishRaidParticipantExpReward ?? 25, 0, "number", "1")}
+          \${field("Raid Participant Gold Reward", "fishRaidParticipantGoldReward", state.settings.fishRaidParticipantGoldReward ?? 0, 0, "number", "1")}
+          \${field("Raid MVP EXP Reward", "fishRaidMvpExpReward", state.settings.fishRaidMvpExpReward ?? 75, 0, "number", "1")}
+          \${field("Raid MVP Gold Reward", "fishRaidMvpGoldReward", state.settings.fishRaidMvpGoldReward ?? 0, 0, "number", "1")}
+          \${field("Clear Participant Bonus EXP", "fishRaidClearParticipantExpReward", state.settings.fishRaidClearParticipantExpReward ?? 50, 0, "number", "1")}
+          \${field("Clear Participant Bonus Gold", "fishRaidClearParticipantGoldReward", state.settings.fishRaidClearParticipantGoldReward ?? 0, 0, "number", "1")}
+          \${field("Clear MVP Bonus EXP", "fishRaidClearMvpExpReward", state.settings.fishRaidClearMvpExpReward ?? 150, 0, "number", "1")}
+          \${field("Clear MVP Bonus Gold", "fishRaidClearMvpGoldReward", state.settings.fishRaidClearMvpGoldReward ?? 0, 0, "number", "1")}
+          \${field("Fish Raid Log Interval, ms", "fishRaidLogIntervalMs", state.settings.fishRaidLogIntervalMs ?? 2500, 0, "number", "100")}
+          \${field("Fish Raid Cooldown, minutes", "fishRaidCooldownMinutes", state.settings.fishRaidCooldownMinutes ?? 60, 0, "number", "1")}
+          \${fishRaidControlsTemplate()}
+          \${fishRaidBossGridTemplate()}
+          <label class="wide">Raid Events JSON<textarea data-settings-json="fishRaidEvents">\${escapeHtml(JSON.stringify(state.settings.fishRaidEvents || [], null, 2))}</textarea></label>
+          <div class="wide small">Raid events use the same format as Fish Comp Events, but only affect FishRaid turns.</div>
+        </div>\`;
+    }
+
+    function makeEmptyRaidBoss() {
+      const id = "raid_boss_" + Date.now();
+      return { id, name: "New Raid Boss", quotaKg: 100, description: "", registrationBannerBase64: "", registrationBannerUrl: "", runningBannerBase64: "", runningBannerUrl: "", resultBannerBase64: "", resultBannerUrl: "", fulfilledBannerBase64: "", fulfilledBannerUrl: "", failedBannerBase64: "", failedBannerUrl: "" };
+    }
+
+    function selectedRaidBossEntry() {
+      const bosses = Array.isArray(state.settings.fishRaidBosses) ? state.settings.fishRaidBosses : [];
+      return bosses
+        .map((boss, index) => ({ boss, index }))
+        .find((entry) => String(entry.boss.id || "") === state.selectedRaidBossId)
+        || (bosses[0] ? { boss: bosses[0], index: 0 } : null);
+    }
+
+    function fishRaidControlsTemplate() {
+      const guildState = state.fishRaidControlGuildId ? state.fishRaidState[state.fishRaidControlGuildId] : null;
+      const statusText = guildState
+        ? \`\${guildState.boss?.name || "Raid Boss"} · \${Number(guildState.filledKg || 0).toFixed(2)} / \${Number(guildState.quotaKg || 0).toFixed(2)} kg · \${guildState.fulfilledAt ? "Fulfilled" : "Active"}\`
+        : "No local state loaded for this server yet.";
+      return \`
+        <section class="wide item">
+          <div class="topline">
+            <strong>Today's Raid Control</strong>
+            <button data-load-fishraid-state type="button">Refresh State</button>
+          </div>
+          <div class="fields">
+            <label>Discord Server ID<input data-fishraid-control="guildId" value="\${escapeHtml(state.fishRaidControlGuildId)}"></label>
+            <label>Message Channel ID<input data-fishraid-control="channelId" value="\${escapeHtml(state.fishRaidControlChannelId)}"></label>
+            <div class="wide small">\${escapeHtml(statusText)}</div>
+            <div class="wide button-row">
+              <button data-reset-fishraid-today type="button">Reset Today's Raid</button>
+              <button data-reset-fishraid-cooldown type="button">Reset Cooldown</button>
+              <button data-force-clear-fishraid type="button">Force Clear Raid</button>
+            </div>
+          </div>
+        </section>\`;
+    }
+
+    function fishRaidBossGridTemplate() {
+      const bosses = Array.isArray(state.settings.fishRaidBosses) ? state.settings.fishRaidBosses : [];
+      if (!state.selectedRaidBossId && bosses[0]) {
+        state.selectedRaidBossId = String(bosses[0].id || "");
+      }
+      const selected = selectedRaidBossEntry();
+      const cards = bosses.length
+        ? bosses.map((boss, index) => fishRaidBossCardTemplate(boss, index)).join("")
+        : '<div class="small">No raid bosses yet.</div>';
+      return \`
+        <div class="fish-layout wide">
+          <article class="item">
+            <div class="fish-toolbar">
+              <strong>Raid Bosses</strong>
+              <button data-add-raid-boss type="button">Add Boss</button>
+            </div>
+            <div class="fish-gallery">\${cards}</div>
+          </article>
+          <article class="item fish-detail">
+            \${selected ? fishRaidBossDetailTemplate(selected.boss, selected.index) : '<div class="small">Click a raid boss to edit it.</div>'}
+          </article>
+        </div>\`;
+    }
+
+    function fishRaidBossCardTemplate(boss, index) {
+      const source = boss.registrationBannerBase64 || boss.registrationBannerUrl || boss.runningBannerBase64 || boss.runningBannerUrl || "";
+      const active = String(boss.id || "") === state.selectedRaidBossId;
+      return \`
+        <button class="fish-card \${active ? "active" : ""}" data-select-raid-boss="\${escapeHtml(String(boss.id || ""))}" data-index="\${index}">
+          \${source ? \`<img alt="" src="\${source}">\` : \`<div class="empty-preview">No image</div>\`}
+          <span>\${escapeHtml(boss.name || boss.id || "Raid Boss")}</span>
+        </button>\`;
+    }
+
+    function fishRaidBossDetailTemplate(boss, index) {
+      return \`
+        <div class="topline">
+          <strong>\${escapeHtml(boss.name || "Raid Boss")}</strong>
+          <button class="danger" data-remove-raid-boss="\${index}" type="button">Remove</button>
+        </div>
+        <div class="fields">
+          \${raidBossField("ID", "id", boss.id, index)}
+          \${raidBossField("Name", "name", boss.name, index)}
+          \${raidBossField("Quota Kg", "quotaKg", boss.quotaKg, index, "number", "0.01")}
+          <label class="wide">Description<textarea data-raid-boss-index="\${index}" data-raid-boss-key="description">\${escapeHtml(boss.description || "")}</textarea></label>
+          <div class="image-grid">
+            \${raidBossImageFields("Registration Banner", "registrationBanner", boss, index)}
+            \${raidBossImageFields("Running Banner", "runningBanner", boss, index)}
+            \${raidBossImageFields("Finish Banner", "resultBanner", boss, index)}
+            \${raidBossImageFields("Quota Fulfilled Banner", "fulfilledBanner", boss, index)}
+            \${raidBossImageFields("Failed at Midnight Banner", "failedBanner", boss, index)}
+          </div>
+        </div>\`;
+    }
+
+    function raidBossField(label, key, value, index, type = "text", step = "") {
+      return \`<label>\${label}<input type="\${type}" step="\${step}" data-raid-boss-index="\${index}" data-raid-boss-key="\${key}" value="\${escapeHtml(String(value ?? ""))}"></label>\`;
+    }
+
+    function raidBossImageFields(label, baseKey, boss, index) {
+      const base64Key = \`\${baseKey}Base64\`;
+      const urlKey = \`\${baseKey}Url\`;
+      const uploadKey = \`raidBoss:\${index}:\${base64Key}\`;
+      const size = boss[base64Key] ? Math.round(boss[base64Key].length / 1024) : 0;
+      const source = boss[base64Key] || boss[urlKey] || "";
+      const uploadName = state.uploadNames[uploadKey] || "";
+      const status = uploadName ? \`Selected file: \${uploadName} · \${size} KB\` : source ? "Preview loaded from saved image or URL." : "No image selected.";
+      return \`
+          <section class="image-panel">
+            <strong>\${label}</strong>
+            \${source ? \`<img class="image-preview" alt="\${label} preview" src="\${source}">\` : \`<div class="empty-preview">No preview</div>\`}
+            \${raidBossField(\`\${label} URL Import\`, urlKey, boss[urlKey] || "", index, "url")}
+            <label class="file-picker"><span>Choose Image</span><input type="file" accept="image/png,image/jpeg,image/gif,image/webp" data-raid-boss-image="\${base64Key}" data-raid-boss-index="\${index}"></label>
+            <div class="small">\${escapeHtml(status)} File uploads are moved to the Discord storage channel when saved.</div>
+            <button class="danger" data-clear-raid-boss-image="\${index}:\${base64Key}" type="button">Clear \${label}</button>
+          </section>\`;
     }
 
     function settingsImageFields(label, baseKey) {
@@ -1648,7 +1956,7 @@ const html = `<!doctype html>
     function calcTableTemplate() {
       if (!state.calcRodId && state.rods[0]) state.calcRodId = state.rods[0].id;
       const rod = state.rods.find((entry) => entry.id === state.calcRodId) || state.rods[0];
-      const rows = rod ? calculateFishChances(rod, state.calcServerId).map((entry) => \`
+      const rows = rod ? sortedCalcEntries(calculateFishChances(rod, state.calcServerId)).map((entry) => \`
         <tr>
           <td>\${escapeHtml(entry.fish.name || entry.fish.id || "")}</td>
           <td>\${escapeHtml(entry.fish.rarity || "")}</td>
@@ -1666,11 +1974,45 @@ const html = `<!doctype html>
             </select></label>
             <label>Server ID<input data-calc-server placeholder="Empty means global fish only" value="\${escapeHtml(state.calcServerId)}"></label>
           </div>
+          <div class="button-row">
+            \${calcSortButton("fish", "Sort Fish")}
+            \${calcSortButton("rarity", "Sort Rarity")}
+            \${calcSortButton("available", "Sort Available")}
+            \${calcSortButton("chance", "Sort Chance")}
+            \${calcSortButton("weight", "Sort Weight")}
+          </div>
           <table class="calc-table">
             <thead><tr><th>Fish</th><th>Rarity</th><th>Available</th><th>Chance</th><th>Weight</th><th>Reason</th></tr></thead>
             <tbody>\${rows || '<tr><td colspan="6">No rod or fish data yet.</td></tr>'}</tbody>
           </table>
         </article>\`;
+    }
+
+    function calcSortButton(sortKey, label) {
+      return \`<button data-calc-sort="\${sortKey}" class="\${state.calcSort === sortKey ? "primary" : ""}">\${label}</button>\`;
+    }
+
+    function sortedCalcEntries(entries) {
+      return [...entries].sort((a, b) => {
+        if (state.calcSort === "fish") {
+          return String(a.fish.name || a.fish.id || "").localeCompare(String(b.fish.name || b.fish.id || ""));
+        }
+        if (state.calcSort === "rarity") {
+          return rarityRank(a.fish.rarity) - rarityRank(b.fish.rarity)
+            || String(a.fish.name || "").localeCompare(String(b.fish.name || ""));
+        }
+        if (state.calcSort === "available") {
+          return Number(b.available) - Number(a.available)
+            || b.chance - a.chance
+            || String(a.fish.name || "").localeCompare(String(b.fish.name || ""));
+        }
+        if (state.calcSort === "weight") {
+          return b.weight - a.weight
+            || String(a.fish.name || "").localeCompare(String(b.fish.name || ""));
+        }
+        return b.chance - a.chance
+          || String(a.fish.name || "").localeCompare(String(b.fish.name || ""));
+      });
     }
 
     function calculateFishChances(rod, serverId) {
@@ -1804,6 +2146,7 @@ const html = `<!doctype html>
       state.eventDraft = null;
       state.selectedFishId = state.fish[0]?.id || "";
       state.selectedRodId = state.rods[0]?.id || "";
+      state.selectedRaidBossId = state.settings.fishRaidBosses?.[0]?.id || "";
       state.calcRodId = state.rods[0]?.id || "";
       state.lastAnnouncementChannelId = state.activeEvent?.announcementChannelId || state.events[0]?.announcementChannelId || state.lastAnnouncementChannelId;
       if (state.lastAnnouncementChannelId) localStorage.setItem("trfishing:lastAnnouncementChannelId", state.lastAnnouncementChannelId);
@@ -1911,7 +2254,7 @@ const html = `<!doctype html>
       const response = await fetch("/api/player/enforce-fishing", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ playFabId: selected.playFabId, player: selected.player })
+        body: JSON.stringify({ playFabId: selected.playFabId, player: selected.player, fishId: state.enforceFishId || "" })
       });
       const payload = await response.json();
       if (!response.ok) throw new Error(payload.error || "Could not enforce fishing.");
@@ -1956,6 +2299,72 @@ const html = `<!doctype html>
       state.catchNotice = \`Gave \${payload.amount} Gold. Gold: \${payload.goldBefore} -> \${payload.goldAfter}.\${discordStatus}\`;
       setStatus(payload.messageQueued ? "Money given and Discord message queued." : "Money given, but no Discord channel was saved.");
       render();
+    }
+
+    async function loadFishRaidState() {
+      setStatus("Loading fish raid state...");
+      const response = await fetch("/api/fishraid/state");
+      const payload = await response.json();
+      if (!response.ok) throw new Error(payload.error || "Could not load fish raid state.");
+      state.fishRaidState = payload.guilds || {};
+      setStatus("Fish raid state loaded.");
+      render();
+    }
+
+    async function resetFishRaidToday() {
+      const guildId = String(state.fishRaidControlGuildId || "").trim();
+      if (!guildId) {
+        setStatus("Enter a Discord Server ID first.", true);
+        return;
+      }
+      if (!confirm("Reset today's raid for this server? This clears today's boss progress and unlocks another raid.")) return;
+      setStatus("Sending fish raid reset...");
+      const response = await fetch("/api/fishraid/reset", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ guildId, channelId: state.fishRaidControlChannelId || "" })
+      });
+      const payload = await response.json();
+      if (!response.ok) throw new Error(payload.error || "Could not reset fish raid.");
+      setStatus("Reset sent to bot.");
+      await loadFishRaidState().catch(() => {});
+    }
+
+    async function forceClearFishRaid() {
+      const guildId = String(state.fishRaidControlGuildId || "").trim();
+      if (!guildId) {
+        setStatus("Enter a Discord Server ID first.", true);
+        return;
+      }
+      if (!confirm("Force clear today's raid quota and post the fulfilled message?")) return;
+      setStatus("Sending fish raid force clear...");
+      const response = await fetch("/api/fishraid/force-clear", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ guildId, channelId: state.fishRaidControlChannelId || "" })
+      });
+      const payload = await response.json();
+      if (!response.ok) throw new Error(payload.error || "Could not force clear fish raid.");
+      setStatus("Force clear sent to bot.");
+      await loadFishRaidState().catch(() => {});
+    }
+
+    async function resetFishRaidCooldown() {
+      const guildId = String(state.fishRaidControlGuildId || "").trim();
+      if (!guildId) {
+        setStatus("Enter a Discord Server ID first.", true);
+        return;
+      }
+      setStatus("Sending fish raid cooldown reset...");
+      const response = await fetch("/api/fishraid/reset-cooldown", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ guildId, channelId: state.fishRaidControlChannelId || "" })
+      });
+      const payload = await response.json();
+      if (!response.ok) throw new Error(payload.error || "Could not reset fish raid cooldown.");
+      setStatus("Cooldown reset sent to bot.");
+      await loadFishRaidState().catch(() => {});
     }
 
     async function resetAllPlayers() {
@@ -2111,6 +2520,31 @@ const html = `<!doctype html>
         return;
       }
       if (state.tab === "settings") {
+        if (target.dataset.fishraidControl) {
+          if (target.dataset.fishraidControl === "guildId") {
+            state.fishRaidControlGuildId = target.value;
+            localStorage.setItem("trfishing:fishRaidControlGuildId", state.fishRaidControlGuildId);
+          }
+          if (target.dataset.fishraidControl === "channelId") {
+            state.fishRaidControlChannelId = target.value;
+            localStorage.setItem("trfishing:fishRaidControlChannelId", state.fishRaidControlChannelId);
+          }
+          return;
+        }
+        if (target.dataset.raidBossKey) {
+          const boss = state.settings.fishRaidBosses?.[Number(target.dataset.raidBossIndex)];
+          if (!boss) return;
+          boss[target.dataset.raidBossKey] = target.type === "number" ? Number(target.value) : target.value;
+          if (target.dataset.raidBossKey === "id") {
+            state.selectedRaidBossId = boss.id;
+          }
+          if (target.dataset.raidBossKey.endsWith("Url")) {
+            boss[target.dataset.raidBossKey.replace(/Url$/, "Base64")] = "";
+            boss[target.dataset.raidBossKey.replace(/Url$/, "Ref")] = null;
+            delete state.uploadNames[\`raidBoss:\${target.dataset.raidBossIndex}:\${target.dataset.raidBossKey.replace(/Url$/, "Base64")}\`];
+          }
+          return;
+        }
         if (target.dataset.settingsJson) {
           try {
             state.settings[target.dataset.settingsJson] = JSON.parse(target.value);
@@ -2124,14 +2558,17 @@ const html = `<!doctype html>
         state.settings[target.dataset.key] = target.type === "checkbox" ? target.checked : target.type === "number" ? Number(target.value) : target.value;
         if (target.dataset.key === "rodStoreImageUrl") {
           state.settings.rodStoreImageBase64 = "";
+          state.settings.rodStoreImageRef = null;
           delete state.uploadNames.rodStoreImageBase64;
         }
         if (target.dataset.key === "fishCompBannerUrl") {
           state.settings.fishCompBannerBase64 = "";
+          state.settings.fishCompBannerRef = null;
           delete state.uploadNames.fishCompBannerBase64;
         }
         if (target.dataset.key.endsWith("BannerUrl")) {
           state.settings[target.dataset.key.replace(/Url$/, "Base64")] = "";
+          state.settings[target.dataset.key.replace(/Url$/, "Ref")] = null;
           delete state.uploadNames[target.dataset.key.replace(/Url$/, "Base64")];
         }
         return;
@@ -2193,10 +2630,15 @@ const html = `<!doctype html>
       if (target.dataset.key === "iconUrl") {
         const item = state[state.tab][Number(target.dataset.index)];
         item.iconBase64 = "";
+        item.iconRef = null;
       }
     });
     grid.addEventListener("change", (event) => {
       const target = event.target;
+      if (target.dataset.enforceFish !== undefined) {
+        state.enforceFishId = target.value;
+        return;
+      }
       if (target.dataset.importFish !== undefined) {
         importFishJson(target.files[0]);
         target.value = "";
@@ -2216,13 +2658,34 @@ const html = `<!doctype html>
           state.uploadNames[target.dataset.settingsImage] = file.name;
           if (target.dataset.settingsImage === "rodStoreImageBase64") {
             state.settings.rodStoreImageUrl = "";
+            state.settings.rodStoreImageRef = null;
           }
           if (target.dataset.settingsImage === "fishCompBannerBase64") {
             state.settings.fishCompBannerUrl = "";
+            state.settings.fishCompBannerRef = null;
           }
           if (target.dataset.settingsImage.endsWith("BannerBase64")) {
             state.settings[target.dataset.settingsImage.replace(/Base64$/, "Url")] = "";
+            state.settings[target.dataset.settingsImage.replace(/Base64$/, "Ref")] = null;
           }
+          render();
+        };
+        reader.readAsDataURL(file);
+        return;
+      }
+      if (target.dataset.raidBossImage) {
+        const file = target.files[0];
+        if (!file) return;
+        const bossIndex = Number(target.dataset.raidBossIndex);
+        const boss = state.settings.fishRaidBosses?.[bossIndex];
+        if (!boss) return;
+        const reader = new FileReader();
+        reader.onload = () => {
+          const key = target.dataset.raidBossImage;
+          boss[key] = reader.result;
+          boss[key.replace(/Base64$/, "Url")] = "";
+          boss[key.replace(/Base64$/, "Ref")] = null;
+          state.uploadNames[\`raidBoss:\${bossIndex}:\${key}\`] = file.name;
           render();
         };
         reader.readAsDataURL(file);
@@ -2262,11 +2725,24 @@ const html = `<!doctype html>
         if (!item) return;
         item.iconBase64 = reader.result;
         item.iconUrl = "";
+        item.iconRef = null;
         render();
       };
       reader.readAsDataURL(file);
     });
     grid.addEventListener("click", (event) => {
+      const settingsTabButton = event.target.closest("[data-settings-tab]");
+      if (settingsTabButton) {
+        state.settingsTab = settingsTabButton.dataset.settingsTab;
+        render();
+        return;
+      }
+      const selectRaidBossButton = event.target.closest("[data-select-raid-boss]");
+      if (selectRaidBossButton) {
+        state.selectedRaidBossId = selectRaidBossButton.dataset.selectRaidBoss;
+        render();
+        return;
+      }
       const selectFishButton = event.target.closest("[data-select-fish]");
       if (selectFishButton) {
         state.selectedFishId = selectFishButton.dataset.selectFish;
@@ -2298,6 +2774,12 @@ const html = `<!doctype html>
         render();
         return;
       }
+      const calcSortButton = event.target.closest("[data-calc-sort]");
+      if (calcSortButton) {
+        state.calcSort = calcSortButton.dataset.calcSort;
+        render();
+        return;
+      }
       const addItemButton = event.target.closest("[data-add-item]");
       if (addItemButton) {
         const collectionName = addItemButton.dataset.addItem;
@@ -2318,6 +2800,32 @@ const html = `<!doctype html>
       if (event.target.closest("[data-add-admin]")) {
         state.adminDiscordIds.push("");
         render();
+        return;
+      }
+      if (event.target.closest("[data-add-raid-boss]")) {
+        if (!Array.isArray(state.settings.fishRaidBosses)) {
+          state.settings.fishRaidBosses = [];
+        }
+        const boss = makeEmptyRaidBoss();
+        state.settings.fishRaidBosses.push(boss);
+        state.selectedRaidBossId = boss.id;
+        render();
+        return;
+      }
+      if (event.target.closest("[data-load-fishraid-state]")) {
+        loadFishRaidState().catch((error) => setStatus(error.message, true));
+        return;
+      }
+      if (event.target.closest("[data-reset-fishraid-today]")) {
+        resetFishRaidToday().catch((error) => setStatus(error.message, true));
+        return;
+      }
+      if (event.target.closest("[data-reset-fishraid-cooldown]")) {
+        resetFishRaidCooldown().catch((error) => setStatus(error.message, true));
+        return;
+      }
+      if (event.target.closest("[data-force-clear-fishraid]")) {
+        forceClearFishRaid().catch((error) => setStatus(error.message, true));
         return;
       }
       if (event.target.closest("[data-create-event]")) {
@@ -2386,13 +2894,37 @@ const html = `<!doctype html>
         delete state.uploadNames[settingsImageButton.dataset.clearSettingsImage];
         if (settingsImageButton.dataset.clearSettingsImage === "rodStoreImageBase64") {
           state.settings.rodStoreImageUrl = "";
+          state.settings.rodStoreImageRef = null;
         }
         if (settingsImageButton.dataset.clearSettingsImage === "fishCompBannerBase64") {
           state.settings.fishCompBannerUrl = "";
+          state.settings.fishCompBannerRef = null;
         }
         if (settingsImageButton.dataset.clearSettingsImage.endsWith("BannerBase64")) {
           state.settings[settingsImageButton.dataset.clearSettingsImage.replace(/Base64$/, "Url")] = "";
+          state.settings[settingsImageButton.dataset.clearSettingsImage.replace(/Base64$/, "Ref")] = null;
         }
+        render();
+        return;
+      }
+      const raidBossImageButton = event.target.closest("[data-clear-raid-boss-image]");
+      if (raidBossImageButton) {
+        const [indexText, base64Key] = raidBossImageButton.dataset.clearRaidBossImage.split(":");
+        const bossIndex = Number(indexText);
+        const boss = state.settings.fishRaidBosses?.[bossIndex];
+        if (!boss || !base64Key) return;
+        boss[base64Key] = "";
+        boss[base64Key.replace(/Base64$/, "Url")] = "";
+        boss[base64Key.replace(/Base64$/, "Ref")] = null;
+        delete state.uploadNames[\`raidBoss:\${bossIndex}:\${base64Key}\`];
+        render();
+        return;
+      }
+      const removeRaidBossButton = event.target.closest("[data-remove-raid-boss]");
+      if (removeRaidBossButton) {
+        if (!confirm("Remove this raid boss?")) return;
+        state.settings.fishRaidBosses.splice(Number(removeRaidBossButton.dataset.removeRaidBoss), 1);
+        state.selectedRaidBossId = state.settings.fishRaidBosses[0]?.id || "";
         render();
         return;
       }

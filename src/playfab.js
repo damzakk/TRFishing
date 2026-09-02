@@ -3,7 +3,9 @@ require("dotenv").config();
 const fs = require("node:fs");
 const path = require("node:path");
 const { defaultFish, defaultRods } = require("./defaultData");
-const { uploadDiscordImage } = require("./discordStorage");
+const defaultFishCompEvents = require("../fishCompEvents.json");
+const defaultFishRaidEvents = require("../fishRaidEvents.json");
+const { getDiscordImageUrl, uploadDiscordImageWithRef } = require("./discordStorage");
 
 const titleId = process.env.PLAYFAB_TITLE_ID;
 const secretKey = process.env.PLAYFAB_SECRET_KEY;
@@ -27,82 +29,53 @@ const defaultSettings = {
   fishCompRunningBannerUrl: "",
   fishCompResultBannerBase64: "",
   fishCompResultBannerUrl: "",
+  fishRaidBannerBase64: "",
+  fishRaidBannerUrl: "",
+  fishRaidRegistrationBannerBase64: "",
+  fishRaidRegistrationBannerUrl: "",
+  fishRaidRunningBannerBase64: "",
+  fishRaidRunningBannerUrl: "",
+  fishRaidResultBannerBase64: "",
+  fishRaidResultBannerUrl: "",
   fishGuideBannerBase64: "",
   fishGuideBannerUrl: "",
   fishHelpBannerBase64: "",
   fishHelpBannerUrl: "",
   sellFishBannerBase64: "",
   sellFishBannerUrl: "",
-  fishCompEvents: [
+  fishCompEvents: defaultFishCompEvents,
+  fishRaidEvents: defaultFishRaidEvents,
+  fishRaidBosses: [
     {
-      id: "slip_pool",
-      name: "Terjatuh ke kolam",
-      chance: 4,
-      type: "stun",
-      durationTurns: 2,
-      luckModifier: 0,
-      canFishOnStart: false,
-      canFishWhileActive: false,
-      canFishOnEnd: false,
-      affectOther: true,
-      affectOtherChance: 35,
-      otherType: "stun",
-      otherDurationTurns: 2,
-      otherLuckModifier: 0,
-      startText: "{user} tersandung dan terjatuh ke kolam.",
-      activeText: "{user} masih berusaha keluar dari kolam.",
-      endText: "{user} keluar dari kolam setelah terjatuh.",
-      otherStartText: "{target} terjatuh ke kolam karena tersenggol {user}.",
-      otherActiveText: "{target} masih basah kuyup di kolam.",
-      otherEndText: "{target} akhirnya keluar dari kolam."
-    },
-    {
-      id: "lucky_chant",
-      name: "Teriakan semangat",
-      chance: 6,
-      type: "empty",
-      durationTurns: 1,
-      luckModifier: 0,
-      canFishOnStart: true,
-      canFishWhileActive: true,
-      canFishOnEnd: true,
-      affectOther: false,
-      startText: "{user} berteriak sekuat tenaga."
-    },
-    {
-      id: "golden_ripple",
-      name: "Riak emas",
-      chance: 3,
-      type: "buff",
-      durationTurns: 2,
-      luckModifier: 3,
-      canFishOnStart: true,
-      canFishWhileActive: true,
-      canFishOnEnd: true,
-      affectOther: false,
-      startText: "Air di dekat {user} berkilau emas.",
-      activeText: "{user} masih dikelilingi riak emas.",
-      endText: "Riak emas di sekitar {user} menghilang."
-    },
-    {
-      id: "tangled_line",
-      name: "Senar kusut",
-      chance: 4,
-      type: "debuff",
-      durationTurns: 2,
-      luckModifier: -3,
-      canFishOnStart: true,
-      canFishWhileActive: true,
-      canFishOnEnd: true,
-      affectOther: false,
-      startText: "Senar pancing {user} tiba-tiba kusut.",
-      activeText: "{user} masih memancing dengan senar yang kurang nyaman.",
-      endText: "Senar pancing {user} akhirnya rapi lagi."
+      id: "mbg_boss",
+      name: "MBG Boss",
+      quotaKg: 250,
+      description: "Bos SPPG yang minta stok ikan untuk menu MBG hari ini, sambil mengeluh spreadsheet dapur lebih ganas daripada boss raid.",
+      registrationBannerBase64: "",
+      registrationBannerUrl: "",
+      runningBannerBase64: "",
+      runningBannerUrl: "",
+      resultBannerBase64: "",
+      resultBannerUrl: "",
+      fulfilledBannerBase64: "",
+      fulfilledBannerUrl: "",
+      failedBannerBase64: "",
+      failedBannerUrl: ""
     }
   ],
   fishCompLogIntervalMs: 2500,
   fishCompExpReward: 50,
   fishCompGoldReward: 0,
+  fishRaidLogIntervalMs: 2500,
+  fishRaidCooldownMinutes: 60,
+  fishRaidParticipantExpReward: 25,
+  fishRaidParticipantGoldReward: 0,
+  fishRaidMvpExpReward: 75,
+  fishRaidMvpGoldReward: 0,
+  fishRaidClearParticipantExpReward: 50,
+  fishRaidClearParticipantGoldReward: 0,
+  fishRaidClearMvpExpReward: 150,
+  fishRaidClearMvpGoldReward: 0,
   allowActivity: true,
   chatCooldownMs: 20_000,
   expMultiplier: 1,
@@ -631,6 +604,10 @@ function cleanSettings(settings) {
   const fishCompRegistrationBannerUrl = String(source.fishCompRegistrationBannerUrl || "").trim();
   const fishCompRunningBannerUrl = String(source.fishCompRunningBannerUrl || "").trim();
   const fishCompResultBannerUrl = String(source.fishCompResultBannerUrl || "").trim();
+  const fishRaidBannerUrl = String(source.fishRaidBannerUrl || "").trim();
+  const fishRaidRegistrationBannerUrl = String(source.fishRaidRegistrationBannerUrl || "").trim();
+  const fishRaidRunningBannerUrl = String(source.fishRaidRunningBannerUrl || "").trim();
+  const fishRaidResultBannerUrl = String(source.fishRaidResultBannerUrl || "").trim();
   const fishGuideBannerUrl = String(source.fishGuideBannerUrl || "").trim();
   const fishHelpBannerUrl = String(source.fishHelpBannerUrl || "").trim();
   const sellFishBannerUrl = String(source.sellFishBannerUrl || "").trim();
@@ -645,20 +622,50 @@ function cleanSettings(settings) {
     fishCompBannerRef: source.fishCompBannerRef && typeof source.fishCompBannerRef === "object" ? source.fishCompBannerRef : null,
     fishCompRegistrationBannerBase64: String(source.fishCompRegistrationBannerBase64 || ""),
     fishCompRegistrationBannerUrl,
+    fishCompRegistrationBannerRef: source.fishCompRegistrationBannerRef && typeof source.fishCompRegistrationBannerRef === "object" ? source.fishCompRegistrationBannerRef : null,
     fishCompRunningBannerBase64: String(source.fishCompRunningBannerBase64 || ""),
     fishCompRunningBannerUrl,
+    fishCompRunningBannerRef: source.fishCompRunningBannerRef && typeof source.fishCompRunningBannerRef === "object" ? source.fishCompRunningBannerRef : null,
     fishCompResultBannerBase64: String(source.fishCompResultBannerBase64 || ""),
     fishCompResultBannerUrl,
+    fishCompResultBannerRef: source.fishCompResultBannerRef && typeof source.fishCompResultBannerRef === "object" ? source.fishCompResultBannerRef : null,
+    fishRaidBannerBase64: String(source.fishRaidBannerBase64 || ""),
+    fishRaidBannerUrl,
+    fishRaidBannerRef: source.fishRaidBannerRef && typeof source.fishRaidBannerRef === "object" ? source.fishRaidBannerRef : null,
+    fishRaidRegistrationBannerBase64: String(source.fishRaidRegistrationBannerBase64 || ""),
+    fishRaidRegistrationBannerUrl,
+    fishRaidRegistrationBannerRef: source.fishRaidRegistrationBannerRef && typeof source.fishRaidRegistrationBannerRef === "object" ? source.fishRaidRegistrationBannerRef : null,
+    fishRaidRunningBannerBase64: String(source.fishRaidRunningBannerBase64 || ""),
+    fishRaidRunningBannerUrl,
+    fishRaidRunningBannerRef: source.fishRaidRunningBannerRef && typeof source.fishRaidRunningBannerRef === "object" ? source.fishRaidRunningBannerRef : null,
+    fishRaidResultBannerBase64: String(source.fishRaidResultBannerBase64 || ""),
+    fishRaidResultBannerUrl,
+    fishRaidResultBannerRef: source.fishRaidResultBannerRef && typeof source.fishRaidResultBannerRef === "object" ? source.fishRaidResultBannerRef : null,
     fishGuideBannerBase64: String(source.fishGuideBannerBase64 || ""),
     fishGuideBannerUrl,
+    fishGuideBannerRef: source.fishGuideBannerRef && typeof source.fishGuideBannerRef === "object" ? source.fishGuideBannerRef : null,
     fishHelpBannerBase64: String(source.fishHelpBannerBase64 || ""),
     fishHelpBannerUrl,
+    fishHelpBannerRef: source.fishHelpBannerRef && typeof source.fishHelpBannerRef === "object" ? source.fishHelpBannerRef : null,
     sellFishBannerBase64: String(source.sellFishBannerBase64 || ""),
     sellFishBannerUrl,
+    sellFishBannerRef: source.sellFishBannerRef && typeof source.sellFishBannerRef === "object" ? source.sellFishBannerRef : null,
     fishCompEvents: cleanFishCompEvents(source.fishCompEvents),
+    fishRaidEvents: cleanFishCompEvents(source.fishRaidEvents, defaultSettings.fishRaidEvents),
+    fishRaidBosses: cleanFishRaidBosses(source.fishRaidBosses),
     fishCompLogIntervalMs: Math.max(0, cleanNumber(source.fishCompLogIntervalMs ?? defaultSettings.fishCompLogIntervalMs, defaultSettings.fishCompLogIntervalMs)),
     fishCompExpReward: Math.max(0, cleanNumber(source.fishCompExpReward ?? defaultSettings.fishCompExpReward, defaultSettings.fishCompExpReward)),
     fishCompGoldReward: Math.max(0, cleanNumber(source.fishCompGoldReward ?? defaultSettings.fishCompGoldReward, defaultSettings.fishCompGoldReward)),
+    fishRaidLogIntervalMs: Math.max(0, cleanNumber(source.fishRaidLogIntervalMs ?? defaultSettings.fishRaidLogIntervalMs, defaultSettings.fishRaidLogIntervalMs)),
+    fishRaidCooldownMinutes: Math.max(0, cleanNumber(source.fishRaidCooldownMinutes ?? defaultSettings.fishRaidCooldownMinutes, defaultSettings.fishRaidCooldownMinutes)),
+    fishRaidParticipantExpReward: Math.max(0, cleanNumber(source.fishRaidParticipantExpReward ?? defaultSettings.fishRaidParticipantExpReward, defaultSettings.fishRaidParticipantExpReward)),
+    fishRaidParticipantGoldReward: Math.max(0, cleanNumber(source.fishRaidParticipantGoldReward ?? defaultSettings.fishRaidParticipantGoldReward, defaultSettings.fishRaidParticipantGoldReward)),
+    fishRaidMvpExpReward: Math.max(0, cleanNumber(source.fishRaidMvpExpReward ?? defaultSettings.fishRaidMvpExpReward, defaultSettings.fishRaidMvpExpReward)),
+    fishRaidMvpGoldReward: Math.max(0, cleanNumber(source.fishRaidMvpGoldReward ?? defaultSettings.fishRaidMvpGoldReward, defaultSettings.fishRaidMvpGoldReward)),
+    fishRaidClearParticipantExpReward: Math.max(0, cleanNumber(source.fishRaidClearParticipantExpReward ?? defaultSettings.fishRaidClearParticipantExpReward, defaultSettings.fishRaidClearParticipantExpReward)),
+    fishRaidClearParticipantGoldReward: Math.max(0, cleanNumber(source.fishRaidClearParticipantGoldReward ?? defaultSettings.fishRaidClearParticipantGoldReward, defaultSettings.fishRaidClearParticipantGoldReward)),
+    fishRaidClearMvpExpReward: Math.max(0, cleanNumber(source.fishRaidClearMvpExpReward ?? defaultSettings.fishRaidClearMvpExpReward, defaultSettings.fishRaidClearMvpExpReward)),
+    fishRaidClearMvpGoldReward: Math.max(0, cleanNumber(source.fishRaidClearMvpGoldReward ?? defaultSettings.fishRaidClearMvpGoldReward, defaultSettings.fishRaidClearMvpGoldReward)),
     allowActivity: source.allowActivity !== false,
     chatCooldownMs: Math.max(0, Number(source.chatCooldownMs ?? defaultSettings.chatCooldownMs) || defaultSettings.chatCooldownMs),
     expMultiplier: Math.max(0, Number(source.expMultiplier ?? defaultSettings.expMultiplier) || defaultSettings.expMultiplier),
@@ -668,8 +675,8 @@ function cleanSettings(settings) {
   };
 }
 
-function cleanFishCompEvents(events) {
-  return (Array.isArray(events) ? events : defaultSettings.fishCompEvents).map((event, index) => {
+function cleanFishCompEvents(events, fallbackEvents = defaultSettings.fishCompEvents) {
+  return (Array.isArray(events) ? events : fallbackEvents).map((event, index) => {
     const source = event && typeof event === "object" ? event : {};
     return {
       id: String(source.id || `event_${index + 1}`).trim().toLowerCase().replace(/[^a-z0-9_]/g, "_"),
@@ -694,6 +701,34 @@ function cleanFishCompEvents(events) {
       otherEndText: String(source.otherEndText || "").trim()
     };
   }).filter((event) => event.id && event.chance > 0 && event.startText);
+}
+
+function cleanFishRaidBosses(bosses) {
+  return (Array.isArray(bosses) && bosses.length ? bosses : defaultSettings.fishRaidBosses).map((boss, index) => {
+    const source = boss && typeof boss === "object" ? boss : {};
+    const id = String(source.id || `raid_boss_${index + 1}`).trim().toLowerCase().replace(/[^a-z0-9_]/g, "_");
+    return {
+      id,
+      name: String(source.name || source.title || id || `Raid Boss ${index + 1}`).trim(),
+      quotaKg: Math.max(1, cleanNumber(source.quotaKg ?? source.quota ?? 100, 100)),
+      description: String(source.description || "").trim(),
+      registrationBannerBase64: String(source.registrationBannerBase64 || ""),
+      registrationBannerUrl: String(source.registrationBannerUrl || "").trim(),
+      registrationBannerRef: source.registrationBannerRef && typeof source.registrationBannerRef === "object" ? source.registrationBannerRef : null,
+      runningBannerBase64: String(source.runningBannerBase64 || ""),
+      runningBannerUrl: String(source.runningBannerUrl || "").trim(),
+      runningBannerRef: source.runningBannerRef && typeof source.runningBannerRef === "object" ? source.runningBannerRef : null,
+      resultBannerBase64: String(source.resultBannerBase64 || ""),
+      resultBannerUrl: String(source.resultBannerUrl || "").trim(),
+      resultBannerRef: source.resultBannerRef && typeof source.resultBannerRef === "object" ? source.resultBannerRef : null,
+      fulfilledBannerBase64: String(source.fulfilledBannerBase64 || ""),
+      fulfilledBannerUrl: String(source.fulfilledBannerUrl || "").trim(),
+      fulfilledBannerRef: source.fulfilledBannerRef && typeof source.fulfilledBannerRef === "object" ? source.fulfilledBannerRef : null,
+      failedBannerBase64: String(source.failedBannerBase64 || ""),
+      failedBannerUrl: String(source.failedBannerUrl || "").trim(),
+      failedBannerRef: source.failedBannerRef && typeof source.failedBannerRef === "object" ? source.failedBannerRef : null
+    };
+  }).filter((boss) => boss.id && boss.name);
 }
 
 function cleanEventBonus(bonus) {
@@ -777,6 +812,12 @@ function settingsImageContentKeyFor(name, extension = "png") {
 
 function eventContentKeyFor(eventId, extension = "png") {
   return `images/events/${eventId || "active"}.${extension}`;
+}
+
+function fishRaidBossContentKeyFor(bossId, bannerName, extension = "png") {
+  const safeBossId = String(bossId || "boss").trim().toLowerCase().replace(/[^a-z0-9_]/g, "_") || "boss";
+  const safeBannerName = String(bannerName || "banner").trim().toLowerCase().replace(/[^a-z0-9_]/g, "-") || "banner";
+  return `images/fish-raid-bosses/${safeBossId}-${safeBannerName}.${extension}`;
 }
 
 function chunkKeyFor(key, index) {
@@ -915,11 +956,25 @@ async function imageSourceToBuffer({ dataUrl, sourceUrl }) {
 }
 
 async function uploadContentBuffer(contentKey, image) {
-  return uploadDiscordImage({
+  return uploadDiscordImageWithRef({
     buffer: image.buffer,
     contentType: image.contentType,
     fileName: contentKey.split("/").pop() || `image.${image.extension}`
   });
+}
+
+async function getStoredImageUrl(ref, fallbackUrl = "", legacyContentKey = "") {
+  const directUrl = String(fallbackUrl || "").trim();
+  if (ref?.storage === "discord_attachment") {
+    return await getDiscordImageUrl(ref).catch((error) => {
+      console.error("Could not refresh Discord image URL:", error);
+      return directUrl;
+    });
+  }
+  if (directUrl) {
+    return directUrl;
+  }
+  return legacyContentKey ? getContentDownloadUrl(legacyContentKey) : "";
 }
 
 async function getContentDownloadUrl(contentKey) {
@@ -938,22 +993,45 @@ async function getContentDownloadUrl(contentKey) {
   return result.URL || "";
 }
 
-async function saveContentImage({ currentUrl, legacyContentKey, dataUrl, sourceUrl, keyForExtension }) {
+async function saveContentImage({ currentUrl, currentRef, legacyContentKey, dataUrl, sourceUrl, keyForExtension }) {
   const url = String(sourceUrl || currentUrl || "").trim();
   if (!dataUrl && /^https?:\/\//i.test(url)) {
-    return url;
+    return { url, ref: currentRef || null };
   }
   if (!dataUrl && legacyContentKey) {
-    return getContentDownloadUrl(legacyContentKey);
+    return { url: await getContentDownloadUrl(legacyContentKey), ref: currentRef || null };
   }
 
   const image = await imageSourceToBuffer({ dataUrl, sourceUrl: url });
   if (!image) {
-    return "";
+    return { url: "", ref: null };
   }
 
   const contentKey = keyForExtension(image.extension);
   return uploadContentBuffer(contentKey, image);
+}
+
+async function saveFishRaidBossImages(bosses) {
+  const bannerKeys = ["registration", "running", "result", "fulfilled", "failed"];
+  const savedBosses = [];
+  for (const boss of bosses) {
+    const savedBoss = { ...boss };
+    for (const bannerKey of bannerKeys) {
+      const baseKey = `${bannerKey}Banner`;
+      const banner = await saveContentImage({
+        currentUrl: boss[`${baseKey}Url`],
+        currentRef: boss[`${baseKey}Ref`],
+        dataUrl: boss[`${baseKey}Base64`],
+        sourceUrl: boss[`${baseKey}Url`],
+        keyForExtension: (extension) => fishRaidBossContentKeyFor(boss.id, baseKey, extension)
+      });
+      savedBoss[`${baseKey}Url`] = banner.url;
+      savedBoss[`${baseKey}Ref`] = banner.ref;
+      savedBoss[`${baseKey}Base64`] = "";
+    }
+    savedBosses.push(savedBoss);
+  }
+  return savedBosses;
 }
 
 async function loadTitleAsset(key, useSecretKey = false) {
@@ -996,9 +1074,21 @@ function withoutConfigAssets(config) {
       fishCompRegistrationBannerBase64: "",
       fishCompRunningBannerBase64: "",
       fishCompResultBannerBase64: "",
+      fishRaidBannerBase64: "",
+      fishRaidRegistrationBannerBase64: "",
+      fishRaidRunningBannerBase64: "",
+      fishRaidResultBannerBase64: "",
       fishGuideBannerBase64: "",
       fishHelpBannerBase64: "",
-      sellFishBannerBase64: ""
+      sellFishBannerBase64: "",
+      fishRaidBosses: settings.fishRaidBosses.map((boss) => ({
+        ...boss,
+        registrationBannerBase64: "",
+        runningBannerBase64: "",
+        resultBannerBase64: "",
+        fulfilledBannerBase64: "",
+        failedBannerBase64: ""
+      }))
     },
     activeEvent: activeEvent
       ? {
@@ -1019,47 +1109,61 @@ async function attachConfigAssets(config, useSecretKey = false) {
   const settings = cleanSettings(config.settings);
   const activeEvent = cleanEvent(config.activeEvent);
   const events = cleanEvents(config.events, activeEvent);
+  const fishRaidBosses = await Promise.all(settings.fishRaidBosses.map(async (boss) => ({
+    ...boss,
+    registrationBannerBase64: "",
+    registrationBannerUrl: await getStoredImageUrl(boss.registrationBannerRef, boss.registrationBannerUrl),
+    runningBannerBase64: "",
+    runningBannerUrl: await getStoredImageUrl(boss.runningBannerRef, boss.runningBannerUrl),
+    resultBannerBase64: "",
+    resultBannerUrl: await getStoredImageUrl(boss.resultBannerRef, boss.resultBannerUrl),
+    fulfilledBannerBase64: "",
+    fulfilledBannerUrl: await getStoredImageUrl(boss.fulfilledBannerRef, boss.fulfilledBannerUrl),
+    failedBannerBase64: "",
+    failedBannerUrl: await getStoredImageUrl(boss.failedBannerRef, boss.failedBannerUrl)
+  })));
 
   return {
     adminDiscordIds: cleanAdminDiscordIds(config.adminDiscordIds),
     settings: {
       ...settings,
       rodStoreImageBase64: "",
-      rodStoreImageUrl: settings.rodStoreImageUrl || (settings.rodStoreImageContentKey
-        ? await getContentDownloadUrl(settings.rodStoreImageContentKey)
-        : ""),
+      rodStoreImageUrl: await getStoredImageUrl(settings.rodStoreImageRef, settings.rodStoreImageUrl, settings.rodStoreImageContentKey),
       fishCompBannerBase64: "",
-      fishCompBannerUrl: settings.fishCompBannerUrl || (settings.fishCompBannerContentKey
-        ? await getContentDownloadUrl(settings.fishCompBannerContentKey)
-        : ""),
+      fishCompBannerUrl: await getStoredImageUrl(settings.fishCompBannerRef, settings.fishCompBannerUrl, settings.fishCompBannerContentKey),
       fishCompRegistrationBannerBase64: "",
-      fishCompRegistrationBannerUrl: settings.fishCompRegistrationBannerUrl,
+      fishCompRegistrationBannerUrl: await getStoredImageUrl(settings.fishCompRegistrationBannerRef, settings.fishCompRegistrationBannerUrl),
       fishCompRunningBannerBase64: "",
-      fishCompRunningBannerUrl: settings.fishCompRunningBannerUrl,
+      fishCompRunningBannerUrl: await getStoredImageUrl(settings.fishCompRunningBannerRef, settings.fishCompRunningBannerUrl),
       fishCompResultBannerBase64: "",
-      fishCompResultBannerUrl: settings.fishCompResultBannerUrl,
+      fishCompResultBannerUrl: await getStoredImageUrl(settings.fishCompResultBannerRef, settings.fishCompResultBannerUrl),
+      fishRaidBannerBase64: "",
+      fishRaidBannerUrl: await getStoredImageUrl(settings.fishRaidBannerRef, settings.fishRaidBannerUrl),
+      fishRaidRegistrationBannerBase64: "",
+      fishRaidRegistrationBannerUrl: await getStoredImageUrl(settings.fishRaidRegistrationBannerRef, settings.fishRaidRegistrationBannerUrl),
+      fishRaidRunningBannerBase64: "",
+      fishRaidRunningBannerUrl: await getStoredImageUrl(settings.fishRaidRunningBannerRef, settings.fishRaidRunningBannerUrl),
+      fishRaidResultBannerBase64: "",
+      fishRaidResultBannerUrl: await getStoredImageUrl(settings.fishRaidResultBannerRef, settings.fishRaidResultBannerUrl),
       fishGuideBannerBase64: "",
-      fishGuideBannerUrl: settings.fishGuideBannerUrl,
+      fishGuideBannerUrl: await getStoredImageUrl(settings.fishGuideBannerRef, settings.fishGuideBannerUrl),
       fishHelpBannerBase64: "",
-      fishHelpBannerUrl: settings.fishHelpBannerUrl,
+      fishHelpBannerUrl: await getStoredImageUrl(settings.fishHelpBannerRef, settings.fishHelpBannerUrl),
       sellFishBannerBase64: "",
-      sellFishBannerUrl: settings.sellFishBannerUrl
+      sellFishBannerUrl: await getStoredImageUrl(settings.sellFishBannerRef, settings.sellFishBannerUrl),
+      fishRaidBosses
     },
     activeEvent: activeEvent
       ? {
         ...activeEvent,
         bannerBase64: "",
-        bannerUrl: activeEvent.bannerUrl || (activeEvent.bannerContentKey
-          ? await getContentDownloadUrl(activeEvent.bannerContentKey)
-          : "")
+        bannerUrl: await getStoredImageUrl(activeEvent.bannerRef, activeEvent.bannerUrl, activeEvent.bannerContentKey)
       }
       : null,
     events: await Promise.all(events.map(async (event) => ({
       ...event,
       bannerBase64: "",
-      bannerUrl: event.bannerUrl || (event.bannerContentKey
-        ? await getContentDownloadUrl(event.bannerContentKey)
-        : "")
+      bannerUrl: await getStoredImageUrl(event.bannerRef, event.bannerUrl, event.bannerContentKey)
     })))
   };
 }
@@ -1078,7 +1182,7 @@ async function attachIcons(items, type, useSecretKey = false) {
     return {
       ...item,
       iconBase64: "",
-      iconUrl: iconUrl || (iconContentKey ? await getContentDownloadUrl(iconContentKey) : "")
+      iconUrl: await getStoredImageUrl(item.iconRef, iconUrl, iconContentKey)
     };
   }));
 }
@@ -1134,121 +1238,186 @@ async function adminSaveGameData({ fish, rods, adminDiscordIds, settings, active
   const cleanSettingsValue = cleanSettings(settings);
   const cleanEventValue = cleanEvent(activeEvent);
   const cleanEventsValue = cleanEvents(events, cleanEventValue);
-  const rodStoreImageUrl = await saveContentImage({
+  const rodStoreImage = await saveContentImage({
     currentUrl: cleanSettingsValue.rodStoreImageUrl,
+    currentRef: cleanSettingsValue.rodStoreImageRef,
     legacyContentKey: cleanSettingsValue.rodStoreImageContentKey,
     dataUrl: cleanSettingsValue.rodStoreImageBase64,
     sourceUrl: cleanSettingsValue.rodStoreImageUrl,
     keyForExtension: storeContentKeyFor
   });
-  const fishCompBannerUrl = await saveContentImage({
+  const fishCompBanner = await saveContentImage({
     currentUrl: cleanSettingsValue.fishCompBannerUrl,
+    currentRef: cleanSettingsValue.fishCompBannerRef,
     legacyContentKey: cleanSettingsValue.fishCompBannerContentKey,
     dataUrl: cleanSettingsValue.fishCompBannerBase64,
     sourceUrl: cleanSettingsValue.fishCompBannerUrl,
     keyForExtension: fishCompBannerContentKeyFor
   });
-  const fishCompRegistrationBannerUrl = await saveContentImage({
+  const fishCompRegistrationBanner = await saveContentImage({
     currentUrl: cleanSettingsValue.fishCompRegistrationBannerUrl,
+    currentRef: cleanSettingsValue.fishCompRegistrationBannerRef,
     dataUrl: cleanSettingsValue.fishCompRegistrationBannerBase64,
     sourceUrl: cleanSettingsValue.fishCompRegistrationBannerUrl,
     keyForExtension: (extension) => settingsImageContentKeyFor("fish-comp-registration-banner", extension)
   });
-  const fishCompRunningBannerUrl = await saveContentImage({
+  const fishCompRunningBanner = await saveContentImage({
     currentUrl: cleanSettingsValue.fishCompRunningBannerUrl,
+    currentRef: cleanSettingsValue.fishCompRunningBannerRef,
     dataUrl: cleanSettingsValue.fishCompRunningBannerBase64,
     sourceUrl: cleanSettingsValue.fishCompRunningBannerUrl,
     keyForExtension: (extension) => settingsImageContentKeyFor("fish-comp-running-banner", extension)
   });
-  const fishCompResultBannerUrl = await saveContentImage({
+  const fishCompResultBanner = await saveContentImage({
     currentUrl: cleanSettingsValue.fishCompResultBannerUrl,
+    currentRef: cleanSettingsValue.fishCompResultBannerRef,
     dataUrl: cleanSettingsValue.fishCompResultBannerBase64,
     sourceUrl: cleanSettingsValue.fishCompResultBannerUrl,
     keyForExtension: (extension) => settingsImageContentKeyFor("fish-comp-result-banner", extension)
   });
-  const fishGuideBannerUrl = await saveContentImage({
+  const fishRaidBanner = await saveContentImage({
+    currentUrl: cleanSettingsValue.fishRaidBannerUrl,
+    currentRef: cleanSettingsValue.fishRaidBannerRef,
+    dataUrl: cleanSettingsValue.fishRaidBannerBase64,
+    sourceUrl: cleanSettingsValue.fishRaidBannerUrl,
+    keyForExtension: (extension) => settingsImageContentKeyFor("fish-raid-banner", extension)
+  });
+  const fishRaidRegistrationBanner = await saveContentImage({
+    currentUrl: cleanSettingsValue.fishRaidRegistrationBannerUrl,
+    currentRef: cleanSettingsValue.fishRaidRegistrationBannerRef,
+    dataUrl: cleanSettingsValue.fishRaidRegistrationBannerBase64,
+    sourceUrl: cleanSettingsValue.fishRaidRegistrationBannerUrl,
+    keyForExtension: (extension) => settingsImageContentKeyFor("fish-raid-registration-banner", extension)
+  });
+  const fishRaidRunningBanner = await saveContentImage({
+    currentUrl: cleanSettingsValue.fishRaidRunningBannerUrl,
+    currentRef: cleanSettingsValue.fishRaidRunningBannerRef,
+    dataUrl: cleanSettingsValue.fishRaidRunningBannerBase64,
+    sourceUrl: cleanSettingsValue.fishRaidRunningBannerUrl,
+    keyForExtension: (extension) => settingsImageContentKeyFor("fish-raid-running-banner", extension)
+  });
+  const fishRaidResultBanner = await saveContentImage({
+    currentUrl: cleanSettingsValue.fishRaidResultBannerUrl,
+    currentRef: cleanSettingsValue.fishRaidResultBannerRef,
+    dataUrl: cleanSettingsValue.fishRaidResultBannerBase64,
+    sourceUrl: cleanSettingsValue.fishRaidResultBannerUrl,
+    keyForExtension: (extension) => settingsImageContentKeyFor("fish-raid-result-banner", extension)
+  });
+  const fishGuideBanner = await saveContentImage({
     currentUrl: cleanSettingsValue.fishGuideBannerUrl,
+    currentRef: cleanSettingsValue.fishGuideBannerRef,
     dataUrl: cleanSettingsValue.fishGuideBannerBase64,
     sourceUrl: cleanSettingsValue.fishGuideBannerUrl,
     keyForExtension: (extension) => settingsImageContentKeyFor("fish-guide-banner", extension)
   });
-  const fishHelpBannerUrl = await saveContentImage({
+  const fishHelpBanner = await saveContentImage({
     currentUrl: cleanSettingsValue.fishHelpBannerUrl,
+    currentRef: cleanSettingsValue.fishHelpBannerRef,
     dataUrl: cleanSettingsValue.fishHelpBannerBase64,
     sourceUrl: cleanSettingsValue.fishHelpBannerUrl,
     keyForExtension: (extension) => settingsImageContentKeyFor("fish-help-banner", extension)
   });
-  const sellFishBannerUrl = await saveContentImage({
+  const sellFishBanner = await saveContentImage({
     currentUrl: cleanSettingsValue.sellFishBannerUrl,
+    currentRef: cleanSettingsValue.sellFishBannerRef,
     dataUrl: cleanSettingsValue.sellFishBannerBase64,
     sourceUrl: cleanSettingsValue.sellFishBannerUrl,
     keyForExtension: (extension) => settingsImageContentKeyFor("sell-fish-banner", extension)
   });
-  const bannerUrl = cleanEventValue
+  const banner = cleanEventValue
     ? await saveContentImage({
       currentUrl: cleanEventValue.bannerUrl,
+      currentRef: cleanEventValue.bannerRef,
       legacyContentKey: cleanEventValue.bannerContentKey,
       dataUrl: cleanEventValue.bannerBase64,
       sourceUrl: cleanEventValue.bannerUrl,
       keyForExtension: (extension) => eventContentKeyFor(cleanEventValue.id, extension)
     })
-    : "";
+    : { url: "", ref: null };
   const cleanEventsWithUrls = [];
   for (const event of cleanEventsValue) {
+    const eventBanner = await saveContentImage({
+      currentUrl: event.bannerUrl,
+      currentRef: event.bannerRef,
+      legacyContentKey: event.bannerContentKey,
+      dataUrl: event.bannerBase64,
+      sourceUrl: event.bannerUrl,
+      keyForExtension: (extension) => eventContentKeyFor(event.id, extension)
+    });
     cleanEventsWithUrls.push({
       ...event,
-      bannerUrl: await saveContentImage({
-        currentUrl: event.bannerUrl,
-        legacyContentKey: event.bannerContentKey,
-        dataUrl: event.bannerBase64,
-        sourceUrl: event.bannerUrl,
-        keyForExtension: (extension) => eventContentKeyFor(event.id, extension)
-      })
+      bannerUrl: eventBanner.url,
+      bannerRef: eventBanner.ref
     });
   }
   const cleanFishWithUrls = [];
   for (const item of cleanFish) {
+    const icon = await saveContentImage({
+      currentUrl: item.iconUrl,
+      currentRef: item.iconRef,
+      legacyContentKey: item.iconContentKey,
+      dataUrl: item.iconBase64,
+      sourceUrl: item.iconUrl,
+      keyForExtension: (extension) => iconContentKeyFor("fish", item.id, extension)
+    });
     cleanFishWithUrls.push({
       ...item,
-      iconUrl: await saveContentImage({
-        currentUrl: item.iconUrl,
-        legacyContentKey: item.iconContentKey,
-        dataUrl: item.iconBase64,
-        sourceUrl: item.iconUrl,
-        keyForExtension: (extension) => iconContentKeyFor("fish", item.id, extension)
-      })
+      iconUrl: icon.url,
+      iconRef: icon.ref
     });
   }
   const cleanRodsWithUrls = [];
   for (const item of cleanRods) {
+    const icon = await saveContentImage({
+      currentUrl: item.iconUrl,
+      currentRef: item.iconRef,
+      legacyContentKey: item.iconContentKey,
+      dataUrl: item.iconBase64,
+      sourceUrl: item.iconUrl,
+      keyForExtension: (extension) => iconContentKeyFor("rod", item.id, extension)
+    });
     cleanRodsWithUrls.push({
       ...item,
-      iconUrl: await saveContentImage({
-        currentUrl: item.iconUrl,
-        legacyContentKey: item.iconContentKey,
-        dataUrl: item.iconBase64,
-        sourceUrl: item.iconUrl,
-        keyForExtension: (extension) => iconContentKeyFor("rod", item.id, extension)
-      })
+      iconUrl: icon.url,
+      iconRef: icon.ref
     });
   }
+  const fishRaidBosses = await saveFishRaidBossImages(cleanSettingsValue.fishRaidBosses);
   const cleanConfig = withoutConfigAssets({
     adminDiscordIds,
     settings: {
       ...cleanSettingsValue,
-      rodStoreImageUrl,
-      fishCompBannerUrl,
-      fishCompRegistrationBannerUrl,
-      fishCompRunningBannerUrl,
-      fishCompResultBannerUrl,
-      fishGuideBannerUrl,
-      fishHelpBannerUrl,
-      sellFishBannerUrl
+      rodStoreImageUrl: rodStoreImage.url,
+      rodStoreImageRef: rodStoreImage.ref,
+      fishCompBannerUrl: fishCompBanner.url,
+      fishCompBannerRef: fishCompBanner.ref,
+      fishCompRegistrationBannerUrl: fishCompRegistrationBanner.url,
+      fishCompRegistrationBannerRef: fishCompRegistrationBanner.ref,
+      fishCompRunningBannerUrl: fishCompRunningBanner.url,
+      fishCompRunningBannerRef: fishCompRunningBanner.ref,
+      fishCompResultBannerUrl: fishCompResultBanner.url,
+      fishCompResultBannerRef: fishCompResultBanner.ref,
+      fishRaidBannerUrl: fishRaidBanner.url,
+      fishRaidBannerRef: fishRaidBanner.ref,
+      fishRaidRegistrationBannerUrl: fishRaidRegistrationBanner.url,
+      fishRaidRegistrationBannerRef: fishRaidRegistrationBanner.ref,
+      fishRaidRunningBannerUrl: fishRaidRunningBanner.url,
+      fishRaidRunningBannerRef: fishRaidRunningBanner.ref,
+      fishRaidResultBannerUrl: fishRaidResultBanner.url,
+      fishRaidResultBannerRef: fishRaidResultBanner.ref,
+      fishRaidBosses,
+      fishGuideBannerUrl: fishGuideBanner.url,
+      fishGuideBannerRef: fishGuideBanner.ref,
+      fishHelpBannerUrl: fishHelpBanner.url,
+      fishHelpBannerRef: fishHelpBanner.ref,
+      sellFishBannerUrl: sellFishBanner.url,
+      sellFishBannerRef: sellFishBanner.ref
     },
     activeEvent: cleanEventValue
       ? {
         ...cleanEventValue,
-        bannerUrl
+        bannerUrl: banner.url,
+        bannerRef: banner.ref
       }
       : null,
     events: cleanEventsWithUrls

@@ -1,0 +1,123 @@
+{
+  "guilds": {
+    "891474628122394634": {
+      "dateKey": "2026-09-02",
+      "boss": {
+        "id": "mbg_tedi",
+        "name": "MBG TEDDY",
+        "description": "Selesaikan pesanan ikan untuk dapur MBG Pak Tedi sebelum hari esok!",
+        "quotaKg": 500,
+        "registrationBannerBase64": "",
+        "registrationBannerUrl": "https://cdn.discordapp.com/attachments/1543874293258260550/1544374960334577784/mbg_tedi-registrationbanner.png?ex=6a9846c3&is=6a96f543&hm=5c206a7410a64e68e620945cdb4bdf33b39e4e44b88623480bc11ede3a0370b9&",
+        "registrationBannerRef": null,
+        "runningBannerBase64": "",
+        "runningBannerUrl": "https://cdn.discordapp.com/attachments/1543874293258260550/1544374969608306838/mbg_tedi-runningbanner.png?ex=6a9846c5&is=6a96f545&hm=481469b73ebfe508c4d5013bac7399d90f55d06f2853ed9756c5958ae402f69b&",
+        "runningBannerRef": null,
+        "resultBannerBase64": "",
+        "resultBannerUrl": "https://cdn.discordapp.com/attachments/1543874293258260550/1544374977716035706/mbg_tedi-resultbanner.png?ex=6a9846c7&is=6a96f547&hm=585996d0ef48d141b093b44ff283fd627ab89bc005350ef94381333b16c1eb75&",
+        "resultBannerRef": null,
+        "fulfilledBannerBase64": "",
+        "fulfilledBannerUrl": "https://cdn.discordapp.com/attachments/1543874293258260550/1544374987312472124/mbg_tedi-fulfilledbanner.png?ex=6a9846ca&is=6a96f54a&hm=530a9a418bcc168283b6466aa70054d88807bd868fcdfda445ce749bac976e2c&",
+        "fulfilledBannerRef": null,
+        "failedBannerBase64": "",
+        "failedBannerUrl": "https://cdn.discordapp.com/attachments/1543874293258260550/1544374996158382180/mbg_tedi-failedbanner.png?ex=6a9846cc&is=6a96f54c&hm=f9b7f5bf2d8e5777da320a59c642204c41b0a459c4bd887726a757c48f97587b&",
+        "failedBannerRef": null
+      },
+      "quotaKg": 500,
+      "filledKg": 244.16747667282874,
+      "participants": {
+        "281139082380312576": {
+          "id": "281139082380312576",
+          "username": "vnmrm",
+          "globalName": "venomenom",
+          "displayName": "<@281139082380312576>",
+          "logName": "TR | Mereun",
+          "count": 7,
+          "totalWeight": 8.474281187738487,
+          "heaviestWeight": 1.8313431991998868,
+          "heaviestName": "Ikan Nila"
+        },
+        "363275626662330369": {
+          "id": "363275626662330369",
+          "username": "fnadh",
+          "globalName": "Miradh",
+          "displayName": "<@363275626662330369>",
+          "logName": "TR | Celup (Adhiet)",
+          "count": 20,
+          "totalWeight": 40.65222131924642,
+          "heaviestWeight": 4.554931683216774,
+          "heaviestName": "Ikan Gurame"
+        },
+        "309140773176082452": {
+          "id": "309140773176082452",
+          "username": "dikaleo.",
+          "globalName": "Dikaleo",
+          "displayName": "<@309140773176082452>",
+          "logName": "TR | Pleset",
+          "count": 12,
+          "totalWeight": 24.60168480019931,
+          "heaviestWeight": 4.050838282371157,
+          "heaviestName": "Ikan Tongkol"
+        },
+        "305302752387530752": {
+          "id": "305302752387530752",
+          "username": "far.a.way",
+          "globalName": "far(a)way",
+          "displayName": "<@305302752387530752>",
+          "logName": "TR | Kadung",
+          "count": 17,
+          "totalWeight": 37.59521781719112,
+          "heaviestWeight": 5.988024146426309,
+          "heaviestName": "Ikan Asam Manis"
+        },
+        "451776326723174401": {
+          "id": "451776326723174401",
+          "username": "azaralea",
+          "globalName": "Azara",
+          "displayName": "<@451776326723174401>",
+          "logName": "TR | Aktor (Adam) (Awiwir)",
+          "count": 29,
+          "totalWeight": 55.70234154621389,
+          "heaviestWeight": 3.8852464234006074,
+          "heaviestName": "Ikan Gurame"
+        },
+        "337858521771278338": {
+          "id": "337858521771278338",
+          "username": "truekakgeri",
+          "globalName": "KakGeri",
+          "displayName": "<@337858521771278338>",
+          "logName": "TR | Klepon (KakGeri)",
+          "count": 13,
+          "totalWeight": 30.222529543604004,
+          "heaviestWeight": 5.7052854095306,
+          "heaviestName": "Ikan Praroro"
+        },
+        "367669792993181697": {
+          "id": "367669792993181697",
+          "username": "paktuki",
+          "globalName": "PakTuki",
+          "displayName": "<@367669792993181697>",
+          "logName": "TR | Ebol Ebol",
+          "count": 11,
+          "totalWeight": 24.76762179735379,
+          "heaviestWeight": 4.589317915667367,
+          "heaviestName": "Ikan Geri"
+        },
+        "275237881323454465": {
+          "id": "275237881323454465",
+          "username": "shera",
+          "globalName": "Delta",
+          "displayName": "<@275237881323454465>",
+          "logName": "᲼",
+          "count": 9,
+          "totalWeight": 22.15157866128172,
+          "heaviestWeight": 5.91297943682992,
+          "heaviestName": "Ikan Crazy Killer"
+        }
+      },
+      "fulfilledAt": "",
+      "lastRaidEndedAt": 1788316575565,
+      "channelId": "891474628122394637"
+    }
+  }
+}

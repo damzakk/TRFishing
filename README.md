@@ -58,7 +58,7 @@ The bot refreshes item data automatically every few minutes. Restart the bot if 
 The manager also has:
 
 - Admin Control: add admin Discord IDs or usernames for testing commands.
-- Settings: upload command and competition banners, change chat cooldown, change EXP multipliers, and tune voice progress.
+- Settings: split into General, FishComp, and FishRaid panels for command banners, competition banners, raid rewards, per-boss raid banners, boss quota data, raid controls, events, chat cooldown, EXP multipliers, and voice progress.
 - Event: list deployed events, create server-scoped timed events with start time and duration, add multiple bonus types, and stop running events.
 - Player Management: list and search players by Discord ID or username, edit player data, reset a player, delete a player from the PlayFab title, make a player admin, force one fishing catch, and reset or delete all loaded players.
 
@@ -75,8 +75,10 @@ The manager also has:
 - `/sellfish fish:<fish name or id>` - Menjual satu jenis ikan secara privat.
 - `/fishhelp` - Menampilkan panel bantuan secara privat.
 - `/fishcomp regtime:<minutes> duration:<turns>` - Membuat kompetisi memancing publik dengan tombol Join. Default duration 15 turns.
+- `/fishraid regtime:<minutes>` - Membuka boss raid harian 25 turn. Peserta menangkap ikan untuk memenuhi quota berat harian; result menampilkan ranking kontribusi sepanjang hari.
 - `!fishtest` - Admin command untuk test popup fishing tanpa menyimpan ikan, EXP, atau progress.
 - `!fishcompforcestart` - Admin command untuk memaksa kompetisi yang sedang registrasi agar mulai lebih cepat.
+- `!fishraidforcestart` - Admin command untuk memaksa raid yang sedang registrasi agar mulai lebih cepat.
 
 ## How Fishing Works
 
@@ -111,3 +113,7 @@ The editable starter balance sheet is in `GAME_DATA.txt`.
 Admins are managed in the manager app under the Admin Control tab. You can enter a numeric Discord user ID or a username like `azaralea`. Admins are saved to PlayFab Title Data in `admin_config`.
 
 During competitions, caught fish do not enter inventory and do not give normal fish EXP. The winner gets a small EXP reward when the competition ends.
+
+Fish Raid uses the competition-style registration and turn flow, but all caught fish weight fills a shared daily boss quota. Only one raid can run at once in a server, raids have a 1 hour cooldown after each run, and the daily boss/quota resets at midnight. During a live raid, rankings show only that run; the result shows all participants and total contribution for the whole day.
+
+FishRaid settings include a raid boss editor. Each boss can have its own registration, running, finish, quota fulfilled, and failed-at-midnight banners. The manager can also reset today's raid or force-clear today's quota for a server.
