@@ -509,6 +509,71 @@ function cleanEvents(events, activeEvent) {
   return mergedEvents.map(cleanEvent).filter(Boolean);
 }
 
+function cleanRoutineButton(button) {
+  const source = button && typeof button === "object" ? button : {};
+  const action = String(source.action || "fishcomp").trim();
+  return {
+    id: String(source.id || `${action}_${Date.now()}`).trim().toLowerCase().replace(/[^a-z0-9_:-]/g, "_").slice(0, 80),
+    label: String(source.label || action).trim().slice(0, 80),
+    action,
+    style: String(source.style || "Primary").trim(),
+    regtimeMinutes: Math.max(1, Math.floor(cleanNumber(source.regtimeMinutes, 5))),
+    durationTurns: Math.max(1, Math.floor(cleanNumber(source.durationTurns, 15)))
+  };
+}
+
+function cleanRoutineMessageVariants(routine) {
+  const variants = Array.isArray(routine.messageVariants) ? routine.messageVariants : [];
+  return variants.map((variant) => {
+    if (typeof variant === "string") {
+      return { title: "", description: variant.trim() };
+    }
+    const source = variant && typeof variant === "object" ? variant : {};
+    return {
+      title: String(source.title || "").trim(),
+      description: String(source.description || source.message || "").trim()
+    };
+  }).filter((variant) => variant.title || variant.description).slice(0, 100);
+}
+
+function cleanRoutineMessage(routine) {
+  if (!routine || typeof routine !== "object") {
+    return null;
+  }
+  const condition = routine.condition && typeof routine.condition === "object" ? routine.condition : {};
+  const type = String(condition.type || routine.conditionType || "daily_time").trim();
+  return {
+    id: String(routine.id || Date.now()).trim(),
+    name: String(routine.name || routine.title || "Routine Message").trim(),
+    title: String(routine.title || routine.name || "Routine Message").trim(),
+    description: String(routine.description || "").trim(),
+    messageVariants: cleanRoutineMessageVariants(routine),
+    color: String(routine.color || "#36c28a").trim(),
+    bannerBase64: String(routine.bannerBase64 || ""),
+    bannerUrl: String(routine.bannerUrl || "").trim(),
+    bannerRef: routine.bannerRef && typeof routine.bannerRef === "object" ? routine.bannerRef : null,
+    enabled: routine.enabled !== false,
+    deleteAfterButtonClick: routine.deleteAfterButtonClick === true,
+    guildId: String(routine.guildId || "").trim(),
+    channelId: String(routine.channelId || "").trim(),
+    lastSentAt: String(routine.lastSentAt || "").trim(),
+    lastTriggerKey: String(routine.lastTriggerKey || "").trim(),
+    lastSentByGuild: routine.lastSentByGuild && typeof routine.lastSentByGuild === "object" && !Array.isArray(routine.lastSentByGuild) ? routine.lastSentByGuild : {},
+    condition: {
+      type,
+      time: String(condition.time || "00:00").trim(),
+      intervalMinutes: Math.max(1, Math.floor(cleanNumber(condition.intervalMinutes, 60))),
+      idleMinutes: Math.max(1, Math.floor(cleanNumber(condition.idleMinutes, 120))),
+      dateTime: String(condition.dateTime || "").trim()
+    },
+    buttons: (Array.isArray(routine.buttons) ? routine.buttons : []).map(cleanRoutineButton).filter((button) => button.id && button.label && button.action).slice(0, 25)
+  };
+}
+
+function cleanRoutineMessages(routineMessages) {
+  return (Array.isArray(routineMessages) ? routineMessages : []).map(cleanRoutineMessage).filter(Boolean);
+}
+
 function cleanData(data) {
   const events = cleanEvents(data.events, data.activeEvent);
   const fish = (Array.isArray(data.fish) ? data.fish : []).map((item) => cleanItem(item, "fish"));
@@ -523,7 +588,8 @@ function cleanData(data) {
       .filter(Boolean))],
     settings: cleanSettings(data.settings),
     activeEvent: cleanEvent(data.activeEvent),
-    events
+    events,
+    routineMessages: cleanRoutineMessages(data.routineMessages)
   };
 }
 
@@ -893,15 +959,45 @@ async function handleApi(request, response) {
       return;
     }
 
+    if (request.method === "POST" && request.url === "/api/routine/deploy") {
+      const body = JSON.parse(await readBody(request));
+      const data = cleanData(body);
+      const routine = cleanRoutineMessage(body.routineDraft);
+      if (!routine) {
+        sendJson(response, 400, { error: "Routine message is not valid." });
+        return;
+      }
+      const routineMessages = [
+        { ...routine, id: routine.id || String(Date.now()) },
+        ...(data.routineMessages || []).filter((entry) => entry.id !== routine.id)
+      ];
+      const savedData = await adminSaveGameData({ ...data, routineMessages });
+      signalBotConfigRefresh();
+      sendJson(response, 200, { ok: true, routineMessages: savedData.routineMessages || routineMessages });
+      return;
+    }
+
+    if (request.method === "POST" && request.url === "/api/routine/remove") {
+      const body = JSON.parse(await readBody(request));
+      const current = await adminGetGameData();
+      const routineId = String(body.id || "");
+      const routineMessages = cleanRoutineMessages(current.routineMessages).filter((routine) => routine.id !== routineId);
+      await adminSaveGameData({ ...current, routineMessages });
+      signalBotConfigRefresh();
+      sendJson(response, 200, { ok: true, routineMessages });
+      return;
+    }
+
     if (request.method === "POST" && request.url === "/api/seed") {
       const current = await adminGetGameData();
       const adminDiscordIds = current.adminDiscordIds || [];
       const settings = current.settings || {};
       const activeEvent = current.activeEvent || null;
       const events = current.events || [];
-      await adminSaveGameData({ fish: defaultFish, rods: defaultRods, adminDiscordIds, settings, activeEvent, events });
+      const routineMessages = current.routineMessages || [];
+      await adminSaveGameData({ fish: defaultFish, rods: defaultRods, adminDiscordIds, settings, activeEvent, events, routineMessages });
       signalBotConfigRefresh();
-      sendJson(response, 200, { ok: true, fish: defaultFish, rods: defaultRods, adminDiscordIds, settings, activeEvent, events });
+      sendJson(response, 200, { ok: true, fish: defaultFish, rods: defaultRods, adminDiscordIds, settings, activeEvent, events, routineMessages });
       return;
     }
 
@@ -1310,6 +1406,7 @@ const html = `<!doctype html>
       <button data-tab="admin">Admin Control</button>
       <button data-tab="settings">Settings</button>
       <button data-tab="event">Event</button>
+      <button data-tab="routine">Routine Message</button>
       <button data-tab="players">Player Management</button>
     </div>
     <p class="status" id="status"></p>
@@ -1325,7 +1422,9 @@ const html = `<!doctype html>
       settings: { rodStoreImageBase64: "", rodStoreImageUrl: "", fishCompBannerBase64: "", fishCompBannerUrl: "", fishCompRegistrationBannerBase64: "", fishCompRegistrationBannerUrl: "", fishCompRunningBannerBase64: "", fishCompRunningBannerUrl: "", fishCompResultBannerBase64: "", fishCompResultBannerUrl: "", fishRaidBannerBase64: "", fishRaidBannerUrl: "", fishRaidRegistrationBannerBase64: "", fishRaidRegistrationBannerUrl: "", fishRaidRunningBannerBase64: "", fishRaidRunningBannerUrl: "", fishRaidResultBannerBase64: "", fishRaidResultBannerUrl: "", fishGuideBannerBase64: "", fishGuideBannerUrl: "", fishHelpBannerBase64: "", fishHelpBannerUrl: "", sellFishBannerBase64: "", sellFishBannerUrl: "", fishCompEvents: [], fishRaidEvents: [], fishRaidBosses: [{ id: "big_order", name: "Big Fish Order", quotaKg: 100, description: "Pesanan ikan besar hari ini sudah menunggu.", registrationBannerBase64: "", registrationBannerUrl: "", runningBannerBase64: "", runningBannerUrl: "", resultBannerBase64: "", resultBannerUrl: "", fulfilledBannerBase64: "", fulfilledBannerUrl: "", failedBannerBase64: "", failedBannerUrl: "" }], fishCompLogIntervalMs: 2500, fishCompHistoryLogHours: 24, fishCompExpReward: 50, fishCompGoldReward: 0, fishRaidLogIntervalMs: 2500, fishRaidParticipantExpReward: 25, fishRaidParticipantGoldReward: 0, fishRaidMvpExpReward: 75, fishRaidMvpGoldReward: 0, fishRaidClearParticipantExpReward: 50, fishRaidClearParticipantGoldReward: 0, fishRaidClearMvpExpReward: 150, fishRaidClearMvpGoldReward: 0, allowActivity: true, chatCooldownMs: 20000, expMultiplier: 1, levelExpMultiplier: 1, voiceExpAmount: 1, voiceExpIntervalMinutes: 15 },
       activeEvent: null,
       events: [],
+      routineMessages: [],
       eventDraft: null,
+      routineDraft: null,
       selectedFishId: "",
       selectedRodId: "",
       fishPage: 1,
@@ -1495,6 +1594,21 @@ const html = `<!doctype html>
         const listCard = document.createElement("article");
         listCard.className = "item";
         listCard.innerHTML = eventListTemplate();
+        grid.appendChild(listCard);
+        restoreScrollState(scrollState);
+        return;
+      }
+
+      if (state.tab === "routine") {
+        if (state.routineDraft) {
+          const formCard = document.createElement("article");
+          formCard.className = "item";
+          formCard.innerHTML = routineTemplate();
+          grid.appendChild(formCard);
+        }
+        const listCard = document.createElement("article");
+        listCard.className = "item";
+        listCard.innerHTML = routineListTemplate();
         grid.appendChild(listCard);
         restoreScrollState(scrollState);
         return;
@@ -1964,6 +2078,181 @@ const html = `<!doctype html>
           </div>
           <button class="primary" data-deploy-event>Deploy Event</button>
         </div>\`;
+    }
+
+    function makeEmptyRoutine() {
+      return {
+        id: String(Date.now()),
+        name: "New Routine Message",
+        title: "Ayo Memancing!",
+        description: "FishComp sedang menunggu peserta. Tekan tombol di bawah untuk mulai lebih cepat.",
+        messageVariants: [],
+        color: "#36c28a",
+        bannerBase64: "",
+        bannerUrl: "",
+        enabled: true,
+        deleteAfterButtonClick: false,
+        guildId: "",
+        channelId: "",
+        lastSentAt: "",
+        lastTriggerKey: "",
+        condition: { type: "daily_time", time: "00:00", intervalMinutes: 720, idleMinutes: 120, dateTime: formatDateTimeLocal(new Date(Date.now() + 60 * 60_000)) },
+        buttons: [{ id: "fishcomp", label: "Start FishComp", action: "fishcomp", style: "Success", regtimeMinutes: 5, durationTurns: 15 }]
+      };
+    }
+
+    function getRoutine() {
+      if (!state.routineDraft) {
+        state.routineDraft = makeEmptyRoutine();
+      }
+      if (!state.routineDraft.condition) {
+        state.routineDraft.condition = { type: "daily_time", time: "00:00", intervalMinutes: 720, idleMinutes: 120, dateTime: formatDateTimeLocal(new Date()) };
+      }
+      if (!Array.isArray(state.routineDraft.buttons)) {
+        state.routineDraft.buttons = [];
+      }
+      if (!Array.isArray(state.routineDraft.messageVariants)) {
+        state.routineDraft.messageVariants = [];
+      }
+      return state.routineDraft;
+    }
+
+    function routineVariantsText(routine) {
+      return (Array.isArray(routine.messageVariants) ? routine.messageVariants : [])
+        .map((variant) => String(typeof variant === "string" ? variant : variant.description || ""))
+        .filter(Boolean)
+        .join("\\n---\\n");
+    }
+
+    function parseRoutineVariantsText(text) {
+      return String(text || "")
+        .split(/\\n\\s*---\\s*\\n/g)
+        .map((description) => ({ title: "", description: description.trim() }))
+        .filter((variant) => variant.description);
+    }
+
+    function cloneRoutineForEdit(routine) {
+      return JSON.parse(JSON.stringify(routine || makeEmptyRoutine()));
+    }
+
+    function routineConditionText(routine) {
+      const condition = routine.condition || {};
+      if (condition.type === "daily_time") return \`Every day at \${condition.time || "00:00"}\`;
+      if (condition.type === "interval") return \`Every \${condition.intervalMinutes || 60} minutes\`;
+      if (condition.type === "idle_since_activity") return \`When no FishComp/FishRaid activity for \${condition.idleMinutes || 120} minutes\`;
+      if (condition.type === "specific_datetime") return condition.dateTime ? \`At \${new Date(condition.dateTime).toLocaleString()}\` : "At a specific date/time";
+      return "Custom condition";
+    }
+
+    function routineListTemplate() {
+      const routines = [...(state.routineMessages || [])].sort((a, b) => String(a.name || "").localeCompare(String(b.name || "")));
+      const rows = routines.length ? routines.map((routine) => \`
+        <div class="event-row">
+          <div class="topline">
+            <strong>\${escapeHtml(routine.name || routine.title || "Routine Message")}</strong>
+            <span class="badge">\${routine.enabled === false ? "Paused" : "Active"}</span>
+          </div>
+          <div class="small">Condition: \${escapeHtml(routineConditionText(routine))}</div>
+          <div class="small">Random messages: \${escapeHtml(String((routine.messageVariants || []).length || 0))}</div>
+          <div class="small">Buttons: \${escapeHtml((routine.buttons || []).map((button) => button.label || button.action).join(", ") || "None")}</div>
+          <div class="small">Server: \${escapeHtml(routine.guildId || "all configured popup servers")} · Channel override: \${escapeHtml(routine.channelId || "popup parent channel")}</div>
+          \${routine.lastSentAt ? \`<div class="small">Last sent: \${escapeHtml(new Date(routine.lastSentAt).toLocaleString())}</div>\` : ""}
+          <div class="button-row">
+            <button data-edit-routine="\${escapeHtml(routine.id)}" type="button">Edit</button>
+            <button class="danger" data-remove-routine="\${escapeHtml(routine.id)}" type="button">Remove</button>
+          </div>
+        </div>\`).join("") : \`<div class="small">No routine messages yet.</div>\`;
+      return \`
+        <div class="topline">
+          <strong>Active Routine Messages</strong>
+          <button data-create-routine type="button">Create New Message</button>
+        </div>
+        <div class="event-scroll">\${rows}</div>\`;
+    }
+
+    function routineTemplate() {
+      const routine = getRoutine();
+      const condition = routine.condition || {};
+      const bannerSize = routine.bannerBase64 ? Math.round(routine.bannerBase64.length / 1024) : 0;
+      const bannerSource = routine.bannerBase64 || routine.bannerUrl || "";
+      const bannerName = state.uploadNames.routineBanner || "";
+      const bannerStatus = bannerName ? \`Selected file: \${bannerName} · \${bannerSize} KB\` : bannerSource ? "Preview loaded from saved image or URL." : "No image selected.";
+      return \`
+        <div class="topline">
+          <strong>\${state.routineMessages.some((entry) => entry.id === routine.id) ? "Edit Routine Message" : "Create Routine Message"}</strong>
+          <button class="danger" data-clear-routine type="button">Cancel</button>
+        </div>
+        <div class="fields">
+          \${routineField("Name", "name", routine.name)}
+          \${routineField("Embed Title", "title", routine.title)}
+          \${routineField("Embed Color", "color", routine.color || "#36c28a", "color")}
+          <label>Condition<select data-routine-condition-key="type">
+            \${[
+              ["daily_time", "Every day at a time"],
+              ["interval", "Every N minutes"],
+              ["idle_since_activity", "Idle since FishComp/FishRaid"],
+              ["specific_datetime", "Specific date/time"]
+            ].map(([value, label]) => \`<option value="\${value}" \${condition.type === value ? "selected" : ""}>\${label}</option>\`).join("")}
+          </select></label>
+          \${condition.type === "daily_time" ? \`<label>Daily Time<input type="time" data-routine-condition-key="time" value="\${escapeHtml(condition.time || "00:00")}"></label>\` : ""}
+          \${condition.type === "interval" ? \`<label>Interval Minutes<input type="number" min="1" step="1" data-routine-condition-key="intervalMinutes" value="\${escapeHtml(String(condition.intervalMinutes || 60))}"></label>\` : ""}
+          \${condition.type === "idle_since_activity" ? \`<label>Idle Minutes<input type="number" min="1" step="1" data-routine-condition-key="idleMinutes" value="\${escapeHtml(String(condition.idleMinutes || 120))}"></label>\` : ""}
+          \${condition.type === "specific_datetime" ? \`<label>Date Time<input type="datetime-local" data-routine-condition-key="dateTime" value="\${escapeHtml(condition.dateTime || "")}"></label>\` : ""}
+          \${routineField("Discord Server ID, optional", "guildId", routine.guildId || "")}
+          \${routineField("Channel ID Override, optional", "channelId", routine.channelId || "")}
+          <label class="wide toggle-row"><input type="checkbox" data-routine-bool-key="enabled" \${routine.enabled !== false ? "checked" : ""}> Enabled</label>
+          <label class="wide toggle-row"><input type="checkbox" data-routine-bool-key="deleteAfterButtonClick" \${routine.deleteAfterButtonClick ? "checked" : ""}> Delete message from Discord after a routine button is clicked</label>
+          <label class="wide">Default Embed Description<textarea class="event-description-input" data-routine-key="description">\${escapeHtml(routine.description || "")}</textarea></label>
+          <label class="wide">Random Messages, split with ---<textarea class="event-description-input" data-routine-variants>\${escapeHtml(routineVariantsText(routine))}</textarea></label>
+          <div class="wide fields">
+            <div class="wide topline">
+              <strong>Buttons</strong>
+              <button data-add-routine-button type="button">Add Button</button>
+            </div>
+            \${(routine.buttons || []).map((button, buttonIndex) => routineButtonTemplate(button, buttonIndex)).join("") || '<div class="small">No buttons. The routine can still send a message without buttons.</div>'}
+          </div>
+          <div class="image-grid">
+            <section class="image-panel">
+              <strong>Routine Banner</strong>
+              \${imageOrEmptyTemplate(bannerSource, "image-preview", "Routine banner preview", "No preview")}
+              \${routineField("Banner Image URL Import", "bannerUrl", routine.bannerUrl || "", "url")}
+              <label class="file-picker"><span>Choose Image</span><input type="file" accept="image/png,image/jpeg,image/gif,image/webp" data-routine-banner></label>
+              <div class="small">\${escapeHtml(bannerStatus)} File uploads are moved to the Discord storage channel when saved.</div>
+              <button class="danger" data-clear-routine-banner type="button">Clear Routine Banner</button>
+            </section>
+          </div>
+          <button class="primary" data-deploy-routine type="button">\${state.routineMessages.some((entry) => entry.id === routine.id) ? "Save Routine Message" : "Deploy Routine Message"}</button>
+        </div>\`;
+    }
+
+    function routineButtonTemplate(button, buttonIndex) {
+      return \`
+        <div class="bonus-row wide">
+          <div class="fields">
+            <label>Label<input data-routine-button-index="\${buttonIndex}" data-routine-button-key="label" value="\${escapeHtml(button.label || "")}"></label>
+            <label>Action<select data-routine-button-index="\${buttonIndex}" data-routine-button-key="action">
+              \${[
+                ["fishcomp", "Start FishComp"],
+                ["fishraid", "Start FishRaid"],
+                ["fishstore", "Open Fish Store"],
+                ["fishdex", "Open FishDex"],
+                ["fishguide", "Open Fish Guide"],
+                ["fishprofile", "Open Fish Profile"],
+                ["fishleaderboard", "Open Leaderboard"]
+              ].map(([value, label]) => \`<option value="\${value}" \${button.action === value ? "selected" : ""}>\${label}</option>\`).join("")}
+            </select></label>
+            <label>Style<select data-routine-button-index="\${buttonIndex}" data-routine-button-key="style">
+              \${["Primary", "Secondary", "Success", "Danger"].map((style) => \`<option value="\${style}" \${(button.style || "Primary") === style ? "selected" : ""}>\${style}</option>\`).join("")}
+            </select></label>
+            <label>Reg Time Minutes<input type="number" min="1" step="1" data-routine-button-index="\${buttonIndex}" data-routine-button-key="regtimeMinutes" value="\${escapeHtml(String(button.regtimeMinutes || 5))}"></label>
+            <label>Duration Turns<input type="number" min="1" step="1" data-routine-button-index="\${buttonIndex}" data-routine-button-key="durationTurns" value="\${escapeHtml(String(button.durationTurns || 15))}"></label>
+            <button class="danger" data-remove-routine-button="\${buttonIndex}" type="button">Remove Button</button>
+          </div>
+        </div>\`;
+    }
+
+    function routineField(label, key, value, type = "text") {
+      return \`<label>\${label}<input type="\${type}" data-routine-key="\${key}" value="\${escapeHtml(String(value ?? ""))}"></label>\`;
     }
 
     function bonusTemplate(bonus, bonusIndex) {
@@ -2453,7 +2742,9 @@ const html = `<!doctype html>
       state.settings = payload.settings || state.settings;
       state.activeEvent = payload.activeEvent || null;
       state.events = payload.events || (payload.activeEvent ? [payload.activeEvent] : []);
+      state.routineMessages = payload.routineMessages || [];
       state.eventDraft = null;
+      state.routineDraft = null;
       state.fishPage = 1;
       state.selectedFishId = state.fish[0]?.id || "";
       state.selectedRodId = state.rods[0]?.id || "";
@@ -2470,7 +2761,7 @@ const html = `<!doctype html>
       const response = await fetch("/api/data", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ fish: state.fish, rods: state.rods, adminDiscordIds: state.adminDiscordIds, settings: state.settings, activeEvent: state.activeEvent, events: state.events })
+        body: JSON.stringify({ fish: state.fish, rods: state.rods, adminDiscordIds: state.adminDiscordIds, settings: state.settings, activeEvent: state.activeEvent, events: state.events, routineMessages: state.routineMessages })
       });
       const payload = await response.json();
       if (!response.ok) throw new Error(payload.error || "Could not save data.");
@@ -2480,6 +2771,7 @@ const html = `<!doctype html>
       state.settings = payload.settings || state.settings;
       state.activeEvent = payload.activeEvent || null;
       state.events = payload.events || (state.activeEvent ? [state.activeEvent] : state.events);
+      state.routineMessages = payload.routineMessages || state.routineMessages;
       setStatus("Saved. The bot will refresh automatically, or restart the bot to apply immediately.");
       render();
     }
@@ -2768,6 +3060,38 @@ const html = `<!doctype html>
       render();
     }
 
+    async function deployRoutineData() {
+      setStatus("Deploying routine message to PlayFab...");
+      const routine = getRoutine();
+      routine.id = routine.id || String(Date.now());
+      const response = await fetch("/api/routine/deploy", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ fish: state.fish, rods: state.rods, adminDiscordIds: state.adminDiscordIds, settings: state.settings, activeEvent: state.activeEvent, events: state.events, routineMessages: state.routineMessages, routineDraft: routine })
+      });
+      const payload = await response.json();
+      if (!response.ok) throw new Error(payload.error || "Could not deploy routine message.");
+      state.routineMessages = payload.routineMessages || [routine, ...state.routineMessages.filter((entry) => entry.id !== routine.id)];
+      state.routineDraft = null;
+      delete state.uploadNames.routineBanner;
+      setStatus("Routine message deployed. The bot is being refreshed now.");
+      render();
+    }
+
+    async function removeRoutine(routineId) {
+      setStatus("Removing routine message...");
+      const response = await fetch("/api/routine/remove", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ id: routineId })
+      });
+      const payload = await response.json();
+      if (!response.ok) throw new Error(payload.error || "Could not remove routine message.");
+      state.routineMessages = payload.routineMessages || state.routineMessages.filter((routine) => routine.id !== routineId);
+      setStatus("Routine message removed.");
+      render();
+    }
+
     async function seedData() {
       if (!confirm("Replace PlayFab item data with the default fish and rods?")) return;
       setStatus("Saving defaults to PlayFab...");
@@ -2780,7 +3104,9 @@ const html = `<!doctype html>
       state.settings = payload.settings || state.settings;
       state.activeEvent = payload.activeEvent || null;
       state.events = payload.events || (payload.activeEvent ? [payload.activeEvent] : []);
+      state.routineMessages = payload.routineMessages || state.routineMessages;
       state.eventDraft = null;
+      state.routineDraft = null;
       state.fishPage = 1;
       setStatus("Defaults saved to PlayFab.");
       render();
@@ -2907,6 +3233,39 @@ const html = `<!doctype html>
         }
         return;
       }
+      if (state.tab === "routine") {
+        const routine = getRoutine();
+        if (target.dataset.routineVariants !== undefined) {
+          routine.messageVariants = parseRoutineVariantsText(target.value);
+          return;
+        }
+        if (target.dataset.routineButtonKey) {
+          const button = routine.buttons[Number(target.dataset.routineButtonIndex)];
+          if (!button) return;
+          button[target.dataset.routineButtonKey] = target.type === "number" ? Number(target.value) : target.value;
+          return;
+        }
+        if (target.dataset.routineConditionKey) {
+          routine.condition[target.dataset.routineConditionKey] = target.type === "number" ? Number(target.value) : target.value;
+          if (target.dataset.routineConditionKey === "type") {
+            render();
+          }
+          return;
+        }
+        if (target.dataset.routineBoolKey) {
+          routine[target.dataset.routineBoolKey] = target.checked;
+          return;
+        }
+        const key = target.dataset.routineKey || target.dataset.key;
+        if (!key) return;
+        routine[key] = target.type === "number" ? Number(target.value) : target.value;
+        if (key === "bannerUrl") {
+          routine.bannerBase64 = "";
+          routine.bannerRef = null;
+          delete state.uploadNames.routineBanner;
+        }
+        return;
+      }
       if (target.dataset.fishSearch !== undefined) {
         state.fishSearch = target.value;
         state.fishPage = 1;
@@ -3022,11 +3381,29 @@ const html = `<!doctype html>
         reader.readAsDataURL(file);
         return;
       }
+      if (target.dataset.routineBanner !== undefined) {
+        const file = target.files[0];
+        if (!file) return;
+        const reader = new FileReader();
+        reader.onload = () => {
+          getRoutine().bannerBase64 = reader.result;
+          getRoutine().bannerUrl = "";
+          getRoutine().bannerRef = null;
+          state.uploadNames.routineBanner = file.name;
+          render();
+        };
+        reader.readAsDataURL(file);
+        return;
+      }
       if (state.tab === "settings" && target.dataset.key && target.dataset.key.endsWith("Url")) {
         render();
         return;
       }
       if (state.tab === "event" && (target.dataset.eventKey === "bannerUrl" || target.dataset.key === "bannerUrl")) {
+        render();
+        return;
+      }
+      if (state.tab === "routine" && (target.dataset.routineKey === "bannerUrl" || target.dataset.key === "bannerUrl")) {
         render();
         return;
       }
@@ -3162,6 +3539,24 @@ const html = `<!doctype html>
         render();
         return;
       }
+      if (event.target.closest("[data-create-routine]")) {
+        state.routineDraft = makeEmptyRoutine();
+        render();
+        return;
+      }
+      const editRoutineButton = event.target.closest("[data-edit-routine]");
+      if (editRoutineButton) {
+        const routine = state.routineMessages.find((entry) => entry.id === editRoutineButton.dataset.editRoutine);
+        if (!routine) {
+          setStatus("Routine message was not found.", true);
+          return;
+        }
+        state.routineDraft = cloneRoutineForEdit(routine);
+        delete state.uploadNames.routineBanner;
+        setStatus("Editing routine message. Press Save Routine Message when done.");
+        render();
+        return;
+      }
       if (event.target.closest("[data-export-fish]")) {
         exportFishJson();
         return;
@@ -3274,6 +3669,20 @@ const html = `<!doctype html>
         render();
         return;
       }
+      if (event.target.closest("[data-clear-routine]")) {
+        state.routineDraft = null;
+        delete state.uploadNames.routineBanner;
+        render();
+        return;
+      }
+      if (event.target.closest("[data-clear-routine-banner]")) {
+        getRoutine().bannerBase64 = "";
+        getRoutine().bannerUrl = "";
+        getRoutine().bannerRef = null;
+        delete state.uploadNames.routineBanner;
+        render();
+        return;
+      }
       const stopEventButton = event.target.closest("[data-stop-event]");
       if (stopEventButton) {
         stopEvent(stopEventButton.dataset.stopEvent).catch((error) => setStatus(error.message, true));
@@ -3300,6 +3709,27 @@ const html = `<!doctype html>
       }
       if (event.target.closest("[data-deploy-event]")) {
         deployEventData().catch((error) => setStatus(error.message, true));
+        return;
+      }
+      if (event.target.closest("[data-add-routine-button]")) {
+        getRoutine().buttons.push({ id: "button_" + Date.now(), label: "Start FishComp", action: "fishcomp", style: "Primary", regtimeMinutes: 5, durationTurns: 15 });
+        render();
+        return;
+      }
+      const removeRoutineButtonButton = event.target.closest("[data-remove-routine-button]");
+      if (removeRoutineButtonButton) {
+        getRoutine().buttons.splice(Number(removeRoutineButtonButton.dataset.removeRoutineButton), 1);
+        render();
+        return;
+      }
+      if (event.target.closest("[data-deploy-routine]")) {
+        deployRoutineData().catch((error) => setStatus(error.message, true));
+        return;
+      }
+      const removeRoutineButton = event.target.closest("[data-remove-routine]");
+      if (removeRoutineButton) {
+        if (!confirm("Remove this routine message from the manager?")) return;
+        removeRoutine(removeRoutineButton.dataset.removeRoutine).catch((error) => setStatus(error.message, true));
         return;
       }
       const button = event.target.closest("[data-remove]");

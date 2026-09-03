@@ -828,6 +828,73 @@ function cleanEvents(events, activeEvent) {
   return mergedEvents.map(cleanEvent).filter(Boolean);
 }
 
+function cleanRoutineButton(button) {
+  const source = button && typeof button === "object" ? button : {};
+  const action = String(source.action || "fishcomp").trim();
+  return {
+    id: String(source.id || `${action}_${Date.now()}`).trim().toLowerCase().replace(/[^a-z0-9_:-]/g, "_").slice(0, 80),
+    label: String(source.label || action).trim().slice(0, 80),
+    action,
+    style: String(source.style || "Primary").trim(),
+    regtimeMinutes: Math.max(1, Math.floor(cleanNumber(source.regtimeMinutes, 5))),
+    durationTurns: Math.max(1, Math.floor(cleanNumber(source.durationTurns, 15)))
+  };
+}
+
+function cleanRoutineMessageVariants(routine) {
+  const variants = Array.isArray(routine.messageVariants) ? routine.messageVariants : [];
+  return variants.map((variant) => {
+    if (typeof variant === "string") {
+      return { title: "", description: variant.trim() };
+    }
+    const source = variant && typeof variant === "object" ? variant : {};
+    return {
+      title: String(source.title || "").trim(),
+      description: String(source.description || source.message || "").trim()
+    };
+  }).filter((variant) => variant.title || variant.description).slice(0, 100);
+}
+
+function cleanRoutineMessage(routine) {
+  if (!routine || typeof routine !== "object") {
+    return null;
+  }
+
+  const condition = routine.condition && typeof routine.condition === "object" ? routine.condition : {};
+  const type = String(condition.type || routine.conditionType || "daily_time").trim();
+  return {
+    id: String(routine.id || Date.now()).trim(),
+    name: String(routine.name || routine.title || "Routine Message").trim(),
+    title: String(routine.title || routine.name || "Routine Message").trim(),
+    description: String(routine.description || "").trim(),
+    messageVariants: cleanRoutineMessageVariants(routine),
+    color: String(routine.color || "#36c28a").trim(),
+    bannerBase64: String(routine.bannerBase64 || ""),
+    bannerUrl: String(routine.bannerUrl || "").trim(),
+    bannerContentKey: String(routine.bannerContentKey || "").trim(),
+    bannerRef: routine.bannerRef && typeof routine.bannerRef === "object" ? routine.bannerRef : null,
+    enabled: routine.enabled !== false,
+    deleteAfterButtonClick: routine.deleteAfterButtonClick === true,
+    guildId: String(routine.guildId || "").trim(),
+    channelId: String(routine.channelId || "").trim(),
+    lastSentAt: String(routine.lastSentAt || "").trim(),
+    lastTriggerKey: String(routine.lastTriggerKey || "").trim(),
+    lastSentByGuild: routine.lastSentByGuild && typeof routine.lastSentByGuild === "object" && !Array.isArray(routine.lastSentByGuild) ? routine.lastSentByGuild : {},
+    condition: {
+      type,
+      time: String(condition.time || "00:00").trim(),
+      intervalMinutes: Math.max(1, Math.floor(cleanNumber(condition.intervalMinutes, 60))),
+      idleMinutes: Math.max(1, Math.floor(cleanNumber(condition.idleMinutes, 120))),
+      dateTime: String(condition.dateTime || "").trim()
+    },
+    buttons: (Array.isArray(routine.buttons) ? routine.buttons : []).map(cleanRoutineButton).filter((button) => button.id && button.label && button.action).slice(0, 25)
+  };
+}
+
+function cleanRoutineMessages(routineMessages) {
+  return (Array.isArray(routineMessages) ? routineMessages : []).map(cleanRoutineMessage).filter(Boolean);
+}
+
 function assertUniqueItemIds(items, type) {
   const seen = new Set();
   for (const item of items) {
@@ -1106,6 +1173,7 @@ function withoutConfigAssets(config) {
   const settings = cleanSettings(config.settings);
   const activeEvent = cleanEvent(config.activeEvent);
   const events = cleanEvents(config.events, activeEvent);
+  const routineMessages = cleanRoutineMessages(config.routineMessages);
 
   return {
     adminDiscordIds: cleanAdminDiscordIds(config.adminDiscordIds),
@@ -1145,6 +1213,11 @@ function withoutConfigAssets(config) {
       ...event,
       bannerBase64: "",
       bannerContentKey: ""
+    })),
+    routineMessages: routineMessages.map((routine) => ({
+      ...routine,
+      bannerBase64: "",
+      bannerContentKey: ""
     }))
   };
 }
@@ -1153,6 +1226,7 @@ async function attachConfigAssets(config, useSecretKey = false) {
   const settings = cleanSettings(config.settings);
   const activeEvent = cleanEvent(config.activeEvent);
   const events = cleanEvents(config.events, activeEvent);
+  const routineMessages = cleanRoutineMessages(config.routineMessages);
   const fishRaidBosses = await Promise.all(settings.fishRaidBosses.map(async (boss) => ({
     ...boss,
     registrationBannerBase64: "",
@@ -1208,6 +1282,11 @@ async function attachConfigAssets(config, useSecretKey = false) {
       ...event,
       bannerBase64: "",
       bannerUrl: await getStoredImageUrl(event.bannerRef, event.bannerUrl, event.bannerContentKey)
+    }))),
+    routineMessages: await Promise.all(routineMessages.map(async (routine) => ({
+      ...routine,
+      bannerBase64: "",
+      bannerUrl: await getStoredImageUrl(routine.bannerRef, routine.bannerUrl, routine.bannerContentKey)
     })))
   };
 }
@@ -1249,7 +1328,8 @@ async function getGameData() {
     adminDiscordIds: configWithAssets.adminDiscordIds,
     settings: configWithAssets.settings,
     activeEvent: configWithAssets.activeEvent,
-    events: configWithAssets.events
+    events: configWithAssets.events,
+    routineMessages: configWithAssets.routineMessages
   };
 }
 
@@ -1270,11 +1350,12 @@ async function adminGetGameData() {
     adminDiscordIds: configWithAssets.adminDiscordIds,
     settings: configWithAssets.settings,
     activeEvent: configWithAssets.activeEvent,
-    events: configWithAssets.events
+    events: configWithAssets.events,
+    routineMessages: configWithAssets.routineMessages
   };
 }
 
-async function adminSaveGameData({ fish, rods, adminDiscordIds, settings, activeEvent, events }) {
+async function adminSaveGameData({ fish, rods, adminDiscordIds, settings, activeEvent, events, routineMessages }) {
   const cleanFish = fish || [];
   const cleanRods = rods || [];
   assertUniqueItemIds(cleanFish, "fish");
@@ -1282,6 +1363,7 @@ async function adminSaveGameData({ fish, rods, adminDiscordIds, settings, active
   const cleanSettingsValue = cleanSettings(settings);
   const cleanEventValue = cleanEvent(activeEvent);
   const cleanEventsValue = cleanEvents(events, cleanEventValue);
+  const cleanRoutineMessagesValue = cleanRoutineMessages(routineMessages);
   const rodStoreImage = await saveContentImage({
     currentUrl: cleanSettingsValue.rodStoreImageUrl,
     currentRef: cleanSettingsValue.rodStoreImageRef,
@@ -1401,6 +1483,22 @@ async function adminSaveGameData({ fish, rods, adminDiscordIds, settings, active
       bannerRef: eventBanner.ref
     });
   }
+  const cleanRoutineMessagesWithUrls = [];
+  for (const routine of cleanRoutineMessagesValue) {
+    const routineBanner = await saveContentImage({
+      currentUrl: routine.bannerUrl,
+      currentRef: routine.bannerRef,
+      legacyContentKey: routine.bannerContentKey,
+      dataUrl: routine.bannerBase64,
+      sourceUrl: routine.bannerUrl,
+      keyForExtension: (extension) => settingsImageContentKeyFor(`routine-message-${routine.id}-banner`, extension)
+    });
+    cleanRoutineMessagesWithUrls.push({
+      ...routine,
+      bannerUrl: routineBanner.url,
+      bannerRef: routineBanner.ref
+    });
+  }
   const cleanFishWithUrls = [];
   for (const item of cleanFish) {
     const icon = await saveContentImage({
@@ -1471,7 +1569,8 @@ async function adminSaveGameData({ fish, rods, adminDiscordIds, settings, active
         bannerRef: banner.ref
       }
       : null,
-    events: cleanEventsWithUrls
+    events: cleanEventsWithUrls,
+    routineMessages: cleanRoutineMessagesWithUrls
   });
 
   await saveTitleAsset(titleDataKeys.fish, JSON.stringify(withoutIcons(cleanFishWithUrls, "fish")));
@@ -1484,7 +1583,8 @@ async function adminSaveGameData({ fish, rods, adminDiscordIds, settings, active
     adminDiscordIds: cleanConfig.adminDiscordIds,
     settings: cleanConfig.settings,
     activeEvent: cleanConfig.activeEvent,
-    events: cleanConfig.events
+    events: cleanConfig.events,
+    routineMessages: cleanConfig.routineMessages
   };
 }
 

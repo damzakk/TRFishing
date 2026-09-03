@@ -127,7 +127,8 @@ let gameData = {
     voiceExpIntervalMinutes: 15
   },
   activeEvent: null,
-  events: []
+  events: [],
+  routineMessages: []
 };
 const playerQueues = new Map();
 const announcedEvents = new Set();
@@ -139,12 +140,14 @@ const finishedCompetitionLogs = new Map();
 const fishVoiceChannels = new Map();
 const defaultFishingChannels = new Map();
 const activeVoiceSessions = new Map();
+const guildActivity = new Map();
 let voiceTickTimer = null;
 let enforcedFishingTimer = null;
 let giveMoneyTimer = null;
 let fishRaidSignalTimer = null;
 let fishRaidMidnightTimer = null;
 let eventAnnouncementTimer = null;
+let routineMessageTimer = null;
 const processedEnforcedFishingIds = new Set();
 const processedGiveMoneyIds = new Set();
 const processedFishRaidSignalIds = new Set();
@@ -353,6 +356,37 @@ async function fetchFishingMessageChannel(player = null, guildId = "") {
   }
 
   return null;
+}
+
+async function resolveParentTextChannel(channel) {
+  if (!channel?.isTextBased?.()) {
+    return null;
+  }
+  if (!channel.isThread?.()) {
+    return channel;
+  }
+  if (channel.parent?.isTextBased?.()) {
+    return channel.parent;
+  }
+  if (channel.parentId) {
+    const parent = await client.channels.fetch(channel.parentId).catch(() => null);
+    return parent?.isTextBased?.() ? parent : null;
+  }
+  return null;
+}
+
+async function fetchRoutineMessageChannel(routine, guildId = "") {
+  const channelId = String(routine?.channelId || "").trim();
+  if (channelId) {
+    return resolveParentTextChannel(await client.channels.fetch(channelId).catch(() => null));
+  }
+
+  const defaultChannelId = defaultFishingChannels.get(guildId);
+  if (!defaultChannelId) {
+    return null;
+  }
+
+  return resolveParentTextChannel(await client.channels.fetch(defaultChannelId).catch(() => null));
 }
 
 async function createFishingPopupThread(channel) {
@@ -923,6 +957,13 @@ function activityBlockedMessage() {
   return "Saat ini aktivitas sedang dibatas, mohon menunggu ya";
 }
 
+function recordGuildActivity(guildId) {
+  const selectedGuildId = String(guildId || "").trim();
+  if (selectedGuildId) {
+    guildActivity.set(selectedGuildId, Date.now());
+  }
+}
+
 function getAvailableFish(guildId = "") {
   const selectedGuildId = String(guildId || "").trim();
   return gameData.fish.filter((entry) => {
@@ -1010,6 +1051,29 @@ function formatFishLine(fishEntry, quantity = null) {
   return `${fishEntry.name}${amount} - ${fishEntry.rarity}, ${formatKg(minWeight)}-${formatKg(maxWeight)}, ${fishEntry.exp} EXP, ${fishEntry.gold} gold`;
 }
 
+function formatInventoryFishLine(fishEntry, quantity) {
+  const minWeight = Number(fishEntry.minWeight || 0);
+  const maxWeight = Number(fishEntry.maxWeight || minWeight);
+  const totalSellGold = Math.max(0, Math.round(Number(quantity || 0) * Number(fishEntry.gold || 0)));
+  return [
+    `**${fishEntry.name}** x${quantity}`,
+    `${fishEntry.rarity} | ${formatKg(minWeight)}-${formatKg(maxWeight)} | ${fishEntry.exp} EXP | ${formatGoldAmount(totalSellGold)}`
+  ].join("\n");
+}
+
+function calculateInventorySellGold(player, guildId = "") {
+  const goldEventInfo = getEventMultiplierInfo("gold_multiplier", guildId);
+  const baseGold = gameData.fish.reduce((sum, fishEntry) => {
+    const quantity = Math.max(0, Math.floor(Number(player.inventory?.[fishEntry.id] || 0)));
+    return sum + Math.max(0, Math.round(quantity * Number(fishEntry.gold || 0)));
+  }, 0);
+  return {
+    baseGold,
+    totalGold: Math.max(0, Math.round(baseGold * goldEventInfo.multiplier)),
+    goldEventInfo
+  };
+}
+
 function getFishDexEntry(player, fishEntry) {
   const fishDex = player.fishDex && typeof player.fishDex === "object" ? player.fishDex : {};
   const dexEntry = fishDex[fishEntry.id] && typeof fishDex[fishEntry.id] === "object" ? fishDex[fishEntry.id] : {};
@@ -1066,12 +1130,14 @@ function makeProfileEmbed(user, player) {
   return { embed, files: icon?.attachment ? [icon.attachment] : [] };
 }
 
-function makeFishCompRoleRow(member = null) {
+function makeFishCompRoleRow(member = null, fishCompRoleOverride = null) {
   if (!member?.guild) {
     return [];
   }
   const role = findFishCompRole(member.guild);
-  const hasRole = role ? member.roles.cache.has(role.id) : false;
+  const hasRole = typeof fishCompRoleOverride === "boolean"
+    ? fishCompRoleOverride
+    : role ? member.roles.cache.has(role.id) : false;
   return [
     new ActionRowBuilder().addComponents(
       new ButtonBuilder()
@@ -1095,7 +1161,7 @@ function makeProfileRodOptions(player) {
     }));
 }
 
-function makeProfileComponents(player, member = null) {
+function makeProfileComponents(player, member = null, fishCompRoleOverride = null) {
   const components = [];
   const rodOptions = makeProfileRodOptions(player);
   if (rodOptions.length) {
@@ -1108,11 +1174,11 @@ function makeProfileComponents(player, member = null) {
       )
     );
   }
-  components.push(...makeFishCompRoleRow(member));
+  components.push(...makeFishCompRoleRow(member, fishCompRoleOverride));
   return components;
 }
 
-function makeProfileMessage(user, player, member = null, guildId = "") {
+function makeProfileMessage(user, player, member = null, guildId = "", fishCompRoleOverride = null) {
   const rod = getRod(player.rodId);
   const level = getLevel(player.exp);
   const nextExp = expForLevel(level);
@@ -1150,7 +1216,7 @@ function makeProfileMessage(user, player, member = null, guildId = "") {
   } else {
     container.addTextDisplayComponents(makeTextDisplay(profileText));
   }
-  const components = makeProfileComponents(player, member);
+  const components = makeProfileComponents(player, member, fishCompRoleOverride);
   if (components.length) {
     container.addSeparatorComponents(new SeparatorBuilder());
     container.addTextDisplayComponents(makeTextDisplay(`**Equipped Rod :** ${rod?.name || "No rod found"}`));
@@ -1307,6 +1373,83 @@ function makeEventEndedEmbed(event) {
     embed.setImage(banner.url);
   }
   return { embed, files: banner?.attachment ? [banner.attachment] : [] };
+}
+
+function makeRoutineImage(routine) {
+  const imageUrl = getPublicImageUrl(routine?.bannerUrl);
+  if (imageUrl) {
+    return { url: imageUrl, attachment: null };
+  }
+
+  const image = parseDataImage(routine?.bannerBase64);
+  if (!image) {
+    return null;
+  }
+  const fileName = `routine-message-banner.${image.extension}`;
+  return {
+    attachment: new AttachmentBuilder(image.buffer, { name: fileName }),
+    url: `attachment://${fileName}`
+  };
+}
+
+function parseRoutineColor(value) {
+  const color = String(value || "").trim().replace(/^#/, "");
+  return /^[0-9a-f]{6}$/i.test(color) ? Number.parseInt(color, 16) : 0x36c28a;
+}
+
+function makeRoutineButtonStyle(style) {
+  return {
+    Primary: ButtonStyle.Primary,
+    Secondary: ButtonStyle.Secondary,
+    Success: ButtonStyle.Success,
+    Danger: ButtonStyle.Danger
+  }[String(style || "Primary")] || ButtonStyle.Primary;
+}
+
+function pickRoutineMessageVariant(routine) {
+  const variants = (Array.isArray(routine.messageVariants) ? routine.messageVariants : [])
+    .filter((variant) => variant && (variant.title || variant.description));
+  if (!variants.length) {
+    return {
+      title: routine.title || routine.name || "Routine Message",
+      description: routine.description || ""
+    };
+  }
+  const variant = variants[Math.floor(Math.random() * variants.length)];
+  return {
+    title: variant.title || routine.title || routine.name || "Routine Message",
+    description: variant.description || routine.description || ""
+  };
+}
+
+function makeRoutineMessage(routine) {
+  const message = pickRoutineMessageVariant(routine);
+  const embed = new EmbedBuilder()
+    .setColor(parseRoutineColor(routine.color))
+    .setTitle(message.title);
+  if (message.description) {
+    embed.setDescription(message.description);
+  }
+  const banner = makeRoutineImage(routine);
+  if (banner?.url) {
+    embed.setImage(banner.url);
+  }
+
+  const buttons = (Array.isArray(routine.buttons) ? routine.buttons : []).slice(0, 25);
+  const components = [];
+  for (let index = 0; index < buttons.length; index += 5) {
+    components.push(new ActionRowBuilder().addComponents(
+      buttons.slice(index, index + 5).map((button) => new ButtonBuilder()
+        .setCustomId(`routine:${routine.id}:${button.id || index}`)
+        .setLabel(String(button.label || button.action || "Open").slice(0, 80))
+        .setStyle(makeRoutineButtonStyle(button.style)))
+    ));
+  }
+
+  return makeEmbedPanelMessage(embed, {
+    files: banner?.attachment ? [banner.attachment] : [],
+    components
+  });
 }
 
 function makeSettingsImage(baseKey, fallbackBaseKey = "") {
@@ -1635,6 +1778,118 @@ async function announceEventUpdates() {
   scheduleNextEventAnnouncement();
 }
 
+function getRoutineMessages() {
+  return Array.isArray(gameData.routineMessages) ? gameData.routineMessages : [];
+}
+
+function getRoutineGuildIds(routine) {
+  const guildId = String(routine.guildId || "").trim();
+  if (guildId) {
+    return [guildId];
+  }
+  return [...defaultFishingChannels.keys()];
+}
+
+function routineTriggerKey(routine, guildId, now = new Date()) {
+  const condition = routine.condition || {};
+  if (condition.type === "daily_time") {
+    return `${guildId}:${getLocalDateKey(now)}:${condition.time || "00:00"}`;
+  }
+  if (condition.type === "specific_datetime") {
+    return `${guildId}:${condition.dateTime || ""}`;
+  }
+  return `${guildId}:${Math.floor(now.getTime() / 60_000)}`;
+}
+
+function getRoutineGuildState(routine, guildId) {
+  const state = routine.lastSentByGuild && typeof routine.lastSentByGuild === "object" ? routine.lastSentByGuild[guildId] : null;
+  return state && typeof state === "object" ? state : {};
+}
+
+function isRoutineDueForGuild(routine, guildId, now = new Date()) {
+  if (routine.enabled === false) {
+    return false;
+  }
+
+  const condition = routine.condition || {};
+  const nowMs = now.getTime();
+  const guildState = getRoutineGuildState(routine, guildId);
+  const lastSentMs = Date.parse(guildState.lastSentAt || routine.lastSentAt || 0) || 0;
+  if (condition.type === "interval") {
+    return !lastSentMs || nowMs - lastSentMs >= Math.max(1, Number(condition.intervalMinutes || 60)) * 60_000;
+  }
+  if (condition.type === "idle_since_activity") {
+    const idleMs = Math.max(1, Number(condition.idleMinutes || 120)) * 60_000;
+    const lastActivityAt = guildActivity.get(guildId) || processStartedAt;
+    return nowMs - lastActivityAt >= idleMs
+      && (!lastSentMs || nowMs - lastSentMs >= idleMs);
+  }
+  if (condition.type === "specific_datetime") {
+    return Boolean(condition.dateTime) && nowMs >= Date.parse(condition.dateTime) && !lastSentMs;
+  }
+
+  const [hourText, minuteText] = String(condition.time || "00:00").split(":");
+  const dueHour = Number(hourText);
+  const dueMinute = Number(minuteText);
+  return now.getHours() === dueHour
+    && now.getMinutes() === dueMinute
+    && guildState.lastTriggerKey !== routineTriggerKey(routine, guildId, now);
+}
+
+async function markRoutineSent(routineId, guildId, triggerKey) {
+  const sentAt = new Date().toISOString();
+  const applyMark = (routine) => {
+    if (routine?.id !== routineId) {
+      return routine;
+    }
+    return {
+      ...routine,
+      lastSentAt: sentAt,
+      lastTriggerKey: triggerKey,
+      lastSentByGuild: {
+        ...(routine.lastSentByGuild || {}),
+        [guildId]: { lastSentAt: sentAt, lastTriggerKey: triggerKey }
+      }
+    };
+  };
+  gameData = {
+    ...gameData,
+    routineMessages: getRoutineMessages().map(applyMark)
+  };
+  await adminSaveGameData(gameData);
+}
+
+async function processRoutineMessages() {
+  if (!client.isReady()) {
+    return;
+  }
+
+  const now = new Date();
+  for (const routine of getRoutineMessages()) {
+    for (const guildId of getRoutineGuildIds(routine)) {
+      if (!isRoutineDueForGuild(routine, guildId, now)) {
+        continue;
+      }
+      const triggerKey = routineTriggerKey(routine, guildId, now);
+      const channel = await fetchRoutineMessageChannel(routine, guildId);
+      if (!channel?.isTextBased?.()) {
+        continue;
+      }
+      await channel.send(makeRoutineMessage(routine)).catch((error) => {
+        console.error(`Could not send routine message ${routine.id || routine.name || "unknown"}:`, error);
+      });
+      await markRoutineSent(routine.id, guildId, triggerKey);
+    }
+  }
+}
+
+function scheduleRoutineMessages() {
+  clearInterval(routineMessageTimer);
+  routineMessageTimer = setInterval(() => {
+    processRoutineMessages().catch((error) => console.error("Could not process routine messages:", error));
+  }, 60_000);
+}
+
 async function hydrateActiveEventGuilds() {
   for (const event of getEvents().filter(isEventRunning)) {
     await hydrateEventGuild(event);
@@ -1647,7 +1902,7 @@ function scheduleSignalRefresh() {
   clearTimeout(signalRefreshTimer);
   signalRefreshTimer = setTimeout(() => {
     refreshGameData()
-      .then(() => announceEventUpdates())
+      .then(() => Promise.all([announceEventUpdates(), processRoutineMessages()]))
       .catch((error) => console.error("Could not refresh PlayFab config from manager signal:", error));
   }, 500);
 }
@@ -1929,16 +2184,25 @@ function watchFishRaidSignal() {
   console.log("Watching manager fish raid signal.");
 }
 
-function makeInventoryEmbed(user, player) {
+function makeInventoryEmbed(user, player, guildId = "") {
   const lines = gameData.fish
     .map((fishEntry) => [fishEntry, player.inventory[fishEntry.id] || 0])
     .filter(([, quantity]) => quantity > 0)
-    .map(([fishEntry, quantity]) => formatFishLine(fishEntry, quantity));
+    .map(([fishEntry, quantity]) => formatInventoryFishLine(fishEntry, quantity));
+  const { baseGold, totalGold, goldEventInfo } = calculateInventorySellGold(player, guildId);
+  const goldSummary = [
+    `Gold kamu sekarang: **${formatGoldAmount(player.gold)}**`,
+    `Kalau jual semua ikan: **${formatRewardWithBonus(totalGold, baseGold, "Gold")}**`,
+    formatBonusNotice("Gold", goldEventInfo, totalGold, baseGold)
+  ].filter(Boolean);
 
   return new EmbedBuilder()
     .setColor(0x3498db)
     .setTitle(`${user.username}'s Fish Inventory`)
-    .setDescription(lines.length ? lines.join("\n") : "Your inventory is empty.");
+    .setDescription([
+      lines.length ? lines.join("\n\n") : "Inventory ikan kamu kosong.",
+      goldSummary.join("\n")
+    ].join("\n\n"));
 }
 
 function makeStoreEmbed(player, status = "") {
@@ -4053,8 +4317,185 @@ client.once("clientReady", async () => {
   scheduleEnforcedFishingSignal();
 });
 
+async function startFishCompFromInteraction(interaction, options = {}) {
+  recordGuildActivity(interaction.guildId);
+  if (!interaction.guildId) {
+    await interaction.reply({ content: "Kompetisi hanya bisa dibuat di server.", flags: MessageFlags.Ephemeral });
+    return;
+  }
+  if (competitions.has(interaction.guildId)) {
+    await interaction.reply({ content: "Masih ada kompetisi yang berjalan di server ini.", flags: MessageFlags.Ephemeral });
+    return;
+  }
+
+  const registrationMinutes = Math.max(1, Math.min(30, Number(options.regtimeMinutes || 5)));
+  const turns = Math.max(1, Math.min(50, Number(options.durationTurns || 15)));
+  const competition = {
+    guildId: interaction.guildId,
+    channelId: interaction.channelId,
+    creatorId: interaction.user.id,
+    startsAt: Date.now() + registrationMinutes * 60_000,
+    turns,
+    maxParticipants: 25,
+    status: "registration",
+    participants: new Map(),
+    results: new Map(),
+    logs: [],
+    eventStates: new Map(),
+    currentTurnEffects: new Map(),
+    currentTurn: 0,
+    logIntervalMs: Math.max(0, Number(getSettings().fishCompLogIntervalMs || 2500)),
+    message: null,
+    pingMessage: null,
+    timeout: null
+  };
+  competitions.set(interaction.guildId, competition);
+  await interaction.reply(makeCompetitionMessage(competition, "registration", makeCompetitionJoinRow(false)));
+  competition.message = await interaction.fetchReply();
+  const fishCompRole = interaction.guild ? await ensureFishCompRole(interaction.guild) : null;
+  competition.pingMessage = await interaction.channel?.send({
+    content: `## Ayo! Kompetisi memancing sudah dimulai!! ${fishCompRole ? fishCompRole.toString() : "@FishComp"}\n-# *buka /fishprofile dan tekan tombol untuk mendapatkan role @FishComp*`,
+    allowedMentions: fishCompRole ? { roles: [fishCompRole.id] } : { parse: [] }
+  }).catch(() => null);
+  competition.timeout = setTimeout(() => {
+    if (competition.participants.size < 2) {
+      cancelCompetition(competition, competition.participants.size === 0 ? "Tidak ada peserta yang join." : "Butuh minimal 2 peserta untuk memulai kompetisi.");
+      return;
+    }
+    runCompetition(competition).catch((error) => {
+      console.error("Competition failed:", error);
+      competitions.delete(competition.guildId);
+    });
+  }, registrationMinutes * 60_000);
+}
+
+async function startFishRaidFromInteraction(interaction, options = {}) {
+  recordGuildActivity(interaction.guildId);
+  if (!interaction.guildId) {
+    await interaction.reply({ content: "Raid hanya bisa dibuat di server.", flags: MessageFlags.Ephemeral });
+    return;
+  }
+  const dailyState = normalizeDailyRaidState(interaction.guildId);
+  if (dailyState.fulfilledAt) {
+    await interaction.reply({ content: "Quota raid hari ini sudah terpenuhi. Raid berikutnya tersedia setelah reset harian.", flags: MessageFlags.Ephemeral });
+    return;
+  }
+  if (fishRaids.has(interaction.guildId)) {
+    await interaction.reply({ content: "Masih ada fish raid yang berjalan di server ini.", flags: MessageFlags.Ephemeral });
+    return;
+  }
+  const cooldownRemainingMs = getRaidCooldownRemainingMs(interaction.guildId);
+  if (cooldownRemainingMs > 0) {
+    await interaction.reply({ content: `Fish raid masih cooldown. Coba lagi dalam ${formatDurationIndonesian(cooldownRemainingMs)}.`, flags: MessageFlags.Ephemeral });
+    return;
+  }
+
+  const registrationMinutes = Math.max(1, Math.min(30, Number(options.regtimeMinutes || 5)));
+  dailyState.channelId = interaction.channelId;
+  saveFishRaidState();
+  const raid = {
+    mode: "raid",
+    guildId: interaction.guildId,
+    channelId: interaction.channelId,
+    creatorId: interaction.user.id,
+    startsAt: Date.now() + registrationMinutes * 60_000,
+    turns: 25,
+    maxParticipants: 25,
+    status: "registration",
+    participants: new Map(),
+    results: new Map(),
+    logs: [],
+    eventStates: new Map(),
+    currentTurnEffects: new Map(),
+    currentTurn: 0,
+    raidGainedWeight: 0,
+    logIntervalMs: Math.max(0, Number(getSettings().fishRaidLogIntervalMs ?? getSettings().fishCompLogIntervalMs ?? 2500)),
+    message: null,
+    pingMessage: null,
+    timeout: null
+  };
+  fishRaids.set(interaction.guildId, raid);
+  await interaction.reply(makeCompetitionMessage(raid, "registration", makeFishRaidJoinRow(false)));
+  raid.message = await interaction.fetchReply();
+  const fishCompRole = interaction.guild ? await ensureFishCompRole(interaction.guild) : null;
+  raid.pingMessage = await interaction.channel?.send({
+    content: `## Fish Raid dibuka! ${fishCompRole ? fishCompRole.toString() : "@FishComp"}\nBoss hari ini: **${dailyState.boss.name}** · Quota **${formatKg(dailyState.quotaKg)}**\n-# *Join raid untuk bantu memenuhi pesanan ikan hari ini.*`,
+    allowedMentions: fishCompRole ? { roles: [fishCompRole.id] } : { parse: [] }
+  }).catch(() => null);
+  raid.timeout = setTimeout(() => {
+    if (raid.participants.size < 1) {
+      cancelCompetition(raid, "Tidak ada peserta yang join.");
+      return;
+    }
+    runCompetition(raid).catch((error) => {
+      console.error("Fish raid failed:", error);
+      fishRaids.delete(raid.guildId);
+    });
+  }, registrationMinutes * 60_000);
+}
+
+async function handleRoutineButton(interaction) {
+  const [, routineId, buttonId] = interaction.customId.split(":");
+  const routine = getRoutineMessages().find((entry) => entry.id === routineId);
+  const button = routine?.buttons?.find((entry) => entry.id === buttonId);
+  if (!routine || !button) {
+    await interaction.reply({ content: "Routine button ini sudah tidak aktif.", flags: MessageFlags.Ephemeral });
+    return;
+  }
+
+  if (routine.deleteAfterButtonClick) {
+    interaction.message?.delete?.().catch(() => {});
+  }
+
+  if (["fishcomp", "fishraid", "fishstore", "fishdex"].includes(button.action) && !isActivityAllowed()) {
+    await interaction.reply({ content: activityBlockedMessage(), flags: MessageFlags.Ephemeral });
+    return;
+  }
+
+  if (button.action === "fishcomp") {
+    await startFishCompFromInteraction(interaction, button);
+    return;
+  }
+  if (button.action === "fishraid") {
+    await startFishRaidFromInteraction(interaction, button);
+    return;
+  }
+  if (button.action === "fishstore") {
+    await interaction.deferReply({ flags: MessageFlags.Ephemeral });
+    await withPlayerReadOnly(interaction.user, async (player) => interaction.editReply(makeStoreMessage(player)));
+    return;
+  }
+  if (button.action === "fishdex") {
+    await interaction.deferReply({ flags: MessageFlags.Ephemeral });
+    await withPlayerReadOnly(interaction.user, async (player) => interaction.editReply(makeFishDexMessage(interaction.user, player, "", interaction.guildId)));
+    return;
+  }
+  if (button.action === "fishguide") {
+    await interaction.reply({ ...makeFishGuideMessage(""), flags: MessageFlags.Ephemeral });
+    return;
+  }
+  if (button.action === "fishprofile") {
+    await interaction.deferReply({ flags: MessageFlags.Ephemeral });
+    const member = interaction.guild?.members?.fetch ? await interaction.guild.members.fetch(interaction.user.id).catch(() => null) : null;
+    await withPlayerReadOnly(interaction.user, async (player) => interaction.editReply(makeProfileMessage(interaction.user, player, member, interaction.guildId)));
+    return;
+  }
+  if (button.action === "fishleaderboard") {
+    await interaction.deferReply({ flags: MessageFlags.Ephemeral });
+    await interaction.editReply(await makeLeaderboardMessage("fish_count"));
+    return;
+  }
+
+  await interaction.reply({ content: "Action routine ini belum dikenali.", flags: MessageFlags.Ephemeral });
+}
+
 client.on("interactionCreate", async (interaction) => {
   try {
+    if (interaction.isButton() && interaction.customId.startsWith("routine:")) {
+      await handleRoutineButton(interaction);
+      return;
+    }
+
     if (interaction.isStringSelectMenu() && interaction.customId === "leaderboard_select") {
       await interaction.deferUpdate();
       await interaction.editReply(await makeLeaderboardMessage(interaction.values[0]));
@@ -4328,14 +4769,16 @@ client.on("interactionCreate", async (interaction) => {
         return;
       }
 
-      if (member.roles.cache.has(role.id)) {
+      const hadRole = member.roles.cache.has(role.id);
+      if (hadRole) {
         await member.roles.remove(role, "TRFishing FishComp opt-out");
       } else {
         await member.roles.add(role, "TRFishing FishComp opt-in");
       }
+      const hasRole = !hadRole;
 
       await withPlayerReadOnly(interaction.user, async (player) => {
-        await interaction.editReply(makeProfileMessage(interaction.user, player, member, interaction.guildId));
+        await interaction.editReply(makeProfileMessage(interaction.user, player, member, interaction.guildId, hasRole));
       });
       return;
     }
@@ -4363,7 +4806,7 @@ client.on("interactionCreate", async (interaction) => {
     if (interaction.commandName === "fishinventory") {
       await interaction.deferReply({ flags: MessageFlags.Ephemeral });
       await withPlayerReadOnly(interaction.user, async (player) => {
-        await interaction.editReply({ embeds: [makeInventoryEmbed(interaction.user, player)] });
+        await interaction.editReply({ embeds: [makeInventoryEmbed(interaction.user, player, interaction.guildId)] });
       });
       return;
     }
@@ -4484,6 +4927,7 @@ client.on("interactionCreate", async (interaction) => {
     }
 
     if (interaction.commandName === "fishcomp") {
+      recordGuildActivity(interaction.guildId);
       if (!interaction.guildId) {
         await interaction.reply({ content: "Kompetisi hanya bisa dibuat di server.", flags: MessageFlags.Ephemeral });
         return;
@@ -4536,6 +4980,7 @@ client.on("interactionCreate", async (interaction) => {
     }
 
     if (interaction.commandName === "fishraid") {
+      recordGuildActivity(interaction.guildId);
       if (!interaction.guildId) {
         await interaction.reply({ content: "Raid hanya bisa dibuat di server.", flags: MessageFlags.Ephemeral });
         return;
@@ -4667,15 +5112,17 @@ async function start() {
   watchGiveMoneySignal();
   watchFishRaidSignal();
   scheduleFishRaidMidnightReset();
+  scheduleRoutineMessages();
   setInterval(() => {
     refreshGameData()
-      .then(() => announceEventUpdates())
+      .then(() => Promise.all([announceEventUpdates(), processRoutineMessages()]))
       .catch((error) => console.error("Could not refresh PlayFab config:", error));
   }, configRefreshMs);
 
   await client.login(token);
   await processFishRaidMidnightReset().catch((error) => console.error("Could not process fish raid midnight catch-up:", error));
   await announceEventUpdates().catch((error) => console.error("Could not announce event updates:", error));
+  await processRoutineMessages().catch((error) => console.error("Could not process routine messages:", error));
 }
 
 start().catch((error) => {

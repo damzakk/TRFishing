@@ -130,5 +130,17 @@
     "contentType": "image/png",
     "savedAt": 1788440485688,
     "size": 46670
+  },
+  "d2b3771e09475ff75e939a17ce28222cd4879d99882b4796f263e3800b5da1a8": {
+    "url": "https://cdn.discordapp.com/attachments/1543874293258260550/1545066941440331966/routine-message-1788442680845-banner.png?ex=6a9acb38&is=6a9979b8&hm=177acd5046371274208fc328378733fb5e1be3d8d5fa816f0b36aa874a4cb885&",
+    "contentType": "image/png",
+    "savedAt": 1788443932619,
+    "size": 128137
+  },
+  "2175b964dfe3dced8576d4e5c9c914848641c8348cd2a8f50fc0914e23ffefff": {
+    "url": "https://cdn.discordapp.com/attachments/1543874293258260550/1545067985968959538/routine-message-1788443124089-banner.png?ex=6a9acc31&is=6a997ab1&hm=d43cccb1e151cc92dbb504c656134185c9a2130d1feb152b003bf407a461a822&",
+    "contentType": "image/png",
+    "savedAt": 1788443972095,
+    "size": 124890
   }
 }
