@@ -1000,6 +1000,12 @@ const html = `<!doctype html>
       min-height: 68px;
       resize: vertical;
     }
+    .event-description-input {
+      min-height: 150px;
+    }
+    .event-description-preview {
+      white-space: pre-wrap;
+    }
     .wide { grid-column: 1 / -1; }
     .small {
       color: var(--muted);
@@ -1729,6 +1735,7 @@ const html = `<!doctype html>
               <span class="badge">\${status}</span>
             </div>
             <div class="small">Bonus: \${escapeHtml(eventBonusText(event))}</div>
+            \${event.description ? \`<div class="small event-description-preview">\${escapeHtml(event.description)}</div>\` : ""}
             <div class="small">Start: \${escapeHtml(start)} · End: \${escapeHtml(end)}</div>
             <div class="small">Announcement Channel: \${escapeHtml(event.announcementChannelId || "-")} · Server: \${escapeHtml(event.guildId || "resolved by bot after announce")}</div>
             \${canStop ? \`<button class="danger" data-stop-event="\${escapeHtml(event.id)}">\${running ? "Stop Event" : "Cancel Event"}</button>\` : \`<button class="danger" data-remove-event="\${escapeHtml(event.id)}">Remove</button>\`}
@@ -1767,7 +1774,7 @@ const html = `<!doctype html>
             </div>
             \${bonuses.map((bonus, bonusIndex) => bonusTemplate(bonus, bonusIndex)).join("")}
           </div>
-          <label class="wide">Description<textarea data-event-key="description">\${escapeHtml(event.description || "")}</textarea></label>
+          <label class="wide">Description<textarea class="event-description-input" data-event-key="description">\${escapeHtml(event.description || "")}</textarea></label>
           <div class="image-grid">
             <section class="image-panel">
               <strong>Event Banner</strong>

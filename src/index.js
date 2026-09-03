@@ -36,7 +36,8 @@ const { makeIconAttachment, parseDataImage } = require("./imageUtils");
 const token = process.env.DISCORD_TOKEN;
 const prefix = process.env.PREFIX || "!";
 const minMessageLength = 4;
-const configRefreshMs = Number(process.env.CONFIG_REFRESH_MS || 300_000);
+const configRefreshMs = Number(process.env.CONFIG_REFRESH_MS || 30_000);
+const maxEventAnnouncementTimeoutMs = 2_147_000_000;
 const runtimeDirectory = path.join(__dirname, "..", ".runtime");
 const configSignalPath = path.join(runtimeDirectory, "config-refresh.json");
 const enforcedFishingSignalPath = path.join(runtimeDirectory, "enforced-fishing.json");
@@ -143,6 +144,7 @@ let enforcedFishingTimer = null;
 let giveMoneyTimer = null;
 let fishRaidSignalTimer = null;
 let fishRaidMidnightTimer = null;
+let eventAnnouncementTimer = null;
 const processedEnforcedFishingIds = new Set();
 const processedGiveMoneyIds = new Set();
 const processedFishRaidSignalIds = new Set();
@@ -154,6 +156,7 @@ async function refreshGameData() {
   if (client.isReady()) {
     await hydrateActiveEventGuilds();
   }
+  scheduleNextEventAnnouncement();
   console.log(`Loaded ${gameData.fish.length} fish, ${gameData.rods.length} rods, and ${gameData.adminDiscordIds.length} admin IDs from PlayFab.`);
 }
 
@@ -648,6 +651,36 @@ function getEventEndedAt(event) {
 
 function isEventEnded(event) {
   return Boolean(event?.title && event?.announcementChannelId && event?.deployedAt && getEventEndedAt(event));
+}
+
+function getEventStartMs(event) {
+  const startsAt = Date.parse(event?.startAt || event?.deployedAt || "");
+  return Number.isFinite(startsAt) ? startsAt : 0;
+}
+
+function getNextUnannouncedEventStartMs() {
+  const now = Date.now();
+  return getEvents()
+    .filter((event) => event?.title && event.announcementChannelId && event.deployedAt && !event.isAnnounced && !event.stoppedAt)
+    .map(getEventStartMs)
+    .filter((startsAt) => startsAt > now)
+    .sort((a, b) => a - b)[0] || 0;
+}
+
+function scheduleNextEventAnnouncement() {
+  clearTimeout(eventAnnouncementTimer);
+  const nextStartAt = getNextUnannouncedEventStartMs();
+  if (!nextStartAt) {
+    eventAnnouncementTimer = null;
+    return;
+  }
+
+  const delayMs = Math.min(Math.max(0, nextStartAt - Date.now()), maxEventAnnouncementTimeoutMs);
+  eventAnnouncementTimer = setTimeout(() => {
+    refreshGameData()
+      .then(() => announceEventUpdates())
+      .catch((error) => console.error("Could not announce scheduled event:", error));
+  }, delayMs);
 }
 
 function getActiveEvents(guildId = "") {
@@ -1527,6 +1560,7 @@ async function announceEndedEvents() {
 async function announceEventUpdates() {
   await announceActiveEvent();
   await announceEndedEvents();
+  scheduleNextEventAnnouncement();
 }
 
 async function hydrateActiveEventGuilds() {

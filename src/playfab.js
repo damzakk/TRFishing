@@ -1337,19 +1337,16 @@ async function adminSaveGameData({ fish, rods, adminDiscordIds, settings, active
     sourceUrl: cleanSettingsValue.sellFishBannerUrl,
     keyForExtension: (extension) => settingsImageContentKeyFor("sell-fish-banner", extension)
   });
-  const banner = cleanEventValue
-    ? await saveContentImage({
-      currentUrl: cleanEventValue.bannerUrl,
-      currentRef: cleanEventValue.bannerRef,
-      legacyContentKey: cleanEventValue.bannerContentKey,
-      dataUrl: cleanEventValue.bannerBase64,
-      sourceUrl: cleanEventValue.bannerUrl,
-      keyForExtension: (extension) => eventContentKeyFor(cleanEventValue.id, extension)
-    })
-    : { url: "", ref: null };
-  const cleanEventsWithUrls = [];
-  for (const event of cleanEventsValue) {
-    const eventBanner = await saveContentImage({
+  const eventBannerCache = new Map();
+  async function saveEventBanner(event) {
+    if (!event) {
+      return { url: "", ref: null };
+    }
+    const cacheKey = String(event.id || "");
+    if (cacheKey && eventBannerCache.has(cacheKey)) {
+      return eventBannerCache.get(cacheKey);
+    }
+    const savedBanner = await saveContentImage({
       currentUrl: event.bannerUrl,
       currentRef: event.bannerRef,
       legacyContentKey: event.bannerContentKey,
@@ -1357,6 +1354,16 @@ async function adminSaveGameData({ fish, rods, adminDiscordIds, settings, active
       sourceUrl: event.bannerUrl,
       keyForExtension: (extension) => eventContentKeyFor(event.id, extension)
     });
+    if (cacheKey) {
+      eventBannerCache.set(cacheKey, savedBanner);
+    }
+    return savedBanner;
+  }
+
+  const banner = cleanEventValue ? await saveEventBanner(cleanEventValue) : { url: "", ref: null };
+  const cleanEventsWithUrls = [];
+  for (const event of cleanEventsValue) {
+    const eventBanner = await saveEventBanner(event);
     cleanEventsWithUrls.push({
       ...event,
       bannerUrl: eventBanner.url,

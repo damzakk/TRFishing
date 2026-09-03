@@ -24,7 +24,7 @@
         "failedBannerRef": null
       },
       "quotaKg": 500,
-      "filledKg": 233.93375579745566,
+      "filledKg": 354.9596708294556,
       "participants": {
         "215382509851115520": {
           "id": "215382509851115520",
@@ -43,8 +43,8 @@
           "globalName": "Dikaleo",
           "displayName": "<@309140773176082452>",
           "logName": "TR | Pleset",
-          "count": 19,
-          "totalWeight": 38.128010746184415,
+          "count": 27,
+          "totalWeight": 54.69043995613107,
           "heaviestWeight": 5.492314989487618,
           "heaviestName": "Ikan Cupang Dragon"
         },
@@ -54,8 +54,8 @@
           "globalName": "Azara",
           "displayName": "<@451776326723174401>",
           "logName": "TR | Aktor (Adam) (Awiwir)",
-          "count": 25,
-          "totalWeight": 36.304172254363884,
+          "count": 34,
+          "totalWeight": 60.52108699298174,
           "heaviestWeight": 6.726796670135448,
           "heaviestName": "Ikan Nawas"
         },
@@ -65,8 +65,8 @@
           "globalName": "KakGeri",
           "displayName": "<@337858521771278338>",
           "logName": "TR | Klepon (KakGeri)",
-          "count": 11,
-          "totalWeight": 25.272752433964854,
+          "count": 22,
+          "totalWeight": 45.22790836782789,
           "heaviestWeight": 6.584673657736427,
           "heaviestName": "Ikan Crazy Killer"
         },
@@ -76,8 +76,8 @@
           "globalName": "far(a)way",
           "displayName": "<@305302752387530752>",
           "logName": "TR | Kadung",
-          "count": 9,
-          "totalWeight": 21.59895706256535,
+          "count": 20,
+          "totalWeight": 48.311114888098516,
           "heaviestWeight": 5.404747889209731,
           "heaviestName": "Ikan Gurame"
         },
@@ -98,10 +98,10 @@
           "globalName": "PakTuki",
           "displayName": "<@367669792993181697>",
           "logName": "TR | Ebol Ebol",
-          "count": 10,
-          "totalWeight": 21.55515856318931,
-          "heaviestWeight": 3.3502019901768234,
-          "heaviestName": "Rama Naufal"
+          "count": 19,
+          "totalWeight": 36.97673637753381,
+          "heaviestWeight": 5.423539230755575,
+          "heaviestName": "Ikan Gurame"
         },
         "297817270116417539": {
           "id": "297817270116417539",
@@ -113,10 +113,21 @@
           "totalWeight": 16.459642994541813,
           "heaviestWeight": 4.067076695717669,
           "heaviestName": "Ikan Asam Manis"
+        },
+        "275237881323454465": {
+          "id": "275237881323454465",
+          "username": "shera",
+          "globalName": "Delta",
+          "displayName": "<@275237881323454465>",
+          "logName": "᲼",
+          "count": 9,
+          "totalWeight": 18.15767950969476,
+          "heaviestWeight": 3.8016073079487405,
+          "heaviestName": "Kak Geri"
         }
       },
       "fulfilledAt": "",
-      "lastRaidEndedAt": 1788409144507,
+      "lastRaidEndedAt": 1788428264600,
       "channelId": "891474628122394637"
     }
   }
