@@ -142,5 +142,23 @@
     "contentType": "image/png",
     "savedAt": 1788443972095,
     "size": 124890
+  },
+  "109331614d4519611ca0ad3c1b286291aa51e8fa9837fab57a32912b6ec76f1f": {
+    "url": "https://media.discordapp.net/attachments/1543874293258260550/1544540079945551872/mbg_hendrik-fulfilledbanner.png?ex=6a9a320b&is=6a98e08b&hm=e613f83f332b4166f7eaa8dac83a46c2f2a1d16821878de11b8d7e4f1f2ac32f&=&format=webp&quality=lossless",
+    "contentType": "image/webp",
+    "savedAt": 1788455496249,
+    "size": 361096
+  },
+  "54cdcd1b950f852c50321f6a592a5ef2863b5ac8da337fe747e697438c11a1ee": {
+    "url": "https://media.discordapp.net/attachments/1543874293258260550/1544540086190739496/mbg_hendrik-failedbanner.png?ex=6a9a320c&is=6a98e08c&hm=cbe4a2e6a9d9cb8b779ee72378725fa2cb7296a4d47cfb39dd9d7b1c1adfc3cc&=&format=webp&quality=lossless",
+    "contentType": "image/webp",
+    "savedAt": 1788455496435,
+    "size": 220896
+  },
+  "82d8ee34bc75c2cedf198a24cded2cafba23d77422102b36b40a0812c5a9ed9d": {
+    "url": "https://cdn.discordapp.com/attachments/1543874293258260550/1545119655407132824/mbg_hendrik-resultbanner.png?ex=6a9afc50&is=6a99aad0&hm=2ef6630552fd158d2e1368e9cfaad654a9e2369196967547784e6ec93b174838&",
+    "contentType": "image/png",
+    "savedAt": 1788455640823,
+    "size": 357497
   }
 }

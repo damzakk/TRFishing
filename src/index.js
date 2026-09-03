@@ -3137,6 +3137,7 @@ async function finishFishRaid(raid, channel) {
   const baseParticipantBaseExp = fulfilled ? clearParticipantBaseExp : participantBaseExp;
   const baseParticipantBaseGold = fulfilled ? clearParticipantBaseGold : participantBaseGold;
   const raidWinnerIsDailyMvp = Boolean(raidWinner?.id && dailyMvp?.id && raidWinner.id === dailyMvp.id);
+  const raidWinnerIsFinalDailyMvp = fulfilled && raidWinnerIsDailyMvp;
   const raidMvpTotalExp = baseParticipantExp + mvpExp;
   const raidMvpTotalGold = baseParticipantGold + mvpGold;
   const dailyMvpTotalExp = clearParticipantExp + clearMvpExp;
@@ -3193,7 +3194,7 @@ async function finishFishRaid(raid, channel) {
       ];
   const rewardLines = [
     `Peserta raid ini: **${formatRewardWithBonus(baseParticipantExp, baseParticipantBaseExp, "EXP")}** dan **${formatRewardWithBonus(baseParticipantGold, baseParticipantBaseGold, "Gold")}**`,
-    raidWinnerIsDailyMvp
+    raidWinnerIsFinalDailyMvp
       ? `MVP raid ini dan harian (**${raidWinner.displayName}**): **${formatRewardWithBonus(combinedMvpTotalExp, combinedMvpBaseTotalExp, "EXP")}** dan **${formatRewardWithBonus(combinedMvpTotalGold, combinedMvpBaseTotalGold, "Gold")}**`
       : raidWinner ? `MVP raid ini (**${raidWinner.displayName}**): **${formatRewardWithBonus(raidMvpTotalExp, raidMvpBaseTotalExp, "EXP")}** dan **${formatRewardWithBonus(raidMvpTotalGold, raidMvpBaseTotalGold, "Gold")}**` : "",
     fulfilled && dailyMvp && !raidWinnerIsDailyMvp
