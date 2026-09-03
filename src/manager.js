@@ -1,6 +1,7 @@
 require("dotenv").config();
 
 const http = require("node:http");
+const crypto = require("node:crypto");
 const fs = require("node:fs");
 const path = require("node:path");
 const {
@@ -23,10 +24,22 @@ const giveMoneySignalPath = path.join(runtimeDirectory, "give-money.json");
 const defaultFishingChannelsPath = path.join(runtimeDirectory, "default-fishing-channels.json");
 const fishRaidStatePath = path.join(runtimeDirectory, "fish-raid-state.json");
 const fishRaidSignalPath = path.join(runtimeDirectory, "fish-raid-signal.json");
+const imageCacheDirectory = path.join(runtimeDirectory, "manager-image-cache");
+const imageCacheMetaPath = path.join(imageCacheDirectory, "index.json");
+const imageCacheMaxAgeMs = 7 * 24 * 60 * 60 * 1000;
 
 function sendJson(response, statusCode, payload) {
   response.writeHead(statusCode, { "Content-Type": "application/json" });
   response.end(JSON.stringify(payload));
+}
+
+function sendBinary(response, statusCode, buffer, contentType, cacheSeconds = 86400) {
+  response.writeHead(statusCode, {
+    "Content-Type": contentType,
+    "Cache-Control": `private, max-age=${cacheSeconds}`,
+    "Content-Length": buffer.length
+  });
+  response.end(buffer);
 }
 
 function readBody(request) {
@@ -42,6 +55,87 @@ function readBody(request) {
     request.on("end", () => resolve(body));
     request.on("error", reject);
   });
+}
+
+function ensureImageCacheDirectory() {
+  if (!fs.existsSync(imageCacheDirectory)) {
+    fs.mkdirSync(imageCacheDirectory, { recursive: true });
+  }
+}
+
+function readImageCacheMeta() {
+  try {
+    return JSON.parse(fs.readFileSync(imageCacheMetaPath, "utf8"));
+  } catch {
+    return {};
+  }
+}
+
+function writeImageCacheMeta(meta) {
+  ensureImageCacheDirectory();
+  fs.writeFileSync(imageCacheMetaPath, JSON.stringify(meta, null, 2));
+}
+
+function imageCacheFilePath(cacheKey) {
+  return path.join(imageCacheDirectory, `${cacheKey}.img`);
+}
+
+function isAllowedImageContentType(contentType) {
+  return ["image/png", "image/jpeg", "image/jpg", "image/gif", "image/webp"].includes(String(contentType || "").split(";")[0].trim().toLowerCase());
+}
+
+async function serveCachedImage(requestUrl, response) {
+  const sourceUrl = String(requestUrl.searchParams.get("url") || "").trim();
+  if (!sourceUrl) {
+    sendJson(response, 400, { error: "Missing image URL." });
+    return;
+  }
+
+  let parsedSource;
+  try {
+    parsedSource = new URL(sourceUrl);
+  } catch {
+    sendJson(response, 400, { error: "Invalid image URL." });
+    return;
+  }
+
+  if (!["http:", "https:"].includes(parsedSource.protocol)) {
+    sendJson(response, 400, { error: "Image URL must use HTTP or HTTPS." });
+    return;
+  }
+
+  ensureImageCacheDirectory();
+  const cacheKey = crypto.createHash("sha256").update(sourceUrl).digest("hex");
+  const meta = readImageCacheMeta();
+  const entry = meta[cacheKey];
+  const filePath = imageCacheFilePath(cacheKey);
+  if (entry && fs.existsSync(filePath) && Date.now() - Number(entry.savedAt || 0) < imageCacheMaxAgeMs) {
+    sendBinary(response, 200, fs.readFileSync(filePath), entry.contentType || "application/octet-stream");
+    return;
+  }
+
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), 15000);
+  try {
+    const remoteResponse = await fetch(sourceUrl, { signal: controller.signal });
+    if (!remoteResponse.ok) {
+      throw new Error(`Image request failed: ${remoteResponse.status} ${remoteResponse.statusText}`);
+    }
+    const contentType = String(remoteResponse.headers.get("content-type") || "").split(";")[0].trim().toLowerCase();
+    if (!isAllowedImageContentType(contentType)) {
+      throw new Error("URL did not return a supported image.");
+    }
+    const buffer = Buffer.from(await remoteResponse.arrayBuffer());
+    if (buffer.length > 8_000_000) {
+      throw new Error("Image is too large for manager preview cache.");
+    }
+    fs.writeFileSync(filePath, buffer);
+    meta[cacheKey] = { url: sourceUrl, contentType, savedAt: Date.now(), size: buffer.length };
+    writeImageCacheMeta(meta);
+    sendBinary(response, 200, buffer, contentType);
+  } finally {
+    clearTimeout(timeout);
+  }
 }
 
 function cleanNumber(value, fallback = 0) {
@@ -527,6 +621,11 @@ function resolveFishingMessageChannel(player, savedPlayer) {
 async function handleApi(request, response) {
   try {
     const requestUrl = new URL(request.url, `http://${request.headers.host || "localhost"}`);
+    if (request.method === "GET" && requestUrl.pathname === "/api/image-cache") {
+      await serveCachedImage(requestUrl, response);
+      return;
+    }
+
     if (request.method === "GET" && request.url === "/api/data") {
       sendJson(response, 200, await adminGetGameData());
       return;
@@ -956,6 +1055,12 @@ const html = `<!doctype html>
       font-size: 12px;
       font-weight: 700;
     }
+    .topline .empty-preview {
+      width: 56px;
+      height: 56px;
+      aspect-ratio: 1;
+      flex: 0 0 auto;
+    }
     .file-picker {
       display: inline-flex;
       width: fit-content;
@@ -1089,6 +1194,14 @@ const html = `<!doctype html>
       align-items: center;
       margin-bottom: 12px;
     }
+    .fish-pager {
+      display: flex;
+      flex-wrap: wrap;
+      justify-content: space-between;
+      align-items: center;
+      gap: 8px;
+      margin: 0 0 12px;
+    }
     .fish-gallery {
       display: grid;
       grid-template-columns: repeat(auto-fill, minmax(118px, 1fr));
@@ -1114,6 +1227,11 @@ const html = `<!doctype html>
       border: 1px solid var(--line);
       background: #0b0f13;
       object-fit: contain;
+    }
+    .fish-card img:not([src]),
+    .preview:not([src]),
+    .image-preview:not([src]) {
+      visibility: hidden;
     }
     .fish-card .empty-preview {
       aspect-ratio: 1;
@@ -1210,6 +1328,8 @@ const html = `<!doctype html>
       eventDraft: null,
       selectedFishId: "",
       selectedRodId: "",
+      fishPage: 1,
+      fishPageSize: 24,
       fishSort: "name",
       rodSort: "name",
       fishSearch: "",
@@ -1234,6 +1354,7 @@ const html = `<!doctype html>
     const grid = document.querySelector("#grid");
     const statusEl = document.querySelector("#status");
     const fishRarities = ["Common", "Uncommon", "Rare", "Epic", "Legendary", "Secret", "Mythic", "Divine", "Celestial", "Abyssal", "Transcendent"];
+    let imageLoadToken = 0;
 
     function setStatus(message, isError = false) {
       statusEl.textContent = message;
@@ -1277,7 +1398,63 @@ const html = `<!doctype html>
         const playerList = document.querySelector(".player-list");
         if (fishGallery) fishGallery.scrollTop = scrollState.fishGallery || 0;
         if (playerList) playerList.scrollTop = scrollState.playerList || 0;
+        hydrateVisibleImages();
       });
+    }
+
+    function cachedImageSource(source) {
+      const value = String(source || "").trim();
+      if (!value || value.startsWith("data:") || value.startsWith("blob:")) {
+        return value;
+      }
+      const lowerValue = value.toLowerCase();
+      if (!lowerValue.startsWith("http://") && !lowerValue.startsWith("https://")) {
+        return value;
+      }
+      return "/api/image-cache?url=" + encodeURIComponent(value);
+    }
+
+    function lazyImageTemplate(source, className = "", alt = "") {
+      const cachedSource = cachedImageSource(source);
+      if (!cachedSource) {
+        return "";
+      }
+      const classAttribute = className ? ' class="' + escapeHtml(className) + '"' : "";
+      return '<img' + classAttribute + ' alt="' + escapeHtml(alt) + '" loading="lazy" decoding="async" data-lazy-src="' + escapeHtml(cachedSource) + '">';
+    }
+
+    function imageOrEmptyTemplate(source, className = "", alt = "", emptyText = "No image") {
+      return lazyImageTemplate(source, className, alt) || '<div class="empty-preview">' + escapeHtml(emptyText) + '</div>';
+    }
+
+    function hydrateVisibleImages() {
+      const token = ++imageLoadToken;
+      const images = Array.from(grid.querySelectorAll("img[data-lazy-src]"));
+      let index = 0;
+      let active = 0;
+      const loadNext = () => {
+        if (token !== imageLoadToken) return;
+        while (active < 3 && index < images.length) {
+          const image = images[index++];
+          const source = image.dataset.lazySrc;
+          if (!source || image.src) continue;
+          active += 1;
+          image.addEventListener("load", () => {
+            active -= 1;
+            loadNext();
+          }, { once: true });
+          image.addEventListener("error", () => {
+            active -= 1;
+            image.replaceWith(Object.assign(document.createElement("div"), {
+              className: "empty-preview",
+              textContent: "Image unavailable"
+            }));
+            loadNext();
+          }, { once: true });
+          image.src = source;
+        }
+      };
+      loadNext();
     }
 
     function render() {
@@ -1600,7 +1777,7 @@ const html = `<!doctype html>
       const active = String(boss.id || "") === state.selectedRaidBossId;
       return \`
         <button class="fish-card \${active ? "active" : ""}" data-select-raid-boss="\${escapeHtml(String(boss.id || ""))}" data-index="\${index}">
-          \${source ? \`<img alt="" src="\${source}">\` : \`<div class="empty-preview">No image</div>\`}
+          \${imageOrEmptyTemplate(source)}
           <span>\${escapeHtml(boss.name || boss.id || "Raid Boss")}</span>
         </button>\`;
     }
@@ -1641,7 +1818,7 @@ const html = `<!doctype html>
       return \`
           <section class="image-panel">
             <strong>\${label}</strong>
-            \${source ? \`<img class="image-preview" alt="\${label} preview" src="\${source}">\` : \`<div class="empty-preview">No preview</div>\`}
+            \${imageOrEmptyTemplate(source, "image-preview", \`\${label} preview\`, "No preview")}
             \${raidBossField(\`\${label} URL Import\`, urlKey, boss[urlKey] || "", index, "url")}
             <label class="file-picker"><span>Choose Image</span><input type="file" accept="image/png,image/jpeg,image/gif,image/webp" data-raid-boss-image="\${base64Key}" data-raid-boss-index="\${index}"></label>
             <div class="small">\${escapeHtml(status)} File uploads are moved to the Discord storage channel when saved.</div>
@@ -1659,7 +1836,7 @@ const html = `<!doctype html>
       return \`
           <section class="image-panel">
             <strong>\${label}</strong>
-            \${source ? \`<img class="image-preview" alt="\${label} preview" src="\${source}">\` : \`<div class="empty-preview">No preview</div>\`}
+            \${imageOrEmptyTemplate(source, "image-preview", \`\${label} preview\`, "No preview")}
             \${field(\`\${label} URL Import\`, urlKey, state.settings[urlKey] || "", 0, "url")}
             <label class="file-picker"><span>Choose Image</span><input type="file" accept="image/png,image/jpeg,image/gif,image/webp" data-settings-image="\${base64Key}"></label>
             <div class="small">\${escapeHtml(status)} File uploads are moved to the Discord storage channel when saved.</div>
@@ -1778,7 +1955,7 @@ const html = `<!doctype html>
           <div class="image-grid">
             <section class="image-panel">
               <strong>Event Banner</strong>
-              \${bannerSource ? \`<img class="image-preview" alt="Event banner preview" src="\${bannerSource}">\` : \`<div class="empty-preview">No preview</div>\`}
+              \${imageOrEmptyTemplate(bannerSource, "image-preview", "Event banner preview", "No preview")}
               \${field("Banner Image URL Import", "bannerUrl", event.bannerUrl || "", 0, "url")}
               <label class="file-picker"><span>Choose Image</span><input type="file" accept="image/png,image/jpeg,image/gif,image/webp" data-event-banner></label>
               <div class="small">\${escapeHtml(bannerStatus)} File uploads are moved to the Discord storage channel when saved.</div>
@@ -1830,6 +2007,41 @@ const html = `<!doctype html>
         });
     }
 
+    function currentFishPage(entries) {
+      const pageCount = Math.max(1, Math.ceil(entries.length / state.fishPageSize));
+      state.fishPage = Math.min(Math.max(1, Number(state.fishPage || 1)), pageCount);
+      const start = (state.fishPage - 1) * state.fishPageSize;
+      return {
+        entries: entries.slice(start, start + state.fishPageSize),
+        pageCount,
+        start,
+        end: Math.min(entries.length, start + state.fishPageSize)
+      };
+    }
+
+    function fishPagerTemplate(total, pageCount, start, end) {
+      if (total <= state.fishPageSize) {
+        return \`<div class="fish-pager small">Showing \${total} fish.</div>\`;
+      }
+      return \`
+        <div class="fish-pager">
+          <div class="small">Showing \${start + 1}-\${end} of \${total} fish.</div>
+          <div class="button-row">
+            <button data-fish-page="prev" type="button" \${state.fishPage <= 1 ? "disabled" : ""}>Previous</button>
+            <span class="badge">Page \${state.fishPage} / \${pageCount}</span>
+            <button data-fish-page="next" type="button" \${state.fishPage >= pageCount ? "disabled" : ""}>Next</button>
+          </div>
+        </div>\`;
+    }
+
+    function setFishPageForId(fishId) {
+      const entries = sortedFishEntries();
+      const index = entries.findIndex(({ item }) => String(item.id || "") === String(fishId || ""));
+      if (index >= 0) {
+        state.fishPage = Math.floor(index / state.fishPageSize) + 1;
+      }
+    }
+
     function selectedFishEntry() {
       return state.fish
         .map((item, index) => ({ item, index }))
@@ -1839,12 +2051,16 @@ const html = `<!doctype html>
 
     function fishTabTemplate() {
       const entries = sortedFishEntries();
-      if (!state.selectedFishId && entries[0]) {
-        state.selectedFishId = String(entries[0].item.id || "");
+      const page = currentFishPage(entries);
+      if ((!state.selectedFishId || !page.entries.some(({ item }) => String(item.id || "") === state.selectedFishId)) && page.entries[0]) {
+        state.selectedFishId = String(page.entries[0].item.id || "");
+      }
+      if (!entries.length) {
+        state.selectedFishId = "";
       }
       const selected = selectedFishEntry();
-      const cards = entries.length
-        ? entries.map(({ item, index }) => fishGridCardTemplate(item, index)).join("")
+      const cards = page.entries.length
+        ? page.entries.map(({ item, index }) => fishGridCardTemplate(item, index)).join("")
         : '<div class="small">No fish yet.</div>';
       return \`
         \${infoPanelTemplate("fish", "Fish Data", "A fish is available when its Server ID is empty or matches the Discord server, and its Min Kg is not above the rod Max Kg. Catch chance uses Chance Weight plus Rod Luck times Luck Scale, then active fish_chance event multipliers. EXP is gained on catch. Sell Gold is used when selling fish.")}
@@ -1858,6 +2074,7 @@ const html = `<!doctype html>
               <button data-export-fish>Export JSON</button>
               <label class="file-picker"><span>Import JSON</span><input type="file" accept="application/json,.json" data-import-fish></label>
             </div>
+            \${fishPagerTemplate(entries.length, page.pageCount, page.start, page.end)}
             <div class="fish-gallery">\${cards}</div>
           </article>
           <article class="item fish-detail">
@@ -1871,7 +2088,7 @@ const html = `<!doctype html>
       const active = String(item.id || "") === state.selectedFishId;
       return \`
         <button class="fish-card \${active ? "active" : ""}" data-select-fish="\${escapeHtml(String(item.id || ""))}" data-index="\${index}">
-          \${source ? \`<img alt="" src="\${source}">\` : \`<div class="empty-preview">No image</div>\`}
+          \${imageOrEmptyTemplate(source)}
           <span>\${escapeHtml(item.name || item.id || "Unnamed Fish")}</span>
         </button>\`;
     }
@@ -1879,7 +2096,7 @@ const html = `<!doctype html>
     function fishTemplate(item, index, size) {
       return \`
         <div class="topline">
-          <img class="preview" alt="" src="\${item.iconBase64 || item.iconUrl || ""}">
+          \${imageOrEmptyTemplate(item.iconBase64 || item.iconUrl || "", "preview")}
           <button class="danger" data-remove="\${index}">Remove</button>
         </div>
         <div class="fields">
@@ -1904,7 +2121,7 @@ const html = `<!doctype html>
     function rodTemplate(item, index, size) {
       return \`
         <div class="topline">
-          <img class="preview" alt="" src="\${item.iconBase64 || item.iconUrl || ""}">
+          \${imageOrEmptyTemplate(item.iconBase64 || item.iconUrl || "", "preview")}
           <button class="danger" data-remove="\${index}">Remove</button>
         </div>
         <div class="fields">
@@ -1991,7 +2208,7 @@ const html = `<!doctype html>
       const active = String(item.id || "") === state.selectedRodId;
       return \`
         <button class="fish-card \${active ? "active" : ""}" data-select-rod="\${escapeHtml(String(item.id || ""))}" data-index="\${index}">
-          \${source ? \`<img alt="" src="\${source}">\` : \`<div class="empty-preview">No image</div>\`}
+          \${imageOrEmptyTemplate(source)}
           <span>\${escapeHtml(item.name || item.id || "Unnamed Rod")}</span>
         </button>\`;
     }
@@ -2210,6 +2427,9 @@ const html = `<!doctype html>
           if (collectionName === "fish" && !state.selectedFishId && state.fish[0]) {
             state.selectedFishId = String(state.fish[0].id || "");
           }
+          if (collectionName === "fish") {
+            state.fishPage = 1;
+          }
           if (collectionName === "rods" && !state.selectedRodId && state.rods[0]) {
             state.selectedRodId = String(state.rods[0].id || "");
           }
@@ -2234,6 +2454,7 @@ const html = `<!doctype html>
       state.activeEvent = payload.activeEvent || null;
       state.events = payload.events || (payload.activeEvent ? [payload.activeEvent] : []);
       state.eventDraft = null;
+      state.fishPage = 1;
       state.selectedFishId = state.fish[0]?.id || "";
       state.selectedRodId = state.rods[0]?.id || "";
       state.selectedRaidBossId = state.settings.fishRaidBosses?.[0]?.id || "";
@@ -2560,6 +2781,7 @@ const html = `<!doctype html>
       state.activeEvent = payload.activeEvent || null;
       state.events = payload.events || (payload.activeEvent ? [payload.activeEvent] : []);
       state.eventDraft = null;
+      state.fishPage = 1;
       setStatus("Defaults saved to PlayFab.");
       render();
     }
@@ -2687,6 +2909,7 @@ const html = `<!doctype html>
       }
       if (target.dataset.fishSearch !== undefined) {
         state.fishSearch = target.value;
+        state.fishPage = 1;
         render();
         return;
       }
@@ -2860,6 +3083,16 @@ const html = `<!doctype html>
       const fishSortButton = event.target.closest("[data-fish-sort]");
       if (fishSortButton) {
         state.fishSort = fishSortButton.dataset.fishSort;
+        state.fishPage = 1;
+        render();
+        return;
+      }
+      const fishPageButton = event.target.closest("[data-fish-page]");
+      if (fishPageButton) {
+        const entries = sortedFishEntries();
+        const pageCount = Math.max(1, Math.ceil(entries.length / state.fishPageSize));
+        state.fishPage += fishPageButton.dataset.fishPage === "next" ? 1 : -1;
+        state.fishPage = Math.min(Math.max(1, state.fishPage), pageCount);
         render();
         return;
       }
@@ -2884,6 +3117,7 @@ const html = `<!doctype html>
         state[collectionName].push(item);
         if (collectionName === "fish") {
           state.selectedFishId = item.id;
+          setFishPageForId(item.id);
         }
         if (collectionName === "rods") {
           state.selectedRodId = item.id;

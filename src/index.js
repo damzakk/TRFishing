@@ -1489,9 +1489,13 @@ async function hydrateEventGuild(event) {
     return;
   }
 
-  const channel = await client.channels.fetch(event.announcementChannelId).catch(() => null);
+  const channel = await client.channels.fetch(event.announcementChannelId).catch((error) => {
+    console.error(`Could not fetch event announcement channel ${event.announcementChannelId} for event ${event.id || event.title || "unknown"}:`, error);
+    return null;
+  });
   if (channel?.guildId) {
     event.guildId = channel.guildId;
+    await markEventGuild(event.id, channel.guildId);
   }
 }
 
@@ -1502,20 +1506,52 @@ async function announceActiveEvent() {
       continue;
     }
 
-    const channel = await client.channels.fetch(event.announcementChannelId).catch(() => null);
+    const channel = await client.channels.fetch(event.announcementChannelId).catch((error) => {
+      console.error(`Could not fetch event announcement channel ${event.announcementChannelId} for event ${event.id || event.title || "unknown"}:`, error);
+      return null;
+    });
     if (!channel?.isTextBased()) {
+      console.warn(`Event ${event.id || event.title || "unknown"} announcement channel ${event.announcementChannelId} is not available or is not text based.`);
       continue;
     }
 
     if (!event.guildId && channel.guildId) {
       event.guildId = channel.guildId;
+      await markEventGuild(event.id, channel.guildId);
     }
 
     const eventMessage = makeEventEmbed(event);
-    await channel.send({ embeds: [eventMessage.embed], files: eventMessage.files });
+    try {
+      await channel.send({ embeds: [eventMessage.embed], files: eventMessage.files });
+    } catch (error) {
+      console.error(`Could not send announcement for event ${event.id || event.title || "unknown"} to channel ${event.announcementChannelId}:`, error);
+      continue;
+    }
     announcedEvents.add(event.id);
     await markEventAnnounced(event.id, event.guildId || channel.guildId || "");
   }
+}
+
+async function markEventGuild(eventId, guildId = "") {
+  const selectedEventId = String(eventId || "");
+  const selectedGuildId = String(guildId || "");
+  if (!selectedEventId || !selectedGuildId) {
+    return;
+  }
+
+  const applyGuildMark = (event) => (
+    event?.id === selectedEventId && !event.guildId
+      ? { ...event, guildId: selectedGuildId }
+      : event
+  );
+
+  gameData = {
+    ...gameData,
+    activeEvent: gameData.activeEvent ? applyGuildMark(gameData.activeEvent) : null,
+    events: getEvents().map(applyGuildMark)
+  };
+
+  await adminSaveGameData(gameData);
 }
 
 async function markEventAnnounced(eventId, guildId = "") {
