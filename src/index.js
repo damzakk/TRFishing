@@ -965,6 +965,14 @@ function addCatch(player, caughtFish, catchWeight, guildId = "") {
   const expGain = expReward.total;
   const luckScore = formatFishLuckScore(caughtFish.luckScale);
   player.inventory[caughtFish.id] = (player.inventory[caughtFish.id] || 0) + 1;
+  player.fishDex = player.fishDex && typeof player.fishDex === "object" ? player.fishDex : {};
+  const dexEntry = player.fishDex[caughtFish.id] && typeof player.fishDex[caughtFish.id] === "object"
+    ? player.fishDex[caughtFish.id]
+    : {};
+  player.fishDex[caughtFish.id] = {
+    count: Math.max(0, Math.floor(Number(dexEntry.count || 0))) + 1,
+    heaviestWeight: Math.max(Number(dexEntry.heaviestWeight || 0), Number(catchWeight || 0))
+  };
   player.totalFishCaught = Math.max(0, Number(player.totalFishCaught || 0)) + 1;
   if (!player.heaviestFish || Number(catchWeight || 0) > Number(player.heaviestFish.weight || 0)) {
     player.heaviestFish = {
@@ -1000,6 +1008,28 @@ function formatFishLine(fishEntry, quantity = null) {
   const minWeight = Number(fishEntry.minWeight || 0);
   const maxWeight = Number(fishEntry.maxWeight || minWeight);
   return `${fishEntry.name}${amount} - ${fishEntry.rarity}, ${formatKg(minWeight)}-${formatKg(maxWeight)}, ${fishEntry.exp} EXP, ${fishEntry.gold} gold`;
+}
+
+function getFishDexEntry(player, fishEntry) {
+  const fishDex = player.fishDex && typeof player.fishDex === "object" ? player.fishDex : {};
+  const dexEntry = fishDex[fishEntry.id] && typeof fishDex[fishEntry.id] === "object" ? fishDex[fishEntry.id] : {};
+  const inventoryCount = Math.max(0, Math.floor(Number(player.inventory?.[fishEntry.id] || 0)));
+  const count = Math.max(0, Math.floor(Number(dexEntry.count || 0)), inventoryCount);
+  const heaviestWeight = Math.max(0, Number(dexEntry.heaviestWeight || 0));
+  return { count, heaviestWeight, caught: count > 0 || heaviestWeight > 0 };
+}
+
+function countCaughtFishTypes(player, guildId = "") {
+  return getAvailableFish(guildId).filter((fishEntry) => getFishDexEntry(player, fishEntry).caught).length;
+}
+
+function getShowcasedFish(player, guildId = "") {
+  const showcasedFishId = String(player.showcasedFishId || "").trim();
+  if (!showcasedFishId) {
+    return null;
+  }
+  const fishEntry = getAvailableFish(guildId).find((entry) => entry.id === showcasedFishId);
+  return fishEntry && getFishDexEntry(player, fishEntry).caught ? fishEntry : null;
 }
 
 function makeProfileEmbed(user, player) {
@@ -1046,7 +1076,7 @@ function makeFishCompRoleRow(member = null) {
     new ActionRowBuilder().addComponents(
       new ButtonBuilder()
         .setCustomId("fishcomp_role_toggle")
-        .setLabel(hasRole ? "Remove FishComp" : "Get @FishComp")
+        .setLabel(hasRole ? "Remove FishComp Role" : "Get FishComp Role")
         .setStyle(hasRole ? ButtonStyle.Secondary : ButtonStyle.Primary)
     )
   ];
@@ -1082,7 +1112,7 @@ function makeProfileComponents(player, member = null) {
   return components;
 }
 
-function makeProfileMessage(user, player, member = null) {
+function makeProfileMessage(user, player, member = null, guildId = "") {
   const rod = getRod(player.rodId);
   const level = getLevel(player.exp);
   const nextExp = expForLevel(level);
@@ -1095,13 +1125,18 @@ function makeProfileMessage(user, player, member = null) {
     : "Belum ada";
   const progressBar = makeProgressBar(player.progress, rod?.speed || 1);
   const voiceTime = formatDurationIndonesian(Number(player.voiceTotalMs || 0) + getCurrentVoiceSessionMs(user.id));
-  const icon = heaviestFishEntry ? makeIconAttachment(heaviestFishEntry, "fish") : null;
+  const availableFishCount = getAvailableFish(guildId).length;
+  const caughtFishTypes = countCaughtFishTypes(player, guildId);
+  const showcasedFishEntry = getShowcasedFish(player, guildId);
+  const profileFishIconEntry = showcasedFishEntry || heaviestFishEntry;
+  const icon = profileFishIconEntry ? makeIconAttachment(profileFishIconEntry, "fish") : null;
   const profileText = [
     `## ${user.username} · Level ${level}`,
     "",
     `**EXP:** ${player.exp}/${nextExp} · **Gold:** ${player.gold}`,
     `**Pancingan:** ${rod?.name || "No rod found"} · **Voice:** ${voiceTime}`,
     `**Total Ikan:** ${Math.max(0, Number(player.totalFishCaught || 0))}`,
+    `**Jenis Ikan Tertangkap:** ${caughtFishTypes}/${availableFishCount}`,
     `**Ikan Terberat:** ${heaviestText}`,
     `**Progress:** ${progressBar} ${player.progress}/${rod?.speed || "?"}`
   ].join("\n");
@@ -1118,6 +1153,7 @@ function makeProfileMessage(user, player, member = null) {
   const components = makeProfileComponents(player, member);
   if (components.length) {
     container.addSeparatorComponents(new SeparatorBuilder());
+    container.addTextDisplayComponents(makeTextDisplay(`**Equipped Rod :** ${rod?.name || "No rod found"}`));
     container.addActionRowComponents(components);
   }
   return makeComponentsV2Message([container], {
@@ -2006,6 +2042,161 @@ function makeStoreMessage(player, selectedRodId = null, status = "") {
   return makeEmbedPanelMessage(makeStoreEmbed(player, status), {
     files: imageAttachment ? [imageAttachment] : [],
     components: makeStoreComponents(player, selectedRodId)
+  });
+}
+
+const fishDexPageSize = 25;
+const unknownFishName = "????????";
+const unknownFishValue = "??????";
+
+function getFishDexPageCount(guildId = "") {
+  return Math.max(1, Math.ceil(getAvailableFish(guildId).length / fishDexPageSize));
+}
+
+function getFishDexPageFish(guildId = "", page = 0) {
+  const pageCount = getFishDexPageCount(guildId);
+  const selectedPage = Math.max(0, Math.min(pageCount - 1, Number(page) || 0));
+  const availableFish = getAvailableFish(guildId);
+  return {
+    page: selectedPage,
+    pageCount,
+    fish: availableFish.slice(selectedPage * fishDexPageSize, (selectedPage + 1) * fishDexPageSize),
+    totalFish: availableFish.length
+  };
+}
+
+function makeFishDexEmbed(user, player, selectedFishId = "", guildId = "", page = 0) {
+  const pageData = getFishDexPageFish(guildId, page);
+  const selectedFish = getAvailableFish(guildId).find((fishEntry) => fishEntry.id === selectedFishId)
+    || pageData.fish[0]
+    || null;
+  const dexEntry = selectedFish ? getFishDexEntry(player, selectedFish) : null;
+  const caught = Boolean(dexEntry?.caught);
+  const caughtTypes = countCaughtFishTypes(player, guildId);
+  const color = selectedFish && caught ? rarityColors[selectedFish.rarity] || 0x3498db : 0x5865f2;
+  const name = selectedFish && caught ? selectedFish.name : unknownFishName;
+  const description = selectedFish && caught
+    ? getRandomFishDescription(selectedFish) || selectedFish.description || "-"
+    : unknownFishValue;
+  const embed = new EmbedBuilder()
+    .setColor(color)
+    .setTitle(`${user.username}'s Fishdex`)
+    .setDescription([
+      `Jenis ikan tertangkap: **${caughtTypes}/${pageData.totalFish}**`,
+      "",
+      `**${name}**`,
+      description
+    ].join("\n"))
+    .addFields(
+      { name: "Rarity", value: selectedFish?.rarity || "-", inline: true },
+      { name: "Caught", value: caught ? `${dexEntry.count}` : unknownFishValue, inline: true },
+      { name: "Heaviest", value: caught ? formatKg(dexEntry.heaviestWeight) : unknownFishValue, inline: true },
+      { name: "Sell Price", value: caught ? `${Number(selectedFish.gold || 0)} gold` : unknownFishValue, inline: true }
+    );
+
+  const icon = selectedFish && caught ? makeIconAttachment(selectedFish, "fish") : null;
+  if (icon) {
+    embed.setThumbnail(icon.url);
+  }
+
+  return { embed, files: icon?.attachment ? [icon.attachment] : [], page: pageData.page, pageCount: pageData.pageCount, selectedFish, caught };
+}
+
+function makeFishDexOptions(player, guildId = "", page = 0, selectedFishId = "") {
+  const pageData = getFishDexPageFish(guildId, page);
+  return pageData.fish.map((fishEntry) => {
+    const dexEntry = getFishDexEntry(player, fishEntry);
+    const caught = dexEntry.caught;
+    return {
+      label: truncateText(caught ? fishEntry.name : unknownFishName, 100),
+      description: truncateText(`${fishEntry.rarity || "Common"}${caught ? ` · Caught ${dexEntry.count} · Best ${formatKg(dexEntry.heaviestWeight)}` : ""}`, 100),
+      value: fishEntry.id,
+      default: fishEntry.id === selectedFishId
+    };
+  });
+}
+
+function makeFishDexShowcaseButton(player, userId, page = 0, selectedFish = null, caught = false) {
+  const isShowcased = Boolean(selectedFish?.id && String(player.showcasedFishId || "") === selectedFish.id);
+  return new ButtonBuilder()
+    .setCustomId(`fishdex_showcase:${userId}:${page}:${selectedFish?.id || "none"}`)
+    .setLabel("Showcase This Fish")
+    .setStyle(ButtonStyle.Primary)
+    .setDisabled(!selectedFish?.id || !caught || isShowcased);
+}
+
+function makeFishDexComponents(player, userId, guildId = "", page = 0, selectedFishId = "") {
+  const pageData = getFishDexPageFish(guildId, page);
+  const options = makeFishDexOptions(player, guildId, pageData.page, selectedFishId);
+  const components = { selectRow: null, pageText: "", buttonRow: null };
+  if (options.length) {
+    components.selectRow =
+      new ActionRowBuilder().addComponents(
+        new StringSelectMenuBuilder()
+          .setCustomId(`fishdex_select:${userId}:${pageData.page}`)
+          .setPlaceholder("Pilih ikan")
+          .addOptions(options)
+      );
+  }
+  components.pageText = `Page **${pageData.page + 1}/${pageData.pageCount}**`;
+  if (pageData.pageCount > 1) {
+    components.buttonRow =
+      new ActionRowBuilder().addComponents(
+        new ButtonBuilder()
+          .setCustomId(`fishdex_page:${userId}:${Math.max(0, pageData.page - 1)}`)
+          .setLabel("Previous")
+          .setStyle(ButtonStyle.Secondary)
+          .setDisabled(pageData.page <= 0),
+        new ButtonBuilder()
+          .setCustomId(`fishdex_page:${userId}:${Math.min(pageData.pageCount - 1, pageData.page + 1)}`)
+          .setLabel("Next")
+          .setStyle(ButtonStyle.Secondary)
+          .setDisabled(pageData.page >= pageData.pageCount - 1)
+      );
+  }
+  return components;
+}
+
+function makeFishDexMessage(user, player, selectedFishId = "", guildId = "", page = 0) {
+  const fishDexEmbed = makeFishDexEmbed(user, player, selectedFishId, guildId, page);
+  const data = fishDexEmbed.embed.toJSON();
+  const container = new ContainerBuilder().setAccentColor(data.color || 0x5865f2);
+  const mainText = formatEmbedMainText(data);
+  if (data.thumbnail?.url) {
+    container.addSectionComponents(
+      new SectionBuilder()
+        .addTextDisplayComponents(makeTextDisplay(mainText || "\u200b"))
+        .setThumbnailAccessory(new ThumbnailBuilder().setURL(data.thumbnail.url))
+    );
+  } else {
+    container.addTextDisplayComponents(makeTextDisplay(mainText || "\u200b"));
+  }
+
+  const fieldText = formatEmbedFields(data.fields);
+  if (fieldText) {
+    container.addTextDisplayComponents(makeTextDisplay(fieldText));
+  }
+
+  container.addSectionComponents(
+    new SectionBuilder()
+      .addTextDisplayComponents(makeTextDisplay("Profile Showcase"))
+      .setButtonAccessory(makeFishDexShowcaseButton(player, user.id, fishDexEmbed.page, fishDexEmbed.selectedFish, fishDexEmbed.caught))
+  );
+
+  const controls = makeFishDexComponents(player, user.id, guildId, fishDexEmbed.page, fishDexEmbed.selectedFish?.id || "");
+  if (controls.selectRow || controls.buttonRow) {
+    container.addSeparatorComponents(new SeparatorBuilder());
+    if (controls.selectRow) {
+      container.addActionRowComponents(controls.selectRow);
+    }
+    container.addTextDisplayComponents(makeTextDisplay(controls.pageText));
+    if (controls.buttonRow) {
+      container.addActionRowComponents(controls.buttonRow);
+    }
+  }
+
+  return makeComponentsV2Message([container], {
+    files: fishDexEmbed.files
   });
 }
 
@@ -3197,6 +3388,11 @@ function makeHelpEmbed(showAdminCommands = false) {
         inline: false
       },
       {
+        name: "/fishdex",
+        value: "Melihat daftar ikan server. Ikan yang belum pernah kamu tangkap akan tetap tersembunyi.",
+        inline: false
+      },
+      {
         name: "/fishvoice",
         value: "Membuat bot join voice channel kamu dalam keadaan mute dan deafen, lalu mengaktifkan progress voice untuk server.",
         inline: false
@@ -3575,6 +3771,10 @@ function makeSlashCommands() {
       description: "Lihat toko pancingan secara privat."
     },
     {
+      name: "fishdex",
+      description: "Lihat Fishdex ikan server secara privat."
+    },
+    {
       name: "fishvoice",
       description: "Minta bot join voice channel kamu untuk mengaktifkan progress voice."
     },
@@ -3861,6 +4061,53 @@ client.on("interactionCreate", async (interaction) => {
       return;
     }
 
+    if (interaction.isStringSelectMenu() && interaction.customId.startsWith("fishdex_select:")) {
+      const [, ownerId, pageValue] = interaction.customId.split(":");
+      if (ownerId && ownerId !== interaction.user.id) {
+        await interaction.reply({ content: "Fishdex ini punya pemain lain.", flags: MessageFlags.Ephemeral });
+        return;
+      }
+      await interaction.deferUpdate();
+      await withPlayerReadOnly(interaction.user, async (player) => {
+        await interaction.editReply(makeFishDexMessage(interaction.user, player, interaction.values[0], interaction.guildId, Number(pageValue || 0)));
+      });
+      return;
+    }
+
+    if (interaction.isButton() && interaction.customId.startsWith("fishdex_page:")) {
+      const [, ownerId, pageValue] = interaction.customId.split(":");
+      if (ownerId && ownerId !== interaction.user.id) {
+        await interaction.reply({ content: "Fishdex ini punya pemain lain.", flags: MessageFlags.Ephemeral });
+        return;
+      }
+      await interaction.deferUpdate();
+      await withPlayerReadOnly(interaction.user, async (player) => {
+        await interaction.editReply(makeFishDexMessage(interaction.user, player, "", interaction.guildId, Number(pageValue || 0)));
+      });
+      return;
+    }
+
+    if (interaction.isButton() && interaction.customId.startsWith("fishdex_showcase:")) {
+      const [, ownerId, pageValue, selectedFishId] = interaction.customId.split(":");
+      if (ownerId && ownerId !== interaction.user.id) {
+        await interaction.reply({ content: "Fishdex ini punya pemain lain.", flags: MessageFlags.Ephemeral });
+        return;
+      }
+
+      await interaction.deferUpdate();
+      await withPlayer(interaction.user, async (player) => {
+        const selectedFish = getAvailableFish(interaction.guildId).find((fishEntry) => fishEntry.id === selectedFishId);
+        if (!selectedFish || !getFishDexEntry(player, selectedFish).caught) {
+          await interaction.editReply(makeFishDexMessage(interaction.user, player, selectedFishId, interaction.guildId, Number(pageValue || 0)));
+          return { save: false };
+        }
+        player.showcasedFishId = selectedFish.id;
+        await interaction.editReply(makeFishDexMessage(interaction.user, player, selectedFish.id, interaction.guildId, Number(pageValue || 0)));
+        return undefined;
+      });
+      return;
+    }
+
     if (interaction.isStringSelectMenu() && interaction.customId.startsWith("rod_select:")) {
       const selectedRodId = interaction.values[0];
       await interaction.deferUpdate();
@@ -3878,7 +4125,7 @@ client.on("interactionCreate", async (interaction) => {
         : null;
       await withPlayer(interaction.user, async (player) => {
         const result = equipOwnedRod(player, selectedRodId);
-        await interaction.editReply(makeProfileMessage(interaction.user, player, member));
+        await interaction.editReply(makeProfileMessage(interaction.user, player, member, interaction.guildId));
         return result.ok ? undefined : { save: false };
       });
       return;
@@ -4088,7 +4335,7 @@ client.on("interactionCreate", async (interaction) => {
       }
 
       await withPlayerReadOnly(interaction.user, async (player) => {
-        await interaction.editReply(makeProfileMessage(interaction.user, player, member));
+        await interaction.editReply(makeProfileMessage(interaction.user, player, member, interaction.guildId));
       });
       return;
     }
@@ -4097,7 +4344,7 @@ client.on("interactionCreate", async (interaction) => {
       return;
     }
 
-    if (["sellfish", "fishstore", "fishvoice", "fishcomp", "fishraid"].includes(interaction.commandName) && !isActivityAllowed()) {
+    if (["sellfish", "fishstore", "fishdex", "fishvoice", "fishcomp", "fishraid"].includes(interaction.commandName) && !isActivityAllowed()) {
       await interaction.reply({ content: activityBlockedMessage(), flags: MessageFlags.Ephemeral });
       return;
     }
@@ -4108,7 +4355,7 @@ client.on("interactionCreate", async (interaction) => {
         ? await interaction.guild.members.fetch(interaction.user.id).catch(() => null)
         : null;
       await withPlayerReadOnly(interaction.user, async (player) => {
-        await interaction.editReply(makeProfileMessage(interaction.user, player, member));
+        await interaction.editReply(makeProfileMessage(interaction.user, player, member, interaction.guildId));
       });
       return;
     }
@@ -4135,6 +4382,14 @@ client.on("interactionCreate", async (interaction) => {
       await interaction.deferReply({ flags: MessageFlags.Ephemeral });
       await withPlayerReadOnly(interaction.user, async (player) => {
         await interaction.editReply(makeStoreMessage(player));
+      });
+      return;
+    }
+
+    if (interaction.commandName === "fishdex") {
+      await interaction.deferReply({ flags: MessageFlags.Ephemeral });
+      await withPlayerReadOnly(interaction.user, async (player) => {
+        await interaction.editReply(makeFishDexMessage(interaction.user, player, "", interaction.guildId));
       });
       return;
     }

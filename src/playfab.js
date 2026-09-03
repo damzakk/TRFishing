@@ -269,6 +269,8 @@ function makeDefaultPlayer() {
     rodId: starterRodId,
     ownedRods: [starterRodId],
     inventory: {},
+    fishDex: {},
+    showcasedFishId: "",
     totalFishCaught: 0,
     fishCompWins: 0,
     heaviestFish: null,
@@ -287,10 +289,37 @@ function normalizePlayer(rawPlayer) {
   const starterRodId = defaultRods[0]?.id || "twig";
   const ownedRods = Array.isArray(rawPlayer?.ownedRods) && rawPlayer.ownedRods.length ? rawPlayer.ownedRods : [starterRodId];
   const inventory = rawPlayer?.inventory && typeof rawPlayer.inventory === "object" ? rawPlayer.inventory : {};
+  const rawFishDex = rawPlayer?.fishDex && typeof rawPlayer.fishDex === "object" ? rawPlayer.fishDex : {};
+  const fishDex = {};
+  for (const [fishId, entry] of Object.entries(rawFishDex)) {
+    const source = entry && typeof entry === "object" ? entry : {};
+    const count = Math.max(0, Math.floor(cleanNumber(source.count, Number(entry || 0))));
+    const heaviestWeight = Math.max(0, cleanNumber(source.heaviestWeight, 0));
+    if (count > 0 || heaviestWeight > 0) {
+      fishDex[fishId] = { count, heaviestWeight };
+    }
+  }
+  for (const [fishId, quantity] of Object.entries(inventory)) {
+    const count = Math.max(0, Math.floor(cleanNumber(quantity, 0)));
+    if (count <= 0) {
+      continue;
+    }
+    fishDex[fishId] = {
+      count: Math.max(count, Math.floor(cleanNumber(fishDex[fishId]?.count, 0))),
+      heaviestWeight: Math.max(0, cleanNumber(fishDex[fishId]?.heaviestWeight, 0))
+    };
+  }
   const totalFromInventory = Object.values(inventory).reduce((sum, quantity) => sum + Math.max(0, Number(quantity || 0)), 0);
   const heaviestFish = rawPlayer?.heaviestFish && typeof rawPlayer.heaviestFish === "object"
     ? rawPlayer.heaviestFish
     : null;
+  if (heaviestFish?.fishId) {
+    const fishId = String(heaviestFish.fishId);
+    fishDex[fishId] = {
+      count: Math.max(1, Math.floor(cleanNumber(fishDex[fishId]?.count, 0))),
+      heaviestWeight: Math.max(cleanNumber(fishDex[fishId]?.heaviestWeight, 0), cleanNumber(heaviestFish.weight, 0))
+    };
+  }
   const luckiestFish = rawPlayer?.luckiestFish && typeof rawPlayer.luckiestFish === "object"
     ? rawPlayer.luckiestFish
     : null;
@@ -298,6 +327,8 @@ function normalizePlayer(rawPlayer) {
     ...makeDefaultPlayer(),
     ...(rawPlayer && typeof rawPlayer === "object" ? rawPlayer : {}),
     inventory,
+    fishDex,
+    showcasedFishId: String(rawPlayer?.showcasedFishId || "").trim(),
     totalFishCaught: Math.max(0, Number(rawPlayer?.totalFishCaught ?? totalFromInventory)),
     fishCompWins: Math.max(0, Math.floor(cleanNumber(rawPlayer?.fishCompWins, 0))),
     heaviestFish,

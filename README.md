@@ -67,6 +67,7 @@ The manager also has:
 - `/fishprofile` - Show your level, gold, rod, total catches, heaviest fish, and fishing progress privately in the channel.
 - `/fishinventory` - Melihat daftar ikan yang kamu punya secara privat.
 - `/fishstore` - Melihat toko pancingan secara privat.
+- `/fishdex` - Melihat Fishdex ikan server secara privat; ikan yang belum tertangkap tetap tersembunyi.
 - `/fishvoice` - Membuat bot join voice channel kamu dalam keadaan mute/deafen dan mengaktifkan voice progress server.
 - `/fishsetpopupchannel channel:<channel>` - Admin command untuk membuat thread `Fishing!` dan mengirim semua popup fishing server ke thread itu.
 - `/fishserver` - Menampilkan status server TRFishing.

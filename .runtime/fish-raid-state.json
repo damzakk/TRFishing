@@ -8,23 +8,23 @@
         "description": "Pikirkan anak anak yang kelaparan!\n\nSelesaikan pesanan ikan untuk dapur MBG Pak Hendrik sebelum hari esok, agar beliau bisa joget lalu membuat anak-anak Indonesia tumbuh sehat dan kuat!",
         "quotaKg": 500,
         "registrationBannerBase64": "",
-        "registrationBannerUrl": "https://cdn.discordapp.com/attachments/1543874293258260550/1544540055698276472/mbg_hendrik-registrationbanner.png?ex=6a98e085&is=6a978f05&hm=bed7443a25663f96305b926f32072b7c79164ac18741fa870d4ed7e4de015b43&",
+        "registrationBannerUrl": "https://media.discordapp.net/attachments/1543874293258260550/1544540055698276472/mbg_hendrik-registrationbanner.png?ex=6a9a3205&is=6a98e085&hm=07611c3367b24a21f6505d7e10d4b7e0e7e182f104b2ecce61ce8c4b7d11206a&=&format=webp&quality=lossless",
         "registrationBannerRef": null,
         "runningBannerBase64": "",
-        "runningBannerUrl": "https://cdn.discordapp.com/attachments/1543874293258260550/1544540064359387186/mbg_hendrik-runningbanner.png?ex=6a98e087&is=6a978f07&hm=558289b724fa722099efa751eadff3da4b274212c3acc47213309e277d811dca&",
+        "runningBannerUrl": "https://media.discordapp.net/attachments/1543874293258260550/1544540064359387186/mbg_hendrik-runningbanner.png?ex=6a9a3207&is=6a98e087&hm=a0c02c232e7eb236f6339a8e2ae8c2cad088281f5bb761fb07b94be121957d18&=&format=webp&quality=lossless",
         "runningBannerRef": null,
         "resultBannerBase64": "",
-        "resultBannerUrl": "https://cdn.discordapp.com/attachments/1543874293258260550/1544540070273613865/mbg_hendrik-resultbanner.png?ex=6a98e088&is=6a978f08&hm=e7f59937d3c48e9194a530f4e3f2f0b941b5363e7ce0ef3ee4d9b98ac2bd83e2&",
+        "resultBannerUrl": "https://media.discordapp.net/attachments/1543874293258260550/1544540079945551872/mbg_hendrik-fulfilledbanner.png?ex=6a9a320b&is=6a98e08b&hm=e613f83f332b4166f7eaa8dac83a46c2f2a1d16821878de11b8d7e4f1f2ac32f&=&format=webp&quality=lossless&width=640&height=325",
         "resultBannerRef": null,
         "fulfilledBannerBase64": "",
-        "fulfilledBannerUrl": "https://cdn.discordapp.com/attachments/1543874293258260550/1544540079945551872/mbg_hendrik-fulfilledbanner.png?ex=6a98e08b&is=6a978f0b&hm=11299c94eb674b4bc4837fde99d662d97099552eb0c5f0a23815cb8726f42bd7&",
+        "fulfilledBannerUrl": "https://media.discordapp.net/attachments/1543874293258260550/1544540079945551872/mbg_hendrik-fulfilledbanner.png?ex=6a9a320b&is=6a98e08b&hm=e613f83f332b4166f7eaa8dac83a46c2f2a1d16821878de11b8d7e4f1f2ac32f&=&format=webp&quality=lossless",
         "fulfilledBannerRef": null,
         "failedBannerBase64": "",
-        "failedBannerUrl": "https://cdn.discordapp.com/attachments/1543874293258260550/1544540086190739496/mbg_hendrik-failedbanner.png?ex=6a98e08c&is=6a978f0c&hm=fd13091ccb2a232e9c751c341624cc2d3a08f4ec9e7f028ed45ad16abc4b690d&",
+        "failedBannerUrl": "https://media.discordapp.net/attachments/1543874293258260550/1544540086190739496/mbg_hendrik-failedbanner.png?ex=6a9a320c&is=6a98e08c&hm=cbe4a2e6a9d9cb8b779ee72378725fa2cb7296a4d47cfb39dd9d7b1c1adfc3cc&=&format=webp&quality=lossless",
         "failedBannerRef": null
       },
       "quotaKg": 500,
-      "filledKg": 354.9596708294556,
+      "filledKg": 459.62341087132546,
       "participants": {
         "215382509851115520": {
           "id": "215382509851115520",
@@ -54,10 +54,10 @@
           "globalName": "Azara",
           "displayName": "<@451776326723174401>",
           "logName": "TR | Aktor (Adam) (Awiwir)",
-          "count": 34,
-          "totalWeight": 60.52108699298174,
-          "heaviestWeight": 6.726796670135448,
-          "heaviestName": "Ikan Nawas"
+          "count": 46,
+          "totalWeight": 88.46965070218504,
+          "heaviestWeight": 7.743330819730125,
+          "heaviestName": "Ikan Praroro"
         },
         "337858521771278338": {
           "id": "337858521771278338",
@@ -76,8 +76,8 @@
           "globalName": "far(a)way",
           "displayName": "<@305302752387530752>",
           "logName": "TR | Kadung",
-          "count": 20,
-          "totalWeight": 48.311114888098516,
+          "count": 32,
+          "totalWeight": 60.44961572981523,
           "heaviestWeight": 5.404747889209731,
           "heaviestName": "Ikan Gurame"
         },
@@ -87,8 +87,8 @@
           "globalName": "Miradh",
           "displayName": "<@363275626662330369>",
           "logName": "TR | Celup (Adhiet)",
-          "count": 23,
-          "totalWeight": 63.463646261062735,
+          "count": 31,
+          "totalWeight": 94.45973982502878,
           "heaviestWeight": 22.842232962551375,
           "heaviestName": "Ikan Praroro"
         },
@@ -98,8 +98,8 @@
           "globalName": "PakTuki",
           "displayName": "<@367669792993181697>",
           "logName": "TR | Ebol Ebol",
-          "count": 19,
-          "totalWeight": 36.97673637753381,
+          "count": 35,
+          "totalWeight": 60.575676143863106,
           "heaviestWeight": 5.423539230755575,
           "heaviestName": "Ikan Gurame"
         },
@@ -120,14 +120,14 @@
           "globalName": "Delta",
           "displayName": "<@275237881323454465>",
           "logName": "᲼",
-          "count": 9,
-          "totalWeight": 18.15767950969476,
+          "count": 15,
+          "totalWeight": 28.13932167034926,
           "heaviestWeight": 3.8016073079487405,
           "heaviestName": "Kak Geri"
         }
       },
       "fulfilledAt": "",
-      "lastRaidEndedAt": 1788428264600,
+      "lastRaidEndedAt": 1788438136714,
       "channelId": "891474628122394637"
     }
   }
