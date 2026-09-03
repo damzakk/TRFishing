@@ -241,8 +241,8 @@ function addFishingProgress(player, progressAmount = 1, guildId = "") {
     if (!catchResult) {
       break;
     }
-    const { expGain } = addCatch(player, catchResult.fish, catchResult.catchWeight, guildId);
-    catches.push({ caughtFish: catchResult.fish, catchWeight: catchResult.catchWeight, expGain });
+    const { expGain, expBase, expEventInfo } = addCatch(player, catchResult.fish, catchResult.catchWeight, guildId);
+    catches.push({ caughtFish: catchResult.fish, catchWeight: catchResult.catchWeight, expGain, expBase, expEventInfo });
   }
   return catches;
 }
@@ -366,7 +366,10 @@ async function sendFishingCatchMessages(channel, user, catches, previousLevel, c
   }
 
   for (const result of catches) {
-    await channel.send(makeCatchMessage(user, result.caughtFish, result.catchWeight, result.expGain)).catch((error) => {
+    await channel.send(makeCatchMessage(user, result.caughtFish, result.catchWeight, result.expGain, {
+      expBase: result.expBase,
+      expEventInfo: result.expEventInfo
+    })).catch((error) => {
       console.error("Could not send fishing catch message:", error);
     });
   }
@@ -640,6 +643,14 @@ function getEventMultiplier(type, guildId = "", fishId = "") {
   }, 1);
 }
 
+function getEventMultiplierInfo(type, guildId = "", fishId = "") {
+  const multiplier = getEventMultiplier(type, guildId, fishId);
+  return {
+    multiplier,
+    active: Math.abs(multiplier - 1) > 0.000001
+  };
+}
+
 function normalizeAdminValue(value) {
   return String(value || "").trim().toLowerCase();
 }
@@ -783,7 +794,8 @@ function rollFish(rod, guildId = "") {
 }
 
 function addCatch(player, caughtFish, catchWeight, guildId = "") {
-  const expGain = Math.max(0, Math.round(Number(caughtFish.exp || 0) * Number(getSettings().expMultiplier || 1) * getEventMultiplier("exp_multiplier", guildId)));
+  const expReward = calculateCatchExp(caughtFish, guildId);
+  const expGain = expReward.total;
   const luckScore = formatFishLuckScore(caughtFish.luckScale);
   player.inventory[caughtFish.id] = (player.inventory[caughtFish.id] || 0) + 1;
   player.totalFishCaught = Math.max(0, Number(player.totalFishCaught || 0)) + 1;
@@ -803,11 +815,17 @@ function addCatch(player, caughtFish, catchWeight, guildId = "") {
     };
   }
   player.exp += expGain;
-  return { expGain, luckScore };
+  return { expGain, expBase: expReward.base, expEventInfo: expReward.eventInfo, luckScore };
 }
 
 function calculateCatchExp(caughtFish, guildId = "") {
-  return Math.max(0, Math.round(Number(caughtFish.exp || 0) * Number(getSettings().expMultiplier || 1) * getEventMultiplier("exp_multiplier", guildId)));
+  const base = Math.max(0, Math.round(Number(caughtFish.exp || 0) * Number(getSettings().expMultiplier || 1)));
+  const eventInfo = getEventMultiplierInfo("exp_multiplier", guildId);
+  return {
+    base,
+    total: Math.max(0, Math.round(base * eventInfo.multiplier)),
+    eventInfo
+  };
 }
 
 function formatFishLine(fishEntry, quantity = null) {
@@ -915,15 +933,25 @@ function getRandomFishDescription(caughtFish) {
   return pool.length ? pool[Math.floor(Math.random() * pool.length)] : "";
 }
 
-function makeCatchEmbed(user, caughtFish, catchWeight, expGain) {
+function makeCatchEmbed(user, caughtFish, catchWeight, expGain, expBase = expGain, expEventInfo = null) {
   const description = getRandomFishDescription(caughtFish);
   const descriptionLine = description ? `\n${description}` : "";
+  const bonusLine = formatBonusNotice("EXP", expEventInfo, expGain, expBase);
   const luckScore = formatFishLuckScore(caughtFish.luckScale);
   const embed = new EmbedBuilder()
     .setColor(rarityColors[caughtFish.rarity] || 0x2ecc71)
     .setTitle("Umpan Disambar!")
     .setDescription(
-      `**${caughtFish.name}** berhasil ditangkap!!\n\nKelangkaan: **${caughtFish.rarity}**\nBerat: **${formatKg(catchWeight)}**\nLuck Score: **${luckScore}**\nExp: **+${expGain} EXP**\n${descriptionLine}`
+      [
+        `**${caughtFish.name}** berhasil ditangkap!!`,
+        "",
+        `Kelangkaan: **${caughtFish.rarity}**`,
+        `Berat: **${formatKg(catchWeight)}**`,
+        `Luck Score: **${luckScore}**`,
+        `Exp: **+${formatRewardWithBonus(expGain, expBase, "EXP")}**`,
+        bonusLine,
+        descriptionLine.trim()
+      ].filter(Boolean).join("\n")
     );
 
   const icon = makeIconAttachment(caughtFish, "fish");
@@ -965,7 +993,7 @@ function makeCatchShareRow(user) {
 }
 
 function makeCatchMessage(user, caughtFish, catchWeight, expGain, options = {}) {
-  const catchEmbed = makeCatchEmbed(user, caughtFish, catchWeight, expGain);
+  const catchEmbed = makeCatchEmbed(user, caughtFish, catchWeight, expGain, options.expBase ?? expGain, options.expEventInfo || null);
   return {
     ...getUserMentionForMessage(user, options),
     embeds: [catchEmbed.embed],
@@ -1010,11 +1038,11 @@ function makeEventImage(event) {
 
 function makeEventEmbed(event) {
   const typeLines = normalizeEventBonuses(event).map((bonus) => ({
-    gold_multiplier: `Gold x${bonus.value}`,
-    exp_multiplier: `EXP x${bonus.value}`,
-    fish_chance: `${bonus.fishId || "Ikan tertentu"} chance x${bonus.value}`,
-    fishing_speed: `Fishing speed x${bonus.value}`
-  }[bonus.type] || `Multiplier x${bonus.value}`)).join("\n");
+    gold_multiplier: `Gold ${formatEventMultiplier(bonus.value)}`,
+    exp_multiplier: `EXP ${formatEventMultiplier(bonus.value)}`,
+    fish_chance: `${bonus.fishId || "Ikan tertentu"} chance ${formatEventMultiplier(bonus.value)}`,
+    fishing_speed: `Fishing speed ${formatEventMultiplier(bonus.value)}`
+  }[bonus.type] || `Multiplier ${formatEventMultiplier(bonus.value)}`)).join("\n");
   const endsAt = event.endsAt ? `<t:${Math.floor(Date.parse(event.endsAt) / 1000)}:R>` : "Belum ditentukan";
   const description = [
     event.description || "",
@@ -1112,13 +1140,49 @@ function formatGoldAmount(value) {
   return `${Math.max(0, Math.floor(Number(value || 0))).toLocaleString("id-ID")} Gold`;
 }
 
+function formatEventMultiplier(value) {
+  const percent = Math.max(0, Number(value || 0) * 100);
+  const rounded = Math.round(percent * 100) / 100;
+  return `x${rounded.toLocaleString("id-ID", { maximumFractionDigits: 2 })}%`;
+}
+
+function formatRewardAmount(value, unit) {
+  const amount = Math.max(0, Math.round(Number(value || 0)));
+  if (unit === "Gold") {
+    return formatGoldAmount(amount);
+  }
+  return `${amount.toLocaleString("id-ID")} ${unit}`;
+}
+
+function formatRewardWithBonus(total, base, unit) {
+  const safeTotal = Math.max(0, Math.round(Number(total || 0)));
+  const safeBase = Math.max(0, Math.round(Number(base || 0)));
+  const bonus = safeTotal - safeBase;
+  const totalText = formatRewardAmount(safeTotal, unit);
+  if (bonus === 0) {
+    return totalText;
+  }
+  const sign = bonus > 0 ? "+" : "-";
+  return `${totalText} (${sign}${formatRewardAmount(Math.abs(bonus), unit)})`;
+}
+
+function formatBonusNotice(label, eventInfo, total = null, base = null) {
+  if (!eventInfo?.active) {
+    return "";
+  }
+  if (total !== null && base !== null && Math.round(Number(total || 0)) === Math.round(Number(base || 0))) {
+    return "";
+  }
+  return `-# *Bonus ${label} aktif: ${formatEventMultiplier(eventInfo.multiplier)}!*`;
+}
+
 function describeEventBonus(bonus) {
   return {
-    gold_multiplier: `Gold x${bonus.value}`,
-    exp_multiplier: `EXP x${bonus.value}`,
-    fish_chance: `${bonus.fishId || "Ikan tertentu"} chance x${bonus.value}`,
-    fishing_speed: `Fishing speed x${bonus.value}`
-  }[bonus.type] || `Multiplier x${bonus.value}`;
+    gold_multiplier: `Gold ${formatEventMultiplier(bonus.value)}`,
+    exp_multiplier: `EXP ${formatEventMultiplier(bonus.value)}`,
+    fish_chance: `${bonus.fishId || "Ikan tertentu"} chance ${formatEventMultiplier(bonus.value)}`,
+    fishing_speed: `Fishing speed ${formatEventMultiplier(bonus.value)}`
+  }[bonus.type] || `Multiplier ${formatEventMultiplier(bonus.value)}`;
 }
 
 async function makeServerStatusMessage(guild) {
@@ -1343,7 +1407,11 @@ async function processEnforcedFishingSignal() {
 
     const user = await client.users.fetch(String(entry.discordUserId || "")).catch(() => null);
     const mention = user || `<@${entry.discordUserId}>`;
-    await channel.send(makeCatchMessage(mention, entry.fish, entry.catchWeight, entry.expGain, { enforced: true })).catch((error) => {
+    await channel.send(makeCatchMessage(mention, entry.fish, entry.catchWeight, entry.expGain, {
+      enforced: true,
+      expBase: entry.expBase,
+      expEventInfo: entry.expEventInfo
+    })).catch((error) => {
       console.error("Could not post enforced fishing catch:", error);
     });
   }
@@ -2205,16 +2273,28 @@ function formatCompetitionScoreboard(competition) {
 }
 
 function getCompetitionRewardExp(competition) {
-  return Math.round(Number(getSettings().fishCompExpReward ?? 50) * Number(getSettings().expMultiplier || 1) * getEventMultiplier("exp_multiplier", competition.guildId));
+  return Math.round(getCompetitionBaseRewardExp() * getEventMultiplier("exp_multiplier", competition.guildId));
 }
 
 function getCompetitionRewardGold(competition) {
-  return Math.round(Number(getSettings().fishCompGoldReward ?? 0) * getEventMultiplier("gold_multiplier", competition.guildId));
+  return Math.round(getCompetitionBaseRewardGold() * getEventMultiplier("gold_multiplier", competition.guildId));
+}
+
+function getCompetitionBaseRewardExp() {
+  return Math.round(Number(getSettings().fishCompExpReward ?? 50) * Number(getSettings().expMultiplier || 1));
+}
+
+function getCompetitionBaseRewardGold() {
+  return Math.round(Number(getSettings().fishCompGoldReward ?? 0));
 }
 
 function getRaidRewardAmount(key, guildId, multiplierType = "") {
   const multiplier = multiplierType ? getEventMultiplier(multiplierType, guildId) : 1;
   return Math.round(Number(getSettings()[key] ?? 0) * multiplier);
+}
+
+function getRaidBaseRewardAmount(key) {
+  return Math.round(Number(getSettings()[key] ?? 0));
 }
 
 async function giveRaidReward(userId, expReward, goldReward) {
@@ -2235,7 +2315,7 @@ async function giveRaidReward(userId, expReward, goldReward) {
   return { previousLevel, level };
 }
 
-function summarizeRaidResults(results, state) {
+function summarizeRaidResults(results, { daily = false } = {}) {
   const sorted = getSortedRaidResults(results);
   if (!sorted.length) {
     return "Tidak ada peserta.";
@@ -2243,11 +2323,11 @@ function summarizeRaidResults(results, state) {
   const mvp = sorted[0];
   const mostFish = [...sorted].sort((a, b) => b.count - a.count || b.totalWeight - a.totalWeight)[0];
   const heaviestFish = [...sorted].sort((a, b) => b.heaviestWeight - a.heaviestWeight)[0];
+  const suffix = daily ? " Hari Ini" : "";
   return [
-    `MVP Berat Total: **${mvp.displayName}** (${formatKg(mvp.totalWeight)})`,
-    `Paling Banyak Ikan: **${mostFish.displayName}** (${mostFish.count} ikan)`,
-    `Ikan Terberat: **${heaviestFish.displayName}** (${heaviestFish.heaviestName || "-"} ${formatKg(heaviestFish.heaviestWeight)})`,
-    state.fulfilledAt ? "Quota hari ini sudah terpenuhi." : "Quota hari ini belum terpenuhi."
+    `Total Ikan Terberat${suffix}: **${mvp.displayName}** (${formatKg(mvp.totalWeight)})`,
+    `Total Ikan Terbanyak${suffix}: **${mostFish.displayName}** (${mostFish.count} ikan)`,
+    `Ikan Terberat${suffix}: **${heaviestFish.displayName}** (${heaviestFish.heaviestName || "-"} ${formatKg(heaviestFish.heaviestWeight)})`
   ].join("\n");
 }
 
@@ -2339,26 +2419,54 @@ async function finishFishRaid(raid, channel) {
   const clearParticipantGold = fulfilled ? getRaidRewardAmount("fishRaidClearParticipantGoldReward", raid.guildId, "gold_multiplier") : 0;
   const clearMvpExp = fulfilled ? getRaidRewardAmount("fishRaidClearMvpExpReward", raid.guildId, "exp_multiplier") : 0;
   const clearMvpGold = fulfilled ? getRaidRewardAmount("fishRaidClearMvpGoldReward", raid.guildId, "gold_multiplier") : 0;
+  const participantBaseExp = getRaidBaseRewardAmount("fishRaidParticipantExpReward");
+  const participantBaseGold = getRaidBaseRewardAmount("fishRaidParticipantGoldReward");
+  const mvpBaseExp = getRaidBaseRewardAmount("fishRaidMvpExpReward");
+  const mvpBaseGold = getRaidBaseRewardAmount("fishRaidMvpGoldReward");
+  const clearParticipantBaseExp = fulfilled ? getRaidBaseRewardAmount("fishRaidClearParticipantExpReward") : 0;
+  const clearParticipantBaseGold = fulfilled ? getRaidBaseRewardAmount("fishRaidClearParticipantGoldReward") : 0;
+  const clearMvpBaseExp = fulfilled ? getRaidBaseRewardAmount("fishRaidClearMvpExpReward") : 0;
+  const clearMvpBaseGold = fulfilled ? getRaidBaseRewardAmount("fishRaidClearMvpGoldReward") : 0;
+  const baseParticipantExp = fulfilled ? clearParticipantExp : participantExp;
+  const baseParticipantGold = fulfilled ? clearParticipantGold : participantGold;
+  const baseParticipantBaseExp = fulfilled ? clearParticipantBaseExp : participantBaseExp;
+  const baseParticipantBaseGold = fulfilled ? clearParticipantBaseGold : participantBaseGold;
+  const raidWinnerIsDailyMvp = Boolean(raidWinner?.id && dailyMvp?.id && raidWinner.id === dailyMvp.id);
+  const raidMvpTotalExp = baseParticipantExp + mvpExp;
+  const raidMvpTotalGold = baseParticipantGold + mvpGold;
+  const dailyMvpTotalExp = clearParticipantExp + clearMvpExp;
+  const dailyMvpTotalGold = clearParticipantGold + clearMvpGold;
+  const combinedMvpTotalExp = baseParticipantExp + mvpExp + clearMvpExp;
+  const combinedMvpTotalGold = baseParticipantGold + mvpGold + clearMvpGold;
+  const raidMvpBaseTotalExp = baseParticipantBaseExp + mvpBaseExp;
+  const raidMvpBaseTotalGold = baseParticipantBaseGold + mvpBaseGold;
+  const dailyMvpBaseTotalExp = clearParticipantBaseExp + clearMvpBaseExp;
+  const dailyMvpBaseTotalGold = clearParticipantBaseGold + clearMvpBaseGold;
+  const combinedMvpBaseTotalExp = baseParticipantBaseExp + mvpBaseExp + clearMvpBaseExp;
+  const combinedMvpBaseTotalGold = baseParticipantBaseGold + mvpBaseGold + clearMvpBaseGold;
+  const expEventInfo = getEventMultiplierInfo("exp_multiplier", raid.guildId);
+  const goldEventInfo = getEventMultiplierInfo("gold_multiplier", raid.guildId);
   const levelUps = [];
 
-  for (const result of raid.results.values()) {
-    const reward = await giveRaidReward(result.id, participantExp, participantGold);
-    if (reward.level > reward.previousLevel) {
-      levelUps.push({ id: result.id, level: reward.level });
-    }
-  }
-  if (raidWinner?.id) {
-    const reward = await giveRaidReward(raidWinner.id, mvpExp, mvpGold);
-    if (reward.level > reward.previousLevel) {
-      levelUps.push({ id: raidWinner.id, level: reward.level });
-    }
-  }
   if (fulfilled) {
     for (const result of dailyResults) {
       const reward = await giveRaidReward(result.id, clearParticipantExp, clearParticipantGold);
       if (reward.level > reward.previousLevel) {
         levelUps.push({ id: result.id, level: reward.level });
       }
+    }
+  } else {
+    for (const result of raid.results.values()) {
+      const reward = await giveRaidReward(result.id, participantExp, participantGold);
+      if (reward.level > reward.previousLevel) {
+        levelUps.push({ id: result.id, level: reward.level });
+      }
+    }
+  }
+  if (raidWinner?.id) {
+    const reward = await giveRaidReward(raidWinner.id, mvpExp, mvpGold);
+    if (reward.level > reward.previousLevel) {
+      levelUps.push({ id: raidWinner.id, level: reward.level });
     }
   }
   if (fulfilled && dailyMvp?.id) {
@@ -2368,11 +2476,41 @@ async function finishFishRaid(raid, channel) {
     }
   }
 
+  const mvpLines = fulfilled
+    ? [
+        raidWinnerIsDailyMvp
+          ? `# MVP Raid & Harian: ${raidWinner.displayName}`
+          : dailyMvp ? `# MVP Harian: ${dailyMvp.displayName}` : "# MVP Harian: -",
+        !raidWinnerIsDailyMvp && raidWinner ? `MVP Raid: ${raidWinner.displayName}` : ""
+      ].filter(Boolean)
+    : [
+        raidWinner ? `# MVP Raid: ${raidWinner.displayName}` : "# MVP Raid: -"
+      ];
   const rewardLines = [
-    `Peserta raid ini: **${participantExp} EXP** dan **${participantGold} gold**`,
-    raidWinner ? `MVP raid ini (${raidWinner.displayName}): **${mvpExp} EXP** dan **${mvpGold} gold**` : "",
-    fulfilled ? `Bonus quota terpenuhi untuk semua peserta harian: **${clearParticipantExp} EXP** dan **${clearParticipantGold} gold**` : "",
-    fulfilled && dailyMvp ? `Bonus quota terpenuhi untuk MVP harian (${dailyMvp.displayName}): **${clearMvpExp} EXP** dan **${clearMvpGold} gold**` : ""
+    `Peserta raid ini: **${formatRewardWithBonus(baseParticipantExp, baseParticipantBaseExp, "EXP")}** dan **${formatRewardWithBonus(baseParticipantGold, baseParticipantBaseGold, "Gold")}**`,
+    raidWinnerIsDailyMvp
+      ? `MVP raid ini dan harian (**${raidWinner.displayName}**): **${formatRewardWithBonus(combinedMvpTotalExp, combinedMvpBaseTotalExp, "EXP")}** dan **${formatRewardWithBonus(combinedMvpTotalGold, combinedMvpBaseTotalGold, "Gold")}**`
+      : raidWinner ? `MVP raid ini (**${raidWinner.displayName}**): **${formatRewardWithBonus(raidMvpTotalExp, raidMvpBaseTotalExp, "EXP")}** dan **${formatRewardWithBonus(raidMvpTotalGold, raidMvpBaseTotalGold, "Gold")}**` : "",
+    fulfilled && dailyMvp && !raidWinnerIsDailyMvp
+      ? `MVP harian (**${dailyMvp.displayName}**): **${formatRewardWithBonus(dailyMvpTotalExp, dailyMvpBaseTotalExp, "EXP")}** dan **${formatRewardWithBonus(dailyMvpTotalGold, dailyMvpBaseTotalGold, "Gold")}**`
+      : "",
+    formatBonusNotice(
+      "EXP",
+      expEventInfo,
+      baseParticipantExp + (raidWinnerIsDailyMvp ? combinedMvpTotalExp : raidMvpTotalExp + dailyMvpTotalExp),
+      baseParticipantBaseExp + (raidWinnerIsDailyMvp ? combinedMvpBaseTotalExp : raidMvpBaseTotalExp + dailyMvpBaseTotalExp)
+    ),
+    formatBonusNotice(
+      "Gold",
+      goldEventInfo,
+      baseParticipantGold + (raidWinnerIsDailyMvp ? combinedMvpTotalGold : raidMvpTotalGold + dailyMvpTotalGold),
+      baseParticipantBaseGold + (raidWinnerIsDailyMvp ? combinedMvpBaseTotalGold : raidMvpBaseTotalGold + dailyMvpBaseTotalGold)
+    )
+  ].filter(Boolean);
+
+  const summaryLines = [
+    summarizeRaidResults(raid.results.values()),
+    fulfilled ? summarizeRaidResults(dailyResults, { daily: true }) : ""
   ].filter(Boolean);
 
   const embed = new EmbedBuilder()
@@ -2386,10 +2524,10 @@ async function finishFishRaid(raid, channel) {
         "**Ranking Harian**",
         dailyResults.length ? dailyResults.map((result, index) => `${index + 1}. ${formatCompetitionResultLine(result)}`).join("\n") : "Tidak ada peserta.",
         "",
-        dailyMvp ? `# MVP Harian: ${dailyMvp.displayName}` : "# MVP Harian: -",
+        mvpLines.join("\n"),
         rewardLines.join("\n") || "Tidak ada reward.",
         "",
-        summarizeRaidResults(dailyResults, state)
+        summaryLines.join("\n\n")
       ].join("\n")
     );
   const logId = `${raid.guildId}:raid:${Date.now()}`;
@@ -2517,6 +2655,10 @@ async function runCompetition(competition) {
   const winner = getSortedCompetitionResults(competition)[0];
   const winnerRewardExp = winner ? getCompetitionRewardExp(competition) : 0;
   const winnerRewardGold = winner ? getCompetitionRewardGold(competition) : 0;
+  const winnerBaseExp = winner ? getCompetitionBaseRewardExp() : 0;
+  const winnerBaseGold = winner ? getCompetitionBaseRewardGold() : 0;
+  const expEventInfo = getEventMultiplierInfo("exp_multiplier", competition.guildId);
+  const goldEventInfo = getEventMultiplierInfo("gold_multiplier", competition.guildId);
   let winnerLevel = 0;
   let winnerPreviousLevel = 0;
   if (winner) {
@@ -2536,10 +2678,12 @@ async function runCompetition(competition) {
         listCompetitionResultParticipants(competition),
         "",
         winner ? `# MVP: ${winner.displayName}` : "# MVP: -",
-        winner ? `Mendapat hadiah: **${winnerRewardExp} EXP** dan **${winnerRewardGold} gold**` : "Mendapat hadiah: **0 EXP** dan **0 gold**",
+        winner ? `Mendapat hadiah: **${formatRewardWithBonus(winnerRewardExp, winnerBaseExp, "EXP")}** dan **${formatRewardWithBonus(winnerRewardGold, winnerBaseGold, "Gold")}**` : "Mendapat hadiah: **0 EXP** dan **0 Gold**",
+        formatBonusNotice("EXP", expEventInfo, winnerRewardExp, winnerBaseExp),
+        formatBonusNotice("Gold", goldEventInfo, winnerRewardGold, winnerBaseGold),
         "",
         summary
-      ].join("\n")
+      ].filter((line) => line !== "").join("\n")
     );
   const logId = `${competition.guildId}:${Date.now()}`;
   finishedCompetitionLogs.set(logId, {
@@ -2633,7 +2777,9 @@ function sellFish(player, fishName, guildId = "") {
 
   const fishToSell = selectedFish ? [selectedFish] : gameData.fish;
   const goldBefore = Math.max(0, Math.floor(Number(player.gold || 0)));
+  const goldEventInfo = getEventMultiplierInfo("gold_multiplier", guildId);
   let totalGold = 0;
+  let totalBaseGold = 0;
   let totalCount = 0;
   const soldLines = [];
 
@@ -2643,10 +2789,12 @@ function sellFish(player, fishName, guildId = "") {
       continue;
     }
 
-    const earnedGold = Math.max(0, Math.round(quantity * Number(fishEntry.gold || 0) * getEventMultiplier("gold_multiplier", guildId)));
+    const baseGold = Math.max(0, Math.round(quantity * Number(fishEntry.gold || 0)));
+    const earnedGold = Math.max(0, Math.round(baseGold * goldEventInfo.multiplier));
     totalCount += quantity;
     totalGold += earnedGold;
-    soldLines.push(`${fishEntry.name} x${quantity} = ${formatGoldAmount(earnedGold)}`);
+    totalBaseGold += baseGold;
+    soldLines.push(`${fishEntry.name} x${quantity} = ${formatRewardWithBonus(earnedGold, baseGold, "Gold")}`);
     delete player.inventory[fishEntry.id];
   }
 
@@ -2667,7 +2815,10 @@ function sellFish(player, fishName, guildId = "") {
   const embed = new EmbedBuilder()
     .setColor(0xf1c40f)
     .setTitle("Ikan Berhasil Dijual")
-    .setDescription(`Kamu menjual **${totalCount}** ikan dan mendapatkan **${formatGoldAmount(totalGold)}**.`)
+    .setDescription([
+      `Kamu menjual **${totalCount}** ikan dan mendapatkan **${formatRewardWithBonus(totalGold, totalBaseGold, "Gold")}**.`,
+      formatBonusNotice("Gold", goldEventInfo, totalGold, totalBaseGold)
+    ].filter(Boolean).join("\n"))
     .addFields(
       { name: "Gold Sebelum", value: formatGoldAmount(goldBefore), inline: true },
       { name: "Gold Sesudah", value: formatGoldAmount(player.gold), inline: true },
@@ -2772,8 +2923,8 @@ function fishNow(player, guildId = "") {
   }
 
   const { fish: caughtFish, catchWeight } = catchResult;
-  const { expGain } = addCatch(player, caughtFish, catchWeight, guildId);
-  return { ok: true, caughtFish, catchWeight, expGain };
+  const { expGain, expBase, expEventInfo } = addCatch(player, caughtFish, catchWeight, guildId);
+  return { ok: true, caughtFish, catchWeight, expGain, expBase, expEventInfo };
 }
 
 function makeHelpEmbed(showAdminCommands = false) {
@@ -3365,9 +3516,12 @@ async function handleCommand(message) {
         await message.reply("No fish are configured yet.");
         return;
       }
-      const expGain = calculateCatchExp(catchResult.fish, message.guildId);
+      const expReward = calculateCatchExp(catchResult.fish, message.guildId);
       const popupChannel = await fetchFishingMessageChannel(null, message.guildId) || message.channel;
-      await popupChannel.send(makeCatchMessage(message.author, catchResult.fish, catchResult.catchWeight, expGain));
+      await popupChannel.send(makeCatchMessage(message.author, catchResult.fish, catchResult.catchWeight, expReward.total, {
+        expBase: expReward.base,
+        expEventInfo: expReward.eventInfo
+      }));
     });
     return;
   }
@@ -3382,7 +3536,10 @@ async function handleCommand(message) {
     }
 
     const popupChannel = await fetchFishingMessageChannel(player, message.guildId) || message.channel;
-    await popupChannel.send(makeCatchMessage(message.author, result.caughtFish, result.catchWeight, result.expGain));
+    await popupChannel.send(makeCatchMessage(message.author, result.caughtFish, result.catchWeight, result.expGain, {
+      expBase: result.expBase,
+      expEventInfo: result.expEventInfo
+    }));
     const currentLevel = getLevel(player.exp);
     if (currentLevel > previousLevel) {
       await popupChannel.send({ embeds: [makeLevelUpEmbed(message.author, currentLevel, message.member)] });
@@ -3418,7 +3575,10 @@ async function handleFishingProgress(message) {
 
     const popupChannel = await fetchFishingMessageChannel(player, message.guildId) || message.channel;
     for (const result of catches) {
-      await popupChannel.send(makeCatchMessage(message.author, result.caughtFish, result.catchWeight, result.expGain));
+      await popupChannel.send(makeCatchMessage(message.author, result.caughtFish, result.catchWeight, result.expGain, {
+        expBase: result.expBase,
+        expEventInfo: result.expEventInfo
+      }));
     }
     const currentLevel = getLevel(player.exp);
     if (currentLevel > previousLevel) {

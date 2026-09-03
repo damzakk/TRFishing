@@ -136,9 +136,38 @@ function rollFishForManager(data, player, selectedFishId = "") {
   return { fish: fallback, catchWeight: rollCatchWeight(fallback, rod) };
 }
 
+function normalizeEventBonuses(event) {
+  return Array.isArray(event?.bonuses) && event.bonuses.length
+    ? event.bonuses
+    : [{ type: event?.type, value: event?.value, fishId: event?.fishId }];
+}
+
+function isEventRunning(event) {
+  if (!event?.title || !event.endsAt || event.stoppedAt) {
+    return false;
+  }
+  const now = Date.now();
+  const startsAt = event.startAt ? Date.parse(event.startAt) : Date.parse(event.deployedAt || 0);
+  return startsAt <= now && Date.parse(event.endsAt) > now;
+}
+
+function getManagerEventMultiplier(data, type, guildId = "", fishId = "") {
+  const events = cleanEvents(data.events, data.activeEvent);
+  return events.filter((event) => isEventRunning(event) && event.guildId && event.guildId === guildId).reduce((multiplier, event) => {
+    const eventMultiplier = normalizeEventBonuses(event)
+      .filter((bonus) => bonus.type === type)
+      .filter((bonus) => type !== "fish_chance" || !bonus.fishId || bonus.fishId === fishId)
+      .reduce((bonusMultiplier, bonus) => bonusMultiplier * Math.max(0, Number(bonus.value || 1)), 1);
+    return multiplier * eventMultiplier;
+  }, 1);
+}
+
 function addManagerCatch(data, player, caughtFish, catchWeight) {
   const settings = data.settings || {};
-  const expGain = Math.max(0, Math.round(Number(caughtFish.exp || 0) * Number(settings.expMultiplier || 1)));
+  const guildId = String(player.lastFishingGuildId || "").trim();
+  const expBase = Math.max(0, Math.round(Number(caughtFish.exp || 0) * Number(settings.expMultiplier || 1)));
+  const expMultiplier = getManagerEventMultiplier(data, "exp_multiplier", guildId);
+  const expGain = Math.max(0, Math.round(expBase * expMultiplier));
   const luckScore = formatFishLuckScore(caughtFish.luckScale);
   player.inventory[caughtFish.id] = (player.inventory[caughtFish.id] || 0) + 1;
   player.totalFishCaught = Math.max(0, Number(player.totalFishCaught || 0)) + 1;
@@ -150,7 +179,15 @@ function addManagerCatch(data, player, caughtFish, catchWeight) {
   }
   player.exp += expGain;
   player.progress = 0;
-  return { expGain, luckScore };
+  return {
+    expGain,
+    expBase,
+    expEventInfo: {
+      multiplier: expMultiplier,
+      active: Math.abs(expMultiplier - 1) > 0.000001
+    },
+    luckScore
+  };
 }
 
 function cleanItem(item, type) {
@@ -547,7 +584,9 @@ async function handleApi(request, response) {
           channelId,
           fish: catchResult.fish,
           catchWeight: catchResult.catchWeight,
-          expGain: gain.expGain
+          expGain: gain.expGain,
+          expBase: gain.expBase,
+          expEventInfo: gain.expEventInfo
         });
       }
       sendJson(response, 200, {
@@ -586,10 +625,12 @@ async function handleApi(request, response) {
               discordUserId,
               guildId: messageChannel.guildId,
               channelId: messageChannel.channelId,
-              fish: catchResult.fish,
-              catchWeight: catchResult.catchWeight,
-              expGain: gain.expGain
-            });
+          fish: catchResult.fish,
+          catchWeight: catchResult.catchWeight,
+          expGain: gain.expGain,
+          expBase: gain.expBase,
+          expEventInfo: gain.expEventInfo
+        });
             queuedCount += 1;
           } else {
             skippedCount += 1;

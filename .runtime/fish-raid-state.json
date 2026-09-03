@@ -1,52 +1,41 @@
 {
   "guilds": {
     "891474628122394634": {
-      "dateKey": "2026-09-02",
+      "dateKey": "2026-09-03",
       "boss": {
-        "id": "mbg_tedi",
-        "name": "MBG TEDDY",
-        "description": "Selesaikan pesanan ikan untuk dapur MBG Pak Tedi sebelum hari esok!",
+        "id": "mbg_hendrik",
+        "name": "MBG HENDRIK",
+        "description": "Pikirkan anak anak yang kelaparan!\n\nSelesaikan pesanan ikan untuk dapur MBG Pak Hendrik sebelum hari esok, agar beliau bisa joget lalu membuat anak-anak Indonesia tumbuh sehat dan kuat!",
         "quotaKg": 500,
         "registrationBannerBase64": "",
-        "registrationBannerUrl": "https://cdn.discordapp.com/attachments/1543874293258260550/1544374960334577784/mbg_tedi-registrationbanner.png?ex=6a9846c3&is=6a96f543&hm=5c206a7410a64e68e620945cdb4bdf33b39e4e44b88623480bc11ede3a0370b9&",
+        "registrationBannerUrl": "https://cdn.discordapp.com/attachments/1543874293258260550/1544540055698276472/mbg_hendrik-registrationbanner.png?ex=6a98e085&is=6a978f05&hm=bed7443a25663f96305b926f32072b7c79164ac18741fa870d4ed7e4de015b43&",
         "registrationBannerRef": null,
         "runningBannerBase64": "",
-        "runningBannerUrl": "https://cdn.discordapp.com/attachments/1543874293258260550/1544374969608306838/mbg_tedi-runningbanner.png?ex=6a9846c5&is=6a96f545&hm=481469b73ebfe508c4d5013bac7399d90f55d06f2853ed9756c5958ae402f69b&",
+        "runningBannerUrl": "https://cdn.discordapp.com/attachments/1543874293258260550/1544540064359387186/mbg_hendrik-runningbanner.png?ex=6a98e087&is=6a978f07&hm=558289b724fa722099efa751eadff3da4b274212c3acc47213309e277d811dca&",
         "runningBannerRef": null,
         "resultBannerBase64": "",
-        "resultBannerUrl": "https://cdn.discordapp.com/attachments/1543874293258260550/1544374977716035706/mbg_tedi-resultbanner.png?ex=6a9846c7&is=6a96f547&hm=585996d0ef48d141b093b44ff283fd627ab89bc005350ef94381333b16c1eb75&",
+        "resultBannerUrl": "https://cdn.discordapp.com/attachments/1543874293258260550/1544540070273613865/mbg_hendrik-resultbanner.png?ex=6a98e088&is=6a978f08&hm=e7f59937d3c48e9194a530f4e3f2f0b941b5363e7ce0ef3ee4d9b98ac2bd83e2&",
         "resultBannerRef": null,
         "fulfilledBannerBase64": "",
-        "fulfilledBannerUrl": "https://cdn.discordapp.com/attachments/1543874293258260550/1544374987312472124/mbg_tedi-fulfilledbanner.png?ex=6a9846ca&is=6a96f54a&hm=530a9a418bcc168283b6466aa70054d88807bd868fcdfda445ce749bac976e2c&",
+        "fulfilledBannerUrl": "https://cdn.discordapp.com/attachments/1543874293258260550/1544540079945551872/mbg_hendrik-fulfilledbanner.png?ex=6a98e08b&is=6a978f0b&hm=11299c94eb674b4bc4837fde99d662d97099552eb0c5f0a23815cb8726f42bd7&",
         "fulfilledBannerRef": null,
         "failedBannerBase64": "",
-        "failedBannerUrl": "https://cdn.discordapp.com/attachments/1543874293258260550/1544374996158382180/mbg_tedi-failedbanner.png?ex=6a9846cc&is=6a96f54c&hm=f9b7f5bf2d8e5777da320a59c642204c41b0a459c4bd887726a757c48f97587b&",
+        "failedBannerUrl": "https://cdn.discordapp.com/attachments/1543874293258260550/1544540086190739496/mbg_hendrik-failedbanner.png?ex=6a98e08c&is=6a978f0c&hm=fd13091ccb2a232e9c751c341624cc2d3a08f4ec9e7f028ed45ad16abc4b690d&",
         "failedBannerRef": null
       },
       "quotaKg": 500,
-      "filledKg": 244.16747667282874,
+      "filledKg": 233.93375579745566,
       "participants": {
-        "281139082380312576": {
-          "id": "281139082380312576",
-          "username": "vnmrm",
-          "globalName": "venomenom",
-          "displayName": "<@281139082380312576>",
-          "logName": "TR | Mereun",
-          "count": 7,
-          "totalWeight": 8.474281187738487,
-          "heaviestWeight": 1.8313431991998868,
-          "heaviestName": "Ikan Nila"
-        },
-        "363275626662330369": {
-          "id": "363275626662330369",
-          "username": "fnadh",
-          "globalName": "Miradh",
-          "displayName": "<@363275626662330369>",
-          "logName": "TR | Celup (Adhiet)",
-          "count": 20,
-          "totalWeight": 40.65222131924642,
-          "heaviestWeight": 4.554931683216774,
-          "heaviestName": "Ikan Gurame"
+        "215382509851115520": {
+          "id": "215382509851115520",
+          "username": "zect52",
+          "globalName": "Zect",
+          "displayName": "<@215382509851115520>",
+          "logName": "Discord",
+          "count": 11,
+          "totalWeight": 11.151415481583356,
+          "heaviestWeight": 2.4887576233492106,
+          "heaviestName": "Ikan Lele"
         },
         "309140773176082452": {
           "id": "309140773176082452",
@@ -54,21 +43,10 @@
           "globalName": "Dikaleo",
           "displayName": "<@309140773176082452>",
           "logName": "TR | Pleset",
-          "count": 12,
-          "totalWeight": 24.60168480019931,
-          "heaviestWeight": 4.050838282371157,
-          "heaviestName": "Ikan Tongkol"
-        },
-        "305302752387530752": {
-          "id": "305302752387530752",
-          "username": "far.a.way",
-          "globalName": "far(a)way",
-          "displayName": "<@305302752387530752>",
-          "logName": "TR | Kadung",
-          "count": 17,
-          "totalWeight": 37.59521781719112,
-          "heaviestWeight": 5.988024146426309,
-          "heaviestName": "Ikan Asam Manis"
+          "count": 19,
+          "totalWeight": 38.128010746184415,
+          "heaviestWeight": 5.492314989487618,
+          "heaviestName": "Ikan Cupang Dragon"
         },
         "451776326723174401": {
           "id": "451776326723174401",
@@ -76,10 +54,10 @@
           "globalName": "Azara",
           "displayName": "<@451776326723174401>",
           "logName": "TR | Aktor (Adam) (Awiwir)",
-          "count": 29,
-          "totalWeight": 55.70234154621389,
-          "heaviestWeight": 3.8852464234006074,
-          "heaviestName": "Ikan Gurame"
+          "count": 25,
+          "totalWeight": 36.304172254363884,
+          "heaviestWeight": 6.726796670135448,
+          "heaviestName": "Ikan Nawas"
         },
         "337858521771278338": {
           "id": "337858521771278338",
@@ -87,9 +65,31 @@
           "globalName": "KakGeri",
           "displayName": "<@337858521771278338>",
           "logName": "TR | Klepon (KakGeri)",
-          "count": 13,
-          "totalWeight": 30.222529543604004,
-          "heaviestWeight": 5.7052854095306,
+          "count": 11,
+          "totalWeight": 25.272752433964854,
+          "heaviestWeight": 6.584673657736427,
+          "heaviestName": "Ikan Crazy Killer"
+        },
+        "305302752387530752": {
+          "id": "305302752387530752",
+          "username": "far.a.way",
+          "globalName": "far(a)way",
+          "displayName": "<@305302752387530752>",
+          "logName": "TR | Kadung",
+          "count": 9,
+          "totalWeight": 21.59895706256535,
+          "heaviestWeight": 5.404747889209731,
+          "heaviestName": "Ikan Gurame"
+        },
+        "363275626662330369": {
+          "id": "363275626662330369",
+          "username": "fnadh",
+          "globalName": "Miradh",
+          "displayName": "<@363275626662330369>",
+          "logName": "TR | Celup (Adhiet)",
+          "count": 23,
+          "totalWeight": 63.463646261062735,
+          "heaviestWeight": 22.842232962551375,
           "heaviestName": "Ikan Praroro"
         },
         "367669792993181697": {
@@ -98,25 +98,25 @@
           "globalName": "PakTuki",
           "displayName": "<@367669792993181697>",
           "logName": "TR | Ebol Ebol",
-          "count": 11,
-          "totalWeight": 24.76762179735379,
-          "heaviestWeight": 4.589317915667367,
-          "heaviestName": "Ikan Geri"
+          "count": 10,
+          "totalWeight": 21.55515856318931,
+          "heaviestWeight": 3.3502019901768234,
+          "heaviestName": "Rama Naufal"
         },
-        "275237881323454465": {
-          "id": "275237881323454465",
-          "username": "shera",
-          "globalName": "Delta",
-          "displayName": "<@275237881323454465>",
-          "logName": "᲼",
-          "count": 9,
-          "totalWeight": 22.15157866128172,
-          "heaviestWeight": 5.91297943682992,
-          "heaviestName": "Ikan Crazy Killer"
+        "297817270116417539": {
+          "id": "297817270116417539",
+          "username": "agui1ar.",
+          "globalName": "Agui1ar.-",
+          "displayName": "<@297817270116417539>",
+          "logName": "Agui1ar.-",
+          "count": 8,
+          "totalWeight": 16.459642994541813,
+          "heaviestWeight": 4.067076695717669,
+          "heaviestName": "Ikan Asam Manis"
         }
       },
       "fulfilledAt": "",
-      "lastRaidEndedAt": 1788316575565,
+      "lastRaidEndedAt": 1788409144507,
       "channelId": "891474628122394637"
     }
   }
