@@ -9,13 +9,20 @@ const {
   ButtonStyle,
   ChannelType,
   Client,
+  ContainerBuilder,
   AttachmentBuilder,
   GatewayIntentBits,
+  MediaGalleryBuilder,
+  MediaGalleryItemBuilder,
   MessageFlags,
   Partials,
   EmbedBuilder,
   PermissionFlagsBits,
-  StringSelectMenuBuilder
+  SectionBuilder,
+  SeparatorBuilder,
+  StringSelectMenuBuilder,
+  TextDisplayBuilder,
+  ThumbnailBuilder
 } = require("discord.js");
 const {
   entersState,
@@ -98,6 +105,7 @@ let gameData = {
     fishRaidEvents: [],
     fishRaidBosses: [],
     fishCompLogIntervalMs: 2500,
+    fishCompHistoryLogHours: 24,
     fishCompExpReward: 50,
     fishCompGoldReward: 0,
     fishRaidLogIntervalMs: 2500,
@@ -138,6 +146,8 @@ let fishRaidMidnightTimer = null;
 const processedEnforcedFishingIds = new Set();
 const processedGiveMoneyIds = new Set();
 const processedFishRaidSignalIds = new Set();
+let leaderboardCache = { records: [], loadedAt: 0 };
+const leaderboardCacheTtlMs = 2 * 60 * 1000;
 
 async function refreshGameData() {
   gameData = await getGameData();
@@ -406,7 +416,8 @@ async function handleCatchShowcase(interaction) {
   }
 
   const embeds = interaction.message.embeds.map((embed) => EmbedBuilder.from(embed));
-  if (!embeds.length) {
+  const components = stripActionRowsWithCustomIdPrefix(interaction.message.components, "catch_showcase");
+  if (!embeds.length && !components.length) {
     await interaction.reply({ content: "Popup tangkapan ini tidak bisa dipamerkan.", flags: MessageFlags.Ephemeral });
     return;
   }
@@ -416,12 +427,22 @@ async function handleCatchShowcase(interaction) {
     name: attachment.name || undefined
   }));
 
-  await targetChannel.send({
-    content: `${formatDiscordMention(interaction.user.id)} meminta izin untuk pamer nih bos!`,
-    embeds,
-    files,
-    allowedMentions: { users: [interaction.user.id] }
-  });
+  if (components.length) {
+    await targetChannel.send(makeComponentsV2Message([
+      makeTextDisplay(`### ${formatDiscordMention(interaction.user.id)} meminta izin untuk pamer nih bos!`),
+      ...components
+    ], {
+      files,
+      allowedMentions: { users: [interaction.user.id] }
+    }));
+  } else {
+    await targetChannel.send({
+      content: `${formatDiscordMention(interaction.user.id)} meminta izin untuk pamer nih bos!`,
+      embeds,
+      files,
+      allowedMentions: { users: [interaction.user.id] }
+    });
+  }
   await interaction.reply({ content: "Tangkapanmu sudah dipamerkan di channel utama.", flags: MessageFlags.Ephemeral });
 }
 
@@ -684,6 +705,119 @@ function escapeXml(value) {
   }[char]));
 }
 
+const componentsV2Flag = MessageFlags.IsComponentsV2 || 32768;
+
+function makeTextDisplay(content) {
+  return new TextDisplayBuilder().setContent(truncateText(String(content || "\u200b"), 3900));
+}
+
+function formatEmbedMainText(embedData, prefix = "") {
+  return [
+    prefix,
+    embedData.title ? `## ${embedData.title}` : "",
+    embedData.description || ""
+  ].filter(Boolean).join("\n");
+}
+
+function formatEmbedFields(fields = []) {
+  return fields
+    .map((field) => `**${field.name}**\n${field.value}`)
+    .filter(Boolean)
+    .join("\n\n");
+}
+
+function makeMediaGallery(url, description = "") {
+  return new MediaGalleryBuilder().addItems(
+    new MediaGalleryItemBuilder()
+      .setURL(url)
+      .setDescription(description || "Message image")
+  );
+}
+
+function makeComponentsV2Message(components, options = {}) {
+  return {
+    content: null,
+    embeds: [],
+    flags: options.flags ? options.flags | componentsV2Flag : componentsV2Flag,
+    files: options.files || [],
+    allowedMentions: options.allowedMentions,
+    components
+  };
+}
+
+function makeEmbedPanelMessage(embed, options = {}) {
+  const data = typeof embed?.toJSON === "function" ? embed.toJSON() : embed || {};
+  const container = new ContainerBuilder();
+  if (data.color) {
+    container.setAccentColor(data.color);
+  }
+
+  const mainText = formatEmbedMainText(data, options.prefix || "");
+  if (data.thumbnail?.url) {
+    container.addSectionComponents(
+      new SectionBuilder()
+        .addTextDisplayComponents(makeTextDisplay(mainText || "\u200b"))
+        .setThumbnailAccessory(new ThumbnailBuilder().setURL(data.thumbnail.url))
+    );
+  } else if (mainText) {
+    container.addTextDisplayComponents(makeTextDisplay(mainText));
+  }
+
+  const fieldText = formatEmbedFields(data.fields);
+  if (fieldText) {
+    container.addTextDisplayComponents(makeTextDisplay(fieldText));
+  }
+
+  if (data.image?.url) {
+    container.addMediaGalleryComponents(makeMediaGallery(data.image.url, data.title || "Message image"));
+  }
+
+  if (options.components?.length) {
+    container.addSeparatorComponents(new SeparatorBuilder());
+    container.addActionRowComponents(options.components);
+  }
+
+  return makeComponentsV2Message([container], {
+    files: options.files,
+    allowedMentions: options.allowedMentions,
+    flags: options.flags
+  });
+}
+
+function makeSimplePanelMessage(title, description, color = 0xe74c3c) {
+  return makeEmbedPanelMessage(
+    new EmbedBuilder()
+      .setColor(color)
+      .setTitle(title)
+      .setDescription(description)
+  );
+}
+
+function componentCustomId(component) {
+  return component?.custom_id || component?.customId || "";
+}
+
+function stripActionRowsWithCustomIdPrefix(components, customIdPrefix) {
+  return (components || [])
+    .map((component) => {
+      const data = typeof component?.toJSON === "function" ? component.toJSON() : component;
+      if (!data || typeof data !== "object") {
+        return null;
+      }
+      if (data.type === 1 && (data.components || []).some((child) => componentCustomId(child).startsWith(customIdPrefix))) {
+        return null;
+      }
+      if (Array.isArray(data.components)) {
+        return {
+          ...data,
+          components: stripActionRowsWithCustomIdPrefix(data.components, customIdPrefix)
+        };
+      }
+      return data;
+    })
+    .filter((component) => component && (!Array.isArray(component.components) || component.components.length));
+}
+
 function makeProgressBar(value, max, size = 10) {
   const safeMax = Math.max(1, Number(max || 1));
   const safeValue = Math.max(0, Math.min(safeMax, Number(value || 0)));
@@ -916,13 +1050,46 @@ function makeProfileComponents(player, member = null) {
 }
 
 function makeProfileMessage(user, player, member = null) {
-  const profile = makeProfileEmbed(user, player);
-  return {
-    content: "",
-    embeds: [profile.embed],
-    files: profile.files,
-    components: makeProfileComponents(player, member)
-  };
+  const rod = getRod(player.rodId);
+  const level = getLevel(player.exp);
+  const nextExp = expForLevel(level);
+  const heaviestFish = player.heaviestFish;
+  const heaviestFishEntry = heaviestFish
+    ? gameData.fish.find((fishEntry) => fishEntry.id === heaviestFish.fishId || fishEntry.name === heaviestFish.name)
+    : null;
+  const heaviestText = heaviestFish
+    ? `${heaviestFish.name} - ${formatKg(heaviestFish.weight)}`
+    : "Belum ada";
+  const progressBar = makeProgressBar(player.progress, rod?.speed || 1);
+  const voiceTime = formatDurationIndonesian(Number(player.voiceTotalMs || 0) + getCurrentVoiceSessionMs(user.id));
+  const icon = heaviestFishEntry ? makeIconAttachment(heaviestFishEntry, "fish") : null;
+  const profileText = [
+    `## ${user.username} · Level ${level}`,
+    "",
+    `**EXP:** ${player.exp}/${nextExp} · **Gold:** ${player.gold}`,
+    `**Pancingan:** ${rod?.name || "No rod found"} · **Voice:** ${voiceTime}`,
+    `**Total Ikan:** ${Math.max(0, Number(player.totalFishCaught || 0))}`,
+    `**Ikan Terberat:** ${heaviestText}`,
+    `**Progress:** ${progressBar} ${player.progress}/${rod?.speed || "?"}`
+  ].join("\n");
+  const container = new ContainerBuilder().setAccentColor(0x2ecc71);
+  if (icon) {
+    container.addSectionComponents(
+      new SectionBuilder()
+        .addTextDisplayComponents(makeTextDisplay(profileText))
+        .setThumbnailAccessory(new ThumbnailBuilder().setURL(icon.url))
+    );
+  } else {
+    container.addTextDisplayComponents(makeTextDisplay(profileText));
+  }
+  const components = makeProfileComponents(player, member);
+  if (components.length) {
+    container.addSeparatorComponents(new SeparatorBuilder());
+    container.addActionRowComponents(components);
+  }
+  return makeComponentsV2Message([container], {
+    files: icon?.attachment ? [icon.attachment] : []
+  });
 }
 
 function getRandomFishDescription(caughtFish) {
@@ -994,12 +1161,13 @@ function makeCatchShareRow(user) {
 
 function makeCatchMessage(user, caughtFish, catchWeight, expGain, options = {}) {
   const catchEmbed = makeCatchEmbed(user, caughtFish, catchWeight, expGain, options.expBase ?? expGain, options.expEventInfo || null);
-  return {
-    ...getUserMentionForMessage(user, options),
-    embeds: [catchEmbed.embed],
+  const mention = getUserMentionForMessage(user, options);
+  return makeEmbedPanelMessage(catchEmbed.embed, {
+    prefix: mention.content,
+    allowedMentions: mention.allowedMentions,
     files: catchEmbed.files,
     components: [makeCatchShareRow(user)]
-  };
+  });
 }
 
 function makeLevelUpEmbed(user, level, member = null) {
@@ -1222,13 +1390,23 @@ async function makeServerStatusMessage(guild) {
   return { embeds: [embed] };
 }
 
-async function loadAdminPlayersSafely(search = "") {
+async function loadAdminPlayersSafely(search = "", options = {}) {
   try {
-    return await adminListPlayers(search);
+    return await adminListPlayers(search, options);
   } catch (error) {
     console.error("Could not load admin player list:", error);
     return [];
   }
+}
+
+async function loadLeaderboardPlayersSafely(forceRefresh = false) {
+  const now = Date.now();
+  if (!forceRefresh && leaderboardCache.records.length && now - leaderboardCache.loadedAt < leaderboardCacheTtlMs) {
+    return leaderboardCache.records;
+  }
+  const records = await loadAdminPlayersSafely("", { preferIndex: true });
+  leaderboardCache = { records, loadedAt: Date.now() };
+  return records;
 }
 
 function formatDiscordMention(userId) {
@@ -1755,11 +1933,10 @@ function makeStoreComponents(player, selectedRodId = null) {
 
 function makeStoreMessage(player, selectedRodId = null, status = "") {
   const imageAttachment = makeRodStoreImageAttachment(player);
-  return {
-    embeds: [makeStoreEmbed(player, status)],
+  return makeEmbedPanelMessage(makeStoreEmbed(player, status), {
     files: imageAttachment ? [imageAttachment] : [],
     components: makeStoreComponents(player, selectedRodId)
-  };
+  });
 }
 
 function makeCompetitionEmbed(competition, status = "registration") {
@@ -1841,11 +2018,10 @@ function makeCompetitionMessage(competition, status = "registration", components
   const banner = status === "closed" || status === "complete"
     ? null
     : competition.mode === "raid" ? makeFishRaidImage(status, normalizeDailyRaidState(competition.guildId).boss) : makeFishCompImage(status);
-  return {
-    embeds: [embed],
+  return makeEmbedPanelMessage(embed, {
     files: banner?.attachment ? [banner.attachment] : [],
     components
-  };
+  });
 }
 
 function formatCompetitionLogs(logs) {
@@ -2273,11 +2449,11 @@ function formatCompetitionScoreboard(competition) {
 }
 
 function getCompetitionRewardExp(competition) {
-  return Math.round(getCompetitionBaseRewardExp() * getEventMultiplier("exp_multiplier", competition.guildId));
+  return Math.round(getCompetitionBaseRewardExp() * getCompetitionParticipantMultiplier(competition) * getEventMultiplier("exp_multiplier", competition.guildId));
 }
 
 function getCompetitionRewardGold(competition) {
-  return Math.round(getCompetitionBaseRewardGold() * getEventMultiplier("gold_multiplier", competition.guildId));
+  return Math.round(getCompetitionBaseRewardGold() * getCompetitionParticipantMultiplier(competition) * getEventMultiplier("gold_multiplier", competition.guildId));
 }
 
 function getCompetitionBaseRewardExp() {
@@ -2286,6 +2462,10 @@ function getCompetitionBaseRewardExp() {
 
 function getCompetitionBaseRewardGold() {
   return Math.round(Number(getSettings().fishCompGoldReward ?? 0));
+}
+
+function getCompetitionParticipantMultiplier(competition) {
+  return Math.max(1, Number(competition?.participants?.size || 0));
 }
 
 function getRaidRewardAmount(key, guildId, multiplierType = "") {
@@ -2540,11 +2720,10 @@ async function finishFishRaid(raid, channel) {
   if (banner?.url) {
     embed.setImage(banner.url);
   }
-  await channel.send({
-    embeds: [embed],
+  await channel.send(makeEmbedPanelMessage(embed, {
     files: banner?.attachment ? [banner.attachment] : [],
     components: makeFishRaidResultRow(logId)
-  }).catch(() => {});
+  })).catch(() => {});
   await raid.message?.delete().catch(() => {});
   await raid.pingMessage?.delete().catch(() => {});
   if (raid.logMessage) {
@@ -2655,8 +2834,9 @@ async function runCompetition(competition) {
   const winner = getSortedCompetitionResults(competition)[0];
   const winnerRewardExp = winner ? getCompetitionRewardExp(competition) : 0;
   const winnerRewardGold = winner ? getCompetitionRewardGold(competition) : 0;
-  const winnerBaseExp = winner ? getCompetitionBaseRewardExp() : 0;
-  const winnerBaseGold = winner ? getCompetitionBaseRewardGold() : 0;
+  const participantMultiplier = getCompetitionParticipantMultiplier(competition);
+  const winnerBaseExp = winner ? Math.round(getCompetitionBaseRewardExp() * participantMultiplier) : 0;
+  const winnerBaseGold = winner ? Math.round(getCompetitionBaseRewardGold() * participantMultiplier) : 0;
   const expEventInfo = getEventMultiplierInfo("exp_multiplier", competition.guildId);
   const goldEventInfo = getEventMultiplierInfo("gold_multiplier", competition.guildId);
   let winnerLevel = 0;
@@ -2666,8 +2846,10 @@ async function runCompetition(competition) {
       winnerPreviousLevel = getLevel(player.exp);
       player.exp += winnerRewardExp;
       player.gold = Math.max(0, Math.floor(Number(player.gold || 0))) + winnerRewardGold;
+      player.fishCompWins = Math.max(0, Math.floor(Number(player.fishCompWins || 0))) + 1;
       winnerLevel = getLevel(player.exp);
     });
+    leaderboardCache.loadedAt = 0;
   }
   const embed = new EmbedBuilder()
     .setColor(0x2ecc71)
@@ -2678,6 +2860,7 @@ async function runCompetition(competition) {
         listCompetitionResultParticipants(competition),
         "",
         winner ? `# MVP: ${winner.displayName}` : "# MVP: -",
+        winner ? `Participant multiplier: **x${participantMultiplier}**` : "",
         winner ? `Mendapat hadiah: **${formatRewardWithBonus(winnerRewardExp, winnerBaseExp, "EXP")}** dan **${formatRewardWithBonus(winnerRewardGold, winnerBaseGold, "Gold")}**` : "Mendapat hadiah: **0 EXP** dan **0 Gold**",
         formatBonusNotice("EXP", expEventInfo, winnerRewardExp, winnerBaseExp),
         formatBonusNotice("Gold", goldEventInfo, winnerRewardGold, winnerBaseGold),
@@ -2695,11 +2878,10 @@ async function runCompetition(competition) {
   if (banner?.url) {
     embed.setImage(banner.url);
   }
-  await channel.send({
-    embeds: [embed],
+  await channel.send(makeEmbedPanelMessage(embed, {
     files: banner?.attachment ? [banner.attachment] : [],
     components: makeCompetitionResultRow(logId)
-  }).catch(() => {});
+  })).catch(() => {});
   await competition.message?.delete().catch(() => {});
   await competition.pingMessage?.delete().catch(() => {});
   if (competition.logMessage) {
@@ -2737,16 +2919,7 @@ async function cancelCompetition(competition, reason) {
     competition.timeout = null;
   }
   competition.status = "cancelled";
-  await competition.message?.edit({
-    embeds: [
-      new EmbedBuilder()
-        .setColor(0xe74c3c)
-        .setTitle("Kompetisi Dibatalkan")
-        .setDescription(reason)
-    ],
-    components: [],
-    files: []
-  }).catch(() => {});
+  await competition.message?.edit(makeSimplePanelMessage("Kompetisi Dibatalkan", reason)).catch(() => {});
   await competition.pingMessage?.delete().catch(() => {});
   if (competition.mode === "raid") {
     fishRaids.delete(competition.guildId);
@@ -2756,7 +2929,12 @@ async function cancelCompetition(competition, reason) {
 }
 
 function cleanupFinishedCompetitionLogs() {
-  const maxAgeMs = 24 * 60 * 60 * 1000;
+  const historyHours = Math.max(0, Number(getSettings().fishCompHistoryLogHours ?? 24));
+  const maxAgeMs = historyHours * 60 * 60 * 1000;
+  if (maxAgeMs <= 0) {
+    finishedCompetitionLogs.clear();
+    return;
+  }
   const now = Date.now();
   for (const [logId, record] of finishedCompetitionLogs.entries()) {
     if (now - Number(record.createdAt || 0) > maxAgeMs) {
@@ -3237,6 +3415,7 @@ const leaderboardPages = [
   { id: "fish_count", label: "Fish Count", title: "Jumlah Ikan" },
   { id: "biggest_fish", label: "Biggest Fish", title: "Ikan Terbesar" },
   { id: "fish_luck", label: "Fish Luck", title: "Luck Score Tertinggi" },
+  { id: "fishcomp_wins", label: "FishComp Wins", title: "Pemenang FishComp Terbanyak" },
   { id: "level", label: "Level", title: "Level Tertinggi" }
 ];
 
@@ -3252,6 +3431,7 @@ function sortLeaderboardRecords(records, page) {
     fish_count: (record) => Number(record.player.totalFishCaught || 0),
     biggest_fish: (record) => Number(record.player.heaviestFish?.weight || 0),
     fish_luck: (record) => Number(record.player.luckiestFish?.score || 0),
+    fishcomp_wins: (record) => Number(record.player.fishCompWins || 0),
     level: (record) => getLevel(Number(record.player.exp || 0))
   }[page] || ((record) => Number(record.player.totalFishCaught || 0));
   return [...records].sort((a, b) => valueFor(b) - valueFor(a) || getLeaderboardName(a).localeCompare(getLeaderboardName(b)));
@@ -3271,12 +3451,15 @@ function makeLeaderboardLine(record, page, index) {
   if (page === "level") {
     return `${rank}. ${name} - **Level ${getLevel(Number(record.player.exp || 0))}** (${Number(record.player.exp || 0)} EXP)`;
   }
+  if (page === "fishcomp_wins") {
+    return `${rank}. ${name} - **${Number(record.player.fishCompWins || 0)} menang**`;
+  }
   return `${rank}. ${name} - **${Number(record.player.totalFishCaught || 0)} ikan**`;
 }
 
 async function makeLeaderboardMessage(page = "fish_count") {
   const selectedPage = leaderboardPages.some((entry) => entry.id === page) ? page : "fish_count";
-  const records = sortLeaderboardRecords(await loadAdminPlayersSafely(), selectedPage).slice(0, 10);
+  const records = sortLeaderboardRecords(await loadLeaderboardPlayersSafely(), selectedPage).slice(0, 10);
   const pageInfo = leaderboardPages.find((entry) => entry.id === selectedPage);
   const embed = new EmbedBuilder()
     .setColor(0x36c28a)
@@ -3290,10 +3473,9 @@ async function makeLeaderboardMessage(page = "fish_count") {
       value: entry.id,
       default: entry.id === selectedPage
     })));
-  return {
-    embeds: [embed],
+  return makeEmbedPanelMessage(embed, {
     components: [new ActionRowBuilder().addComponents(select)]
-  };
+  });
 }
 
 function makeSlashCommands() {
@@ -3822,12 +4004,10 @@ client.on("interactionCreate", async (interaction) => {
       const role = await ensureFishCompRole(interaction.guild);
       const member = await interaction.guild.members.fetch(interaction.user.id).catch(() => null);
       if (!role || !member) {
-        await interaction.editReply({
-          content: "Aku belum bisa menyiapkan role FishComp. Pastikan bot punya permission Manage Roles.",
-          embeds: [],
-          files: [],
-          components: []
-        });
+        await interaction.editReply(makeSimplePanelMessage(
+          "Role FishComp Belum Siap",
+          "Aku belum bisa menyiapkan role FishComp. Pastikan bot punya permission Manage Roles."
+        ));
         return;
       }
 

@@ -64,6 +64,7 @@ const defaultSettings = {
     }
   ],
   fishCompLogIntervalMs: 2500,
+  fishCompHistoryLogHours: 24,
   fishCompExpReward: 50,
   fishCompGoldReward: 0,
   fishRaidLogIntervalMs: 2500,
@@ -269,6 +270,7 @@ function makeDefaultPlayer() {
     ownedRods: [starterRodId],
     inventory: {},
     totalFishCaught: 0,
+    fishCompWins: 0,
     heaviestFish: null,
     luckiestFish: null,
     progress: 0,
@@ -297,6 +299,7 @@ function normalizePlayer(rawPlayer) {
     ...(rawPlayer && typeof rawPlayer === "object" ? rawPlayer : {}),
     inventory,
     totalFishCaught: Math.max(0, Number(rawPlayer?.totalFishCaught ?? totalFromInventory)),
+    fishCompWins: Math.max(0, Math.floor(cleanNumber(rawPlayer?.fishCompWins, 0))),
     heaviestFish,
     luckiestFish,
     voiceTotalMs: Math.max(0, Number(rawPlayer?.voiceTotalMs || 0)),
@@ -484,16 +487,25 @@ function loadLegacyDiscordPlayerIds() {
   }
 }
 
-async function adminListPlayers(search = "") {
+async function adminListPlayers(search = "", options = {}) {
   const query = String(search || "").trim().toLowerCase();
+  const preferIndex = options?.preferIndex === true;
   const directDiscordId = /^\d{12,}$/.test(query) ? await adminGetPlayerByDiscordId(query) : null;
   let profiles = [];
-  try {
-    profiles = await adminListPlayerProfiles();
-  } catch (error) {
-    console.warn(`Could not list PlayFab player segment, using player index fallback: ${error.message}`);
+  let indexedPlayers = [];
+  if (preferIndex) {
+    indexedPlayers = await loadPlayerIndex();
   }
-  const indexedPlayers = profiles.length ? [] : await loadPlayerIndex();
+  if (!indexedPlayers.length) {
+    try {
+      profiles = await adminListPlayerProfiles();
+    } catch (error) {
+      console.warn(`Could not list PlayFab player segment, using player index fallback: ${error.message}`);
+    }
+  }
+  if (!profiles.length && !indexedPlayers.length) {
+    indexedPlayers = await loadPlayerIndex();
+  }
   const legacyPlayers = profiles.length || indexedPlayers.length ? [] : await Promise.all(loadLegacyDiscordPlayerIds().map(async (discordUserId) => {
     const login = await lookupDiscordUserLogin(discordUserId).catch(() => null);
     return login?.PlayFabId ? { playFabId: login.PlayFabId, discordUserId } : null;
@@ -654,6 +666,7 @@ function cleanSettings(settings) {
     fishRaidEvents: cleanFishCompEvents(source.fishRaidEvents, defaultSettings.fishRaidEvents),
     fishRaidBosses: cleanFishRaidBosses(source.fishRaidBosses),
     fishCompLogIntervalMs: Math.max(0, cleanNumber(source.fishCompLogIntervalMs ?? defaultSettings.fishCompLogIntervalMs, defaultSettings.fishCompLogIntervalMs)),
+    fishCompHistoryLogHours: Math.max(0, cleanNumber(source.fishCompHistoryLogHours ?? defaultSettings.fishCompHistoryLogHours, defaultSettings.fishCompHistoryLogHours)),
     fishCompExpReward: Math.max(0, cleanNumber(source.fishCompExpReward ?? defaultSettings.fishCompExpReward, defaultSettings.fishCompExpReward)),
     fishCompGoldReward: Math.max(0, cleanNumber(source.fishCompGoldReward ?? defaultSettings.fishCompGoldReward, defaultSettings.fishCompGoldReward)),
     fishRaidLogIntervalMs: Math.max(0, cleanNumber(source.fishRaidLogIntervalMs ?? defaultSettings.fishRaidLogIntervalMs, defaultSettings.fishRaidLogIntervalMs)),

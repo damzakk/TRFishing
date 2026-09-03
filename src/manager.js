@@ -75,6 +75,7 @@ function cleanPlayer(player) {
     ownedRods,
     inventory,
     totalFishCaught: Math.max(0, Math.floor(cleanNumber(source.totalFishCaught, Object.values(inventory).reduce((sum, quantity) => sum + quantity, 0)))),
+    fishCompWins: Math.max(0, Math.floor(cleanNumber(source.fishCompWins, 0))),
     heaviestFish: source.heaviestFish && typeof source.heaviestFish === "object" ? source.heaviestFish : null,
     luckiestFish: source.luckiestFish && typeof source.luckiestFish === "object" ? source.luckiestFish : null,
     progress: Math.max(0, Math.floor(cleanNumber(source.progress, 0))),
@@ -1197,7 +1198,7 @@ const html = `<!doctype html>
       fish: [],
       rods: [],
       adminDiscordIds: [],
-      settings: { rodStoreImageBase64: "", rodStoreImageUrl: "", fishCompBannerBase64: "", fishCompBannerUrl: "", fishCompRegistrationBannerBase64: "", fishCompRegistrationBannerUrl: "", fishCompRunningBannerBase64: "", fishCompRunningBannerUrl: "", fishCompResultBannerBase64: "", fishCompResultBannerUrl: "", fishRaidBannerBase64: "", fishRaidBannerUrl: "", fishRaidRegistrationBannerBase64: "", fishRaidRegistrationBannerUrl: "", fishRaidRunningBannerBase64: "", fishRaidRunningBannerUrl: "", fishRaidResultBannerBase64: "", fishRaidResultBannerUrl: "", fishGuideBannerBase64: "", fishGuideBannerUrl: "", fishHelpBannerBase64: "", fishHelpBannerUrl: "", sellFishBannerBase64: "", sellFishBannerUrl: "", fishCompEvents: [], fishRaidEvents: [], fishRaidBosses: [{ id: "big_order", name: "Big Fish Order", quotaKg: 100, description: "Pesanan ikan besar hari ini sudah menunggu.", registrationBannerBase64: "", registrationBannerUrl: "", runningBannerBase64: "", runningBannerUrl: "", resultBannerBase64: "", resultBannerUrl: "", fulfilledBannerBase64: "", fulfilledBannerUrl: "", failedBannerBase64: "", failedBannerUrl: "" }], fishCompLogIntervalMs: 2500, fishCompExpReward: 50, fishCompGoldReward: 0, fishRaidLogIntervalMs: 2500, fishRaidParticipantExpReward: 25, fishRaidParticipantGoldReward: 0, fishRaidMvpExpReward: 75, fishRaidMvpGoldReward: 0, fishRaidClearParticipantExpReward: 50, fishRaidClearParticipantGoldReward: 0, fishRaidClearMvpExpReward: 150, fishRaidClearMvpGoldReward: 0, allowActivity: true, chatCooldownMs: 20000, expMultiplier: 1, levelExpMultiplier: 1, voiceExpAmount: 1, voiceExpIntervalMinutes: 15 },
+      settings: { rodStoreImageBase64: "", rodStoreImageUrl: "", fishCompBannerBase64: "", fishCompBannerUrl: "", fishCompRegistrationBannerBase64: "", fishCompRegistrationBannerUrl: "", fishCompRunningBannerBase64: "", fishCompRunningBannerUrl: "", fishCompResultBannerBase64: "", fishCompResultBannerUrl: "", fishRaidBannerBase64: "", fishRaidBannerUrl: "", fishRaidRegistrationBannerBase64: "", fishRaidRegistrationBannerUrl: "", fishRaidRunningBannerBase64: "", fishRaidRunningBannerUrl: "", fishRaidResultBannerBase64: "", fishRaidResultBannerUrl: "", fishGuideBannerBase64: "", fishGuideBannerUrl: "", fishHelpBannerBase64: "", fishHelpBannerUrl: "", sellFishBannerBase64: "", sellFishBannerUrl: "", fishCompEvents: [], fishRaidEvents: [], fishRaidBosses: [{ id: "big_order", name: "Big Fish Order", quotaKg: 100, description: "Pesanan ikan besar hari ini sudah menunggu.", registrationBannerBase64: "", registrationBannerUrl: "", runningBannerBase64: "", runningBannerUrl: "", resultBannerBase64: "", resultBannerUrl: "", fulfilledBannerBase64: "", fulfilledBannerUrl: "", failedBannerBase64: "", failedBannerUrl: "" }], fishCompLogIntervalMs: 2500, fishCompHistoryLogHours: 24, fishCompExpReward: 50, fishCompGoldReward: 0, fishRaidLogIntervalMs: 2500, fishRaidParticipantExpReward: 25, fishRaidParticipantGoldReward: 0, fishRaidMvpExpReward: 75, fishRaidMvpGoldReward: 0, fishRaidClearParticipantExpReward: 50, fishRaidClearParticipantGoldReward: 0, fishRaidClearMvpExpReward: 150, fishRaidClearMvpGoldReward: 0, allowActivity: true, chatCooldownMs: 20000, expMultiplier: 1, levelExpMultiplier: 1, voiceExpAmount: 1, voiceExpIntervalMinutes: 15 },
       activeEvent: null,
       events: [],
       eventDraft: null,
@@ -1416,6 +1417,7 @@ const html = `<!doctype html>
           \${playerField("Rod ID", "rodId", player.rodId || "")}
           \${playerField("Progress", "progress", player.progress || 0, "number", "1")}
           \${playerField("Total Fish Caught", "totalFishCaught", player.totalFishCaught || 0, "number", "1")}
+          \${playerField("FishComp Wins", "fishCompWins", player.fishCompWins || 0, "number", "1")}
           \${playerField("Last Fishing Channel ID", "lastFishingChannelId", player.lastFishingChannelId || "")}
           \${playerField("Last Fishing Server ID", "lastFishingGuildId", player.lastFishingGuildId || "")}
           \${playerField("Voice Total, ms", "voiceTotalMs", player.voiceTotalMs || 0, "number", "1000")}
@@ -1460,6 +1462,10 @@ const html = `<!doctype html>
       return \`
         <div class="topline">
           <strong>Game Settings</strong>
+          <span>
+            <button data-export-settings type="button">Export Settings</button>
+            <label class="file-picker"><span>Import Settings</span><input type="file" accept="application/json,.json" data-import-settings></label>
+          </span>
         </div>
         \${tabs}
         \${body}\`;
@@ -1490,8 +1496,9 @@ const html = `<!doctype html>
           \${field("Competition EXP Reward", "fishCompExpReward", state.settings.fishCompExpReward ?? 50, 0, "number", "1")}
           \${field("Competition Gold Reward", "fishCompGoldReward", state.settings.fishCompGoldReward ?? 0, 0, "number", "1")}
           \${field("Fish Comp Log Interval, ms", "fishCompLogIntervalMs", state.settings.fishCompLogIntervalMs ?? 2500, 0, "number", "100")}
+          \${field("History Log Lifetime, hours", "fishCompHistoryLogHours", state.settings.fishCompHistoryLogHours ?? 24, 0, "number", "1")}
           <label class="wide">Fish Comp Events JSON<textarea data-settings-json="fishCompEvents">\${escapeHtml(JSON.stringify(state.settings.fishCompEvents || [], null, 2))}</textarea></label>
-          <div class="wide small">Use {user} and {target} in event text. Chance is percent per player turn. Types: stun, buff, debuff, empty. luckModifier changes competition luck while active.</div>
+          <div class="wide small">Use {user} and {target} in event text. Chance is percent per player turn. Types: stun, buff, debuff, empty. luckModifier changes competition luck while active. Winner rewards are multiplied by participant count.</div>
           <div class="image-grid">
             \${settingsImageFields("Fish Comp Registration Banner", "fishCompRegistrationBanner")}
             \${settingsImageFields("Fish Comp Competition Banner", "fishCompRunningBanner")}
@@ -2111,6 +2118,41 @@ const html = `<!doctype html>
       exportItemsJson("rods", "trfishing-rods.json");
     }
 
+    function exportSettingsJson() {
+      const blob = new Blob([JSON.stringify({ settings: state.settings || {} }, null, 2)], { type: "application/json" });
+      const link = document.createElement("a");
+      link.href = URL.createObjectURL(blob);
+      link.download = "trfishing-settings.json";
+      document.body.appendChild(link);
+      link.click();
+      link.remove();
+      URL.revokeObjectURL(link.href);
+      setStatus("Exported settings.");
+    }
+
+    function importSettingsJson(file) {
+      if (!file) return;
+      const reader = new FileReader();
+      reader.onload = () => {
+        try {
+          const parsed = JSON.parse(String(reader.result || ""));
+          const importedSettings = parsed && typeof parsed === "object" && !Array.isArray(parsed)
+            ? parsed.settings && typeof parsed.settings === "object" && !Array.isArray(parsed.settings) ? parsed.settings : parsed
+            : null;
+          if (!importedSettings) {
+            throw new Error("JSON must be a settings object, or an object with a settings value.");
+          }
+          state.settings = { ...state.settings, ...importedSettings };
+          state.selectedRaidBossId = state.settings.fishRaidBosses?.[0]?.id || "";
+          setStatus("Imported settings JSON. Press Save to store changes.");
+          render();
+        } catch (error) {
+          setStatus(error.message || "Could not import settings JSON.", true);
+        }
+      };
+      reader.readAsText(file);
+    }
+
     function exportItemsJson(collectionName, fileName) {
       const items = state[collectionName] || [];
       const blob = new Blob([JSON.stringify(items, null, 2)], { type: "application/json" });
@@ -2541,7 +2583,7 @@ const html = `<!doctype html>
         const selected = selectedPlayerRecord();
         if (!selected) return;
         if (target.dataset.playerKey) {
-          const numericKeys = new Set(["gold", "exp", "progress", "totalFishCaught", "voiceTotalMs"]);
+          const numericKeys = new Set(["gold", "exp", "progress", "totalFishCaught", "fishCompWins", "voiceTotalMs"]);
           selected.player[target.dataset.playerKey] = numericKeys.has(target.dataset.playerKey) ? Number(target.value) : target.value;
           return;
         }
@@ -2687,6 +2729,11 @@ const html = `<!doctype html>
       }
       if (target.dataset.importRods !== undefined) {
         importRodsJson(target.files[0]);
+        target.value = "";
+        return;
+      }
+      if (target.dataset.importSettings !== undefined) {
+        importSettingsJson(target.files[0]);
         target.value = "";
         return;
       }
@@ -2880,6 +2927,10 @@ const html = `<!doctype html>
       }
       if (event.target.closest("[data-export-rods]")) {
         exportRodsJson();
+        return;
+      }
+      if (event.target.closest("[data-export-settings]")) {
+        exportSettingsJson();
         return;
       }
       const selectPlayerButton = event.target.closest("[data-select-player]");
