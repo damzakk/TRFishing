@@ -16,6 +16,7 @@ function parseGameData() {
   const text = fs.readFileSync(gameDataPath, "utf8");
   const fish = [];
   const rods = [];
+  const fishBags = [];
   let section = "";
 
   for (const rawLine of text.split(/\r?\n/)) {
@@ -26,6 +27,10 @@ function parseGameData() {
     }
     if (line.startsWith("Rod fields:")) {
       section = "rods";
+      continue;
+    }
+    if (line.startsWith("Fish Bag fields:")) {
+      section = "fishBags";
       continue;
     }
     if (!line || !line.includes("|") || line.startsWith("ID |")) {
@@ -56,7 +61,7 @@ function parseGameData() {
       rods.push({
         id: cleanId(parts[0]),
         name: parts[1],
-        rarity: "Common",
+        rarity: parts[8] || "Common",
         price: readNumber(parts[2], 0),
         speed: Math.max(1, readNumber(parts[3], 1)),
         luck: readNumber(parts[4], 0),
@@ -66,14 +71,68 @@ function parseGameData() {
         iconBase64: ""
       });
     }
+
+    if (section === "fishBags" && parts.length >= 6) {
+      fishBags.push({
+        id: cleanId(parts[0]),
+        name: parts[1],
+        rarity: parts[2] || "Common",
+        price: readNumber(parts[3], 0),
+        spaceKg: Math.max(1, readNumber(parts[4], 50)),
+        description: parts.slice(5).join(" | "),
+        iconBase64: ""
+      });
+    }
   }
 
-  return { defaultFish: fish, defaultRods: rods };
+  return { defaultFish: fish, defaultRods: rods, defaultFishBags: fishBags };
 }
 
-const { defaultFish, defaultRods } = parseGameData();
+const { defaultFish, defaultRods, defaultFishBags } = parseGameData();
+
+const defaultRodBonuses = {
+  pancing_legenda: [
+    { id: "fishcomp_focus", type: "accuracy", value: 3, mode: "competition", target: "self", condition: "", description: "+3 Accuracy saat FishComp." }
+  ],
+  pancing_mistis_abadi: [
+    { id: "raid_focus", type: "accuracy", value: 4, mode: "raid", target: "self", condition: "", description: "+4 Accuracy saat FishRaid." }
+  ],
+  pancing_pembelah_kahyangan: [
+    { id: "fishcomp_precision", type: "accuracy", value: 5, mode: "competition", target: "self", condition: "", description: "+5 Accuracy saat FishComp." }
+  ],
+  pancing_keraton_jawa_keramat_surgawi: [
+    { id: "raid_aura", type: "accuracy", value: 6, mode: "raid", target: "self", condition: "", description: "+6 Accuracy saat FishRaid." }
+  ],
+  pancing_kosmik: [
+    { id: "duel_focus", type: "accuracy", value: 5, mode: "duel", target: "self", condition: "", description: "+5 Accuracy saat FishDuel." }
+  ]
+};
+
+const defaultFishBagBonuses = {
+  tas_ransel_nelayan: [
+    { id: "underdog_capacity", type: "spaceKg", value: 20, mode: "duel", target: "self", condition: "opponent_higher_level", description: "+20 Kg Capacity saat duel melawan pemain level lebih tinggi." }
+  ],
+  tas_kulkas_portabel: [
+    { id: "steady_capacity", type: "spaceKg", value: 35, mode: "duel", target: "self", condition: "", description: "+35 Kg Capacity saat FishDuel." }
+  ],
+  tas_dermawan_legenda: [
+    { id: "legendary_capacity", type: "spaceKg", value: 75, mode: "duel", target: "self", condition: "", description: "+75 Kg Capacity saat FishDuel." }
+  ],
+  tas_kahyangan_gotong_royong: [
+    { id: "high_level_grace", type: "spaceKg", value: 150, mode: "duel", target: "self", condition: "opponent_higher_level", description: "+150 Kg Capacity saat duel melawan pemain level lebih tinggi." }
+  ]
+};
+
+for (const rod of defaultRods) {
+  rod.bonuses = defaultRodBonuses[rod.id] || [];
+}
+
+for (const bag of defaultFishBags) {
+  bag.bonuses = defaultFishBagBonuses[bag.id] || [];
+}
 
 module.exports = {
   defaultFish,
-  defaultRods
+  defaultRods,
+  defaultFishBags
 };

@@ -1,0 +1,60 @@
+{
+  "routineMessages": [
+    {
+      "id": "tips_tricks_random_30",
+      "name": "Tips n Trick Random",
+      "title": "Tips n Trick",
+      "description": "Random tips, game hints, and trivia for TRFishing.",
+      "messageVariants": [
+        { "title": "", "description": "Kamu bisa membeli pancingan yang lebih bagus menggunakan /fishstore." },
+        { "title": "", "description": "Pancingan dengan Luck lebih tinggi bisa membantu peluang mendapat ikan yang lebih bagus." },
+        { "title": "", "description": "Max Kg pada pancingan menentukan batas berat ikan yang bisa kamu tangkap." },
+        { "title": "", "description": "Kalau inventory penuh rasa penasaran, pakai /fishsell untuk menukar ikan menjadi gold." },
+        { "title": "", "description": "Gunakan /fishprofile untuk melihat level, total ikan, ikan terberat, dan progress memancingmu." },
+        { "title": "", "description": "Gunakan /fishdex untuk melihat ikan apa saja yang sudah pernah kamu tangkap." },
+        { "title": "", "description": "Fish Bag dibutuhkan untuk FishDuel, dan kapasitasnya menentukan ruang tangkapan saat duel." },
+        { "title": "", "description": "Saat FishComp berjalan, Accuracy pancingan ikut membantu performa kompetisi." },
+        { "title": "", "description": "Ikan dengan Min Kg lebih tinggi biasanya butuh pancingan yang Max Kg-nya juga lebih besar." },
+        { "title": "", "description": "Progress memancing naik dari chat valid. Chat yang terlalu pendek atau spam sama bisa tidak dihitung." },
+        { "title": "", "description": "Kalau ingin mengejar leaderboard, cek halaman Luck Score, ikan terbesar, level, dan jumlah ikan." },
+        { "title": "", "description": "Beberapa event bisa memberi buff atau debuff sementara saat FishComp, FishRaid, atau FishDuel." },
+        { "title": "", "description": "Jual ikan yang sering muncul untuk menabung gold, lalu upgrade pancingan saat sudah cukup." },
+        { "title": "", "description": "Kalau kamu sering mendapat ikan kecil, cek apakah pancinganmu masih punya batas Max Kg rendah." },
+        { "title": "", "description": "Ikan langka tidak selalu punya Luck Scale besar untuk catch roll, tapi Luck Score sekarang menilai rarity, chance, dan berat minimum." },
+        { "title": "", "description": "Membaca *astaghfirullah* secara rutin menjadi pembuka pintu rezeki dan penghilang rasa gundah." },
+        { "title": "", "description": "Air laut terasa asin karena mengandung mineral terlarut, terutama garam." },
+        { "title": "", "description": "Tidur cukup sering lebih berguna daripada niat produktif jam 2 pagi yang penuh penyesalan." },
+        { "title": "", "description": "Secangkir teh hangat kadang tidak menyelesaikan masalah, tapi membuat masalah duduk lebih sopan." },
+        { "title": "", "description": "Kata 'deadline' terdengar serius karena memang biasanya datang membawa aura menagih." },
+        { "title": "", "description": "Menyimpan air minum dekat meja bisa mengurangi drama haus yang tiba-tiba terasa seperti quest utama." },
+        { "title": "", "description": "Beberapa orang berpikir lebih jernih setelah merapikan meja, sebagian lagi setelah menutup 19 tab browser." },
+        { "title": "", "description": "Senyum kecil saat membaca chat kadang cukup untuk membuat hari terasa tidak terlalu berat." },
+        { "title": "", "description": "Menulis rencana singkat sebelum mulai kerja bisa menghemat banyak energi mental." },
+        { "title": "", "description": "Nasi yang masih hangat punya kemampuan diplomasi yang sering diremehkan." },
+        { "title": "", "description": "Kalau pikiran terasa ramai, coba tarik napas pelan dan beri nama satu hal yang bisa diselesaikan dulu." },
+        { "title": "", "description": "Legenda mengatakan charger yang hilang akan muncul setelah kamu membeli yang baru." },
+        { "title": "", "description": "Banyak ide bagus muncul saat mandi karena otak akhirnya berhenti dipaksa tampil formal." },
+        { "title": "", "description": "Minum air putih bukan build meta, tapi hampir selalu buff yang masuk akal." },
+        { "title": "", "description": "Kadang langkah kecil yang konsisten lebih kuat daripada semangat besar yang datang setahun sekali." }
+      ],
+      "color": "#36c28a",
+      "bannerBase64": "",
+      "bannerUrl": "",
+      "enabled": true,
+      "deleteAfterButtonClick": false,
+      "guildId": "",
+      "channelId": "",
+      "condition": {
+        "type": "interval",
+        "time": "00:00",
+        "intervalMinutes": 180,
+        "idleMinutes": 120,
+        "dateTime": ""
+      },
+      "buttons": [
+        { "id": "open_fishstore", "label": "Fish Store", "action": "fishstore", "style": "Primary", "regtimeMinutes": 5, "durationTurns": 15 },
+        { "id": "open_fishguide", "label": "Fish Guide", "action": "fishguide", "style": "Secondary", "regtimeMinutes": 5, "durationTurns": 15 }
+      ]
+    }
+  ]
+}

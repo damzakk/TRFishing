@@ -65,6 +65,8 @@ The manager also has:
 ## Commands
 
 - `/fishprofile` - Show your level, gold, rod, total catches, heaviest fish, and fishing progress privately in the channel.
+- `/fishshowoff` - Membuat banner publik dengan avatar Discord, ikan pameran, dan statistik utama.
+- `/fishdaily` - Mengambil hadiah harian; reward adalah 35 gold dikali daily streak dan cooldown 24 jam.
 - `/fishinventory` - Melihat daftar ikan yang kamu punya secara privat.
 - `/fishstore` - Melihat toko pancingan secara privat.
 - `/fishdex` - Melihat Fishdex ikan server secara privat; ikan yang belum tertangkap tetap tersembunyi.

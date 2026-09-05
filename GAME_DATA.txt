@@ -71,3 +71,19 @@ pancing_mistis_abadi | Pancing Mistis Abadi | 5000 | 3 | 32 | 180 | 70 | Aura mi
 pancing_pembelah_kahyangan | Pancing Pembelah Kahyangan | 9500 | 2 | 45 | 350 | 74 | Membuka jalan ke tangkapan besar yang mulai tidak masuk akal.
 pancing_keraton_jawa_keramat_surgawi | Pancing Keraton Jawa Keramat Surgawi | 22000 | 2 | 70 | 800 | 80 | Pancing sakral untuk ikan langka, berat, dan penuh gengsi.
 pancing_kosmik | Pancing Kosmik | 75000 | 1 | 120 | 2000 | 88 | Pancing akhir zaman untuk memburu makhluk Secret tanpa rasa takut.
+
+Fish Bag fields:
+ID | Name | Rarity | Price | Capacity Kg | Description
+
+tas_ember_bocor | Tas Ember Bocor | Common | 120 | 35 | Tas duel paling sederhana. Cukup untuk belajar jadi dermawan tanpa bangkrut.
+tas_anyaman_pasar | Tas Anyaman Pasar | Common | 250 | 55 | Ringan, murah, dan mulai terasa seperti niat baik yang bisa diukur.
+tas_kain_pantai | Tas Kain Pantai | Uncommon | 600 | 85 | Lebih lapang untuk duel santai melawan teman selevel.
+tas_cooler_mini | Tas Cooler Mini | Uncommon | 1200 | 125 | Ikan tetap segar, tekanan sosial tetap hangat.
+tas_box_baja | Tas Box Baja | Rare | 2600 | 190 | Kokoh untuk duel yang mulai serius dan hasil tangkapan yang makin berat.
+tas_ransel_nelayan | Tas Ransel Nelayan | Rare | 4800 | 280 | Banyak kantong, banyak harapan, banyak ikan untuk lawan.
+tas_peti_karang | Tas Peti Karang | Epic | 9000 | 430 | Berat dibawa, berat juga reputasi dermawannya.
+tas_kulkas_portabel | Tas Kulkas Portabel | Epic | 16000 | 650 | Kapasitas besar untuk duel panjang dan ikan-ikan ambisius.
+tas_dimensi_pantai | Tas Dimensi Pantai | Legendary | 32000 | 950 | Ruangnya terasa lebih besar dari ukurannya, seperti janji orang baik.
+tas_dermawan_legenda | Tas Dermawan Legenda | Legendary | 65000 | 1400 | Dibuat untuk pemain yang ingin memenuhi tas lawan dengan gaya.
+tas_void_berlapis_es | Tas Void Berlapis Es | Secret | 150000 | 2200 | Hampir tidak masuk akal, tapi duel Secret memang jarang masuk akal.
+tas_kahyangan_gotong_royong | Tas Kahyangan Gotong Royong | Secret | 300000 | 3600 | Tas untuk duel dermawan tingkat akhir: luas, mahal, dan agak mencurigakan.

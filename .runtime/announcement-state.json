@@ -1,0 +1,72 @@
+{
+  "savedAt": "2026-09-05T17:45:22.691Z",
+  "activeEvents": {
+    "1788584488170:start:2026-09-05T05:02:11.359Z": {
+      "eventId": "1788584488170",
+      "title": "SABTU!",
+      "guildId": "891474628122394634",
+      "channelId": "891474628122394637",
+      "markedAt": "2026-09-05T05:02:30.771Z"
+    },
+    "1788627083622:start:2026-09-05T16:59:48.695Z": {
+      "eventId": "1788627083622",
+      "title": "Kalah Valo",
+      "guildId": "891474628122394634",
+      "channelId": "891474628122394637",
+      "markedAt": "2026-09-05T17:00:09.051Z"
+    }
+  },
+  "endedEvents": {
+    "1788584488170:end:1788602460000": {
+      "eventId": "1788584488170",
+      "title": "SABTU!",
+      "guildId": "891474628122394634",
+      "channelId": "891474628122394637",
+      "markedAt": "2026-09-05T10:02:24.194Z"
+    }
+  },
+  "routines": {
+    "fishraid_cooldown_ready_reminder:891474628122394634:891474628122394634:fishraid_cooldown_ready:1788593174954": {
+      "routineId": "fishraid_cooldown_ready_reminder",
+      "guildId": "891474628122394634",
+      "triggerKey": "891474628122394634:fishraid_cooldown_ready:1788593174954",
+      "channelId": "891474628122394637",
+      "markedAt": "2026-09-05T07:26:39.806Z"
+    },
+    "fishraid_cooldown_ready_reminder:891474628122394634:891474628122394634:fishraid_cooldown_ready:1788597573617": {
+      "routineId": "fishraid_cooldown_ready_reminder",
+      "guildId": "891474628122394634",
+      "triggerKey": "891474628122394634:fishraid_cooldown_ready:1788597573617",
+      "channelId": "891474628122394637",
+      "markedAt": "2026-09-05T08:39:40.502Z"
+    },
+    "tips_tricks_random_30:891474628122394634:891474628122394634:29810199": {
+      "routineId": "tips_tricks_random_30",
+      "guildId": "891474628122394634",
+      "triggerKey": "891474628122394634:29810199",
+      "channelId": "891474628122394637",
+      "markedAt": "2026-09-05T12:39:23.310Z"
+    },
+    "tips_tricks_random_30:891474628122394634:891474628122394634:29810200": {
+      "routineId": "tips_tricks_random_30",
+      "guildId": "891474628122394634",
+      "triggerKey": "891474628122394634:29810200",
+      "channelId": "891474628122394637",
+      "markedAt": "2026-09-05T12:40:24.063Z"
+    },
+    "1788509721953:891474628122394634:891474628122394634:29810329": {
+      "routineId": "1788509721953",
+      "guildId": "891474628122394634",
+      "triggerKey": "891474628122394634:29810329",
+      "channelId": "891474628122394637",
+      "markedAt": "2026-09-05T14:49:24.266Z"
+    },
+    "tips_tricks_random_30:891474628122394634:891474628122394634:29810505": {
+      "routineId": "tips_tricks_random_30",
+      "guildId": "891474628122394634",
+      "triggerKey": "891474628122394634:29810505",
+      "channelId": "891474628122394637",
+      "markedAt": "2026-09-05T17:45:22.691Z"
+    }
+  }
+}

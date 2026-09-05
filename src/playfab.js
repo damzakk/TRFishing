@@ -2,9 +2,10 @@ require("dotenv").config();
 
 const fs = require("node:fs");
 const path = require("node:path");
-const { defaultFish, defaultRods } = require("./defaultData");
+const { defaultFish, defaultRods, defaultFishBags } = require("./defaultData");
 const defaultFishCompEvents = require("../fishCompEvents.json");
 const defaultFishRaidEvents = require("../fishRaidEvents.json");
+const defaultFishDuelEvents = require("../fishDuelEvents.json");
 const { getDiscordImageUrl, uploadDiscordImageWithRef } = require("./discordStorage");
 
 const titleId = process.env.PLAYFAB_TITLE_ID;
@@ -14,6 +15,7 @@ const legacyPlayersPath = path.join(__dirname, "..", "data", "players.json");
 const titleDataKeys = {
   fish: "fish_config",
   rods: "rod_config",
+  fishBags: "fish_bag_config",
   config: "admin_config",
   playerIndex: "player_index"
 };
@@ -37,6 +39,15 @@ const defaultSettings = {
   fishRaidRunningBannerUrl: "",
   fishRaidResultBannerBase64: "",
   fishRaidResultBannerUrl: "",
+  fishDuelRegistrationBannerBase64: "",
+  fishDuelRegistrationBannerUrl: "",
+  fishDuelRunningBannerBase64: "",
+  fishDuelRunningBannerUrl: "",
+  fishDuelResultBannerBase64: "",
+  fishDuelResultBannerUrl: "",
+  fishDuelEvents: defaultFishDuelEvents,
+  fishDuelExpReward: 40,
+  fishDuelLogIntervalMs: 2500,
   fishGuideBannerBase64: "",
   fishGuideBannerUrl: "",
   fishHelpBannerBase64: "",
@@ -268,9 +279,13 @@ function makeDefaultPlayer() {
     exp: 0,
     rodId: starterRodId,
     ownedRods: [starterRodId],
+    fishBagId: "",
+    ownedFishBags: [],
     inventory: {},
     fishDex: {},
     showcasedFishId: "",
+    dailyLastClaimedAt: 0,
+    dailyStreak: 0,
     totalFishCaught: 0,
     fishCompWins: 0,
     heaviestFish: null,
@@ -288,6 +303,7 @@ function makeDefaultPlayer() {
 function normalizePlayer(rawPlayer) {
   const starterRodId = defaultRods[0]?.id || "twig";
   const ownedRods = Array.isArray(rawPlayer?.ownedRods) && rawPlayer.ownedRods.length ? rawPlayer.ownedRods : [starterRodId];
+  const ownedFishBags = Array.isArray(rawPlayer?.ownedFishBags) ? rawPlayer.ownedFishBags : [];
   const inventory = rawPlayer?.inventory && typeof rawPlayer.inventory === "object" ? rawPlayer.inventory : {};
   const rawFishDex = rawPlayer?.fishDex && typeof rawPlayer.fishDex === "object" ? rawPlayer.fishDex : {};
   const fishDex = {};
@@ -329,6 +345,11 @@ function normalizePlayer(rawPlayer) {
     inventory,
     fishDex,
     showcasedFishId: String(rawPlayer?.showcasedFishId || "").trim(),
+    dailyLastClaimedAt: Math.max(0, cleanNumber(rawPlayer?.dailyLastClaimedAt, 0)),
+    dailyStreak: Math.max(0, Math.floor(cleanNumber(rawPlayer?.dailyStreak, 0))),
+    dailyReminderMessageId: undefined,
+    dailyReminderChannelId: undefined,
+    dailyReminderAvailableAt: undefined,
     totalFishCaught: Math.max(0, Number(rawPlayer?.totalFishCaught ?? totalFromInventory)),
     fishCompWins: Math.max(0, Math.floor(cleanNumber(rawPlayer?.fishCompWins, 0))),
     heaviestFish,
@@ -336,7 +357,9 @@ function normalizePlayer(rawPlayer) {
     voiceTotalMs: Math.max(0, Number(rawPlayer?.voiceTotalMs || 0)),
     voiceExpRemainderMs: Math.max(0, Number(rawPlayer?.voiceExpRemainderMs || 0)),
     rodId: rawPlayer?.rodId === "twig" ? starterRodId : rawPlayer?.rodId || starterRodId,
-    ownedRods: ownedRods.map((rodId) => (rodId === "twig" ? starterRodId : rodId))
+    ownedRods: ownedRods.map((rodId) => (rodId === "twig" ? starterRodId : rodId)),
+    fishBagId: String(rawPlayer?.fishBagId || "").trim(),
+    ownedFishBags: ownedFishBags.map((bagId) => String(bagId || "").trim()).filter(Boolean)
   };
 }
 
@@ -531,7 +554,7 @@ async function adminListPlayers(search = "", options = {}) {
     try {
       profiles = await adminListPlayerProfiles();
     } catch (error) {
-      console.warn(`Could not list PlayFab player segment, using player index fallback: ${error.message}`);
+      console.warn(`PlayFab player segment listing unavailable | time=${new Date().toISOString()} | message=Admin/GetPlayersInSegment could not list the All Players segment. Using saved player index fallback instead. Detail: ${error.message}`);
     }
   }
   if (!profiles.length && !indexedPlayers.length) {
@@ -571,7 +594,7 @@ async function adminListPlayers(search = "", options = {}) {
     .sort((a, b) => (b.player.totalFishCaught || 0) - (a.player.totalFishCaught || 0) || String(a.username || "").localeCompare(String(b.username || "")));
 }
 
-async function adminSavePlayerData(playFabId, player) {
+async function adminSavePlayerData(playFabId, player, options = {}) {
   const normalizedPlayer = normalizePlayer(player);
   await callPlayFab("Admin", "UpdateUserData", {
     PlayFabId: playFabId,
@@ -579,6 +602,18 @@ async function adminSavePlayerData(playFabId, player) {
       player: JSON.stringify(normalizedPlayer)
     }
   }, true);
+  if (options?.refetch === false) {
+    rememberPlayerForAdminList(normalizedPlayer).catch((error) => console.error("Could not update player index:", error));
+    return {
+      playFabId,
+      discordUserId: String(normalizedPlayer.discordUserId || "").trim(),
+      username: normalizedPlayer.discordUsername || "",
+      displayName: normalizedPlayer.discordDisplayName || normalizedPlayer.discordGlobalName || normalizedPlayer.discordUsername || "",
+      created: "",
+      lastLogin: "",
+      player: normalizedPlayer
+    };
+  }
   const record = await adminGetPlayerRecord(playFabId);
   await rememberPlayerForAdminList(record.player).catch((error) => console.error("Could not update player index:", error));
   return record;
@@ -603,14 +638,17 @@ async function adminDeletePlayer(playFabId) {
   return { ok: true, playFabId };
 }
 
-function parseList(value, fallback) {
+function parseList(value, fallback, options = {}) {
   if (!value) {
     return fallback;
   }
 
   try {
     const parsed = JSON.parse(value);
-    return Array.isArray(parsed) ? parsed : fallback;
+    if (!Array.isArray(parsed)) {
+      return fallback;
+    }
+    return options.fallbackWhenEmpty && parsed.length === 0 ? fallback : parsed;
   } catch {
     return fallback;
   }
@@ -651,6 +689,9 @@ function cleanSettings(settings) {
   const fishRaidRegistrationBannerUrl = String(source.fishRaidRegistrationBannerUrl || "").trim();
   const fishRaidRunningBannerUrl = String(source.fishRaidRunningBannerUrl || "").trim();
   const fishRaidResultBannerUrl = String(source.fishRaidResultBannerUrl || "").trim();
+  const fishDuelRegistrationBannerUrl = String(source.fishDuelRegistrationBannerUrl || "").trim();
+  const fishDuelRunningBannerUrl = String(source.fishDuelRunningBannerUrl || "").trim();
+  const fishDuelResultBannerUrl = String(source.fishDuelResultBannerUrl || "").trim();
   const fishGuideBannerUrl = String(source.fishGuideBannerUrl || "").trim();
   const fishHelpBannerUrl = String(source.fishHelpBannerUrl || "").trim();
   const sellFishBannerUrl = String(source.sellFishBannerUrl || "").trim();
@@ -684,6 +725,15 @@ function cleanSettings(settings) {
     fishRaidResultBannerBase64: String(source.fishRaidResultBannerBase64 || ""),
     fishRaidResultBannerUrl,
     fishRaidResultBannerRef: source.fishRaidResultBannerRef && typeof source.fishRaidResultBannerRef === "object" ? source.fishRaidResultBannerRef : null,
+    fishDuelRegistrationBannerBase64: String(source.fishDuelRegistrationBannerBase64 || ""),
+    fishDuelRegistrationBannerUrl,
+    fishDuelRegistrationBannerRef: source.fishDuelRegistrationBannerRef && typeof source.fishDuelRegistrationBannerRef === "object" ? source.fishDuelRegistrationBannerRef : null,
+    fishDuelRunningBannerBase64: String(source.fishDuelRunningBannerBase64 || ""),
+    fishDuelRunningBannerUrl,
+    fishDuelRunningBannerRef: source.fishDuelRunningBannerRef && typeof source.fishDuelRunningBannerRef === "object" ? source.fishDuelRunningBannerRef : null,
+    fishDuelResultBannerBase64: String(source.fishDuelResultBannerBase64 || ""),
+    fishDuelResultBannerUrl,
+    fishDuelResultBannerRef: source.fishDuelResultBannerRef && typeof source.fishDuelResultBannerRef === "object" ? source.fishDuelResultBannerRef : null,
     fishGuideBannerBase64: String(source.fishGuideBannerBase64 || ""),
     fishGuideBannerUrl,
     fishGuideBannerRef: source.fishGuideBannerRef && typeof source.fishGuideBannerRef === "object" ? source.fishGuideBannerRef : null,
@@ -695,11 +745,14 @@ function cleanSettings(settings) {
     sellFishBannerRef: source.sellFishBannerRef && typeof source.sellFishBannerRef === "object" ? source.sellFishBannerRef : null,
     fishCompEvents: cleanFishCompEvents(source.fishCompEvents),
     fishRaidEvents: cleanFishCompEvents(source.fishRaidEvents, defaultSettings.fishRaidEvents),
+    fishDuelEvents: cleanFishCompEvents(source.fishDuelEvents, defaultSettings.fishDuelEvents),
     fishRaidBosses: cleanFishRaidBosses(source.fishRaidBosses),
     fishCompLogIntervalMs: Math.max(0, cleanNumber(source.fishCompLogIntervalMs ?? defaultSettings.fishCompLogIntervalMs, defaultSettings.fishCompLogIntervalMs)),
     fishCompHistoryLogHours: Math.max(0, cleanNumber(source.fishCompHistoryLogHours ?? defaultSettings.fishCompHistoryLogHours, defaultSettings.fishCompHistoryLogHours)),
     fishCompExpReward: Math.max(0, cleanNumber(source.fishCompExpReward ?? defaultSettings.fishCompExpReward, defaultSettings.fishCompExpReward)),
     fishCompGoldReward: Math.max(0, cleanNumber(source.fishCompGoldReward ?? defaultSettings.fishCompGoldReward, defaultSettings.fishCompGoldReward)),
+    fishDuelExpReward: Math.max(0, cleanNumber(source.fishDuelExpReward ?? defaultSettings.fishDuelExpReward, defaultSettings.fishDuelExpReward)),
+    fishDuelLogIntervalMs: Math.max(0, cleanNumber(source.fishDuelLogIntervalMs ?? defaultSettings.fishDuelLogIntervalMs, defaultSettings.fishDuelLogIntervalMs)),
     fishRaidLogIntervalMs: Math.max(0, cleanNumber(source.fishRaidLogIntervalMs ?? defaultSettings.fishRaidLogIntervalMs, defaultSettings.fishRaidLogIntervalMs)),
     fishRaidCooldownMinutes: Math.max(0, cleanNumber(source.fishRaidCooldownMinutes ?? defaultSettings.fishRaidCooldownMinutes, defaultSettings.fishRaidCooldownMinutes)),
     fishRaidParticipantExpReward: Math.max(0, cleanNumber(source.fishRaidParticipantExpReward ?? defaultSettings.fishRaidParticipantExpReward, defaultSettings.fishRaidParticipantExpReward)),
@@ -1074,18 +1127,45 @@ async function uploadContentBuffer(contentKey, image) {
   });
 }
 
-async function getStoredImageUrl(ref, fallbackUrl = "", legacyContentKey = "") {
+function imageContextLabel(context) {
+  if (!context) {
+    return "saved manager image";
+  }
+  if (typeof context === "string") {
+    return context;
+  }
+  return [context.type, context.name || context.id].filter(Boolean).join(" ") || "saved manager image";
+}
+
+function imageContextCaller(context) {
+  return context && typeof context === "object" && context.caller ? String(context.caller) : "";
+}
+
+async function getStoredImageUrl(ref, fallbackUrl = "", legacyContentKey = "", context = "") {
   const directUrl = String(fallbackUrl || "").trim();
   if (ref?.storage === "discord_attachment") {
     return await getDiscordImageUrl(ref).catch((error) => {
-      console.error("Could not refresh Discord image URL:", error);
-      return directUrl;
+      console.warn(formatDiscordImageRefreshError(error, ref, legacyContentKey, context, Boolean(error?.staleUrl || directUrl)));
+      return error?.staleUrl || directUrl;
     });
   }
   if (directUrl) {
     return directUrl;
   }
   return legacyContentKey ? getContentDownloadUrl(legacyContentKey) : "";
+}
+
+function formatDiscordImageRefreshError(error, ref, legacyContentKey = "", context = "", hasFallback = false) {
+  const fileName = ref?.fileName || String(legacyContentKey || "").split("/").pop() || "image.png";
+  const usage = imageContextLabel(context);
+  const caller = imageContextCaller(context);
+  const source = String(legacyContentKey || ref?.messageId || "Discord storage").trim();
+  const fallbackText = hasFallback ? " Continuing with cached/saved image URL." : " Continuing without blocking the bot.";
+  const message = String(error?.message || error || "");
+  if (message.toLowerCase().includes("rate limited")) {
+    return `Discord image URL refresh limited | time=${new Date().toISOString()} | image=${fileName} | use=${usage} | calledBy=${caller || "unknown"} | source=${source} | message=Your Discord API call failed because you are rate limited.${fallbackText}`;
+  }
+  return `Discord image URL refresh failed | time=${new Date().toISOString()} | image=${fileName} | use=${usage} | calledBy=${caller || "unknown"} | source=${source} | message=${message || "Unknown Discord error"}.${fallbackText}`;
 }
 
 async function getContentDownloadUrl(contentKey) {
@@ -1190,6 +1270,9 @@ function withoutConfigAssets(config) {
       fishRaidRegistrationBannerBase64: "",
       fishRaidRunningBannerBase64: "",
       fishRaidResultBannerBase64: "",
+      fishDuelRegistrationBannerBase64: "",
+      fishDuelRunningBannerBase64: "",
+      fishDuelResultBannerBase64: "",
       fishGuideBannerBase64: "",
       fishHelpBannerBase64: "",
       sellFishBannerBase64: "",
@@ -1222,7 +1305,11 @@ function withoutConfigAssets(config) {
   };
 }
 
-async function attachConfigAssets(config, useSecretKey = false) {
+function withImageCaller(context, caller) {
+  return typeof context === "string" ? { type: context, caller } : { ...(context || {}), caller };
+}
+
+async function attachConfigAssets(config, useSecretKey = false, caller = "") {
   const settings = cleanSettings(config.settings);
   const activeEvent = cleanEvent(config.activeEvent);
   const events = cleanEvents(config.events, activeEvent);
@@ -1230,15 +1317,15 @@ async function attachConfigAssets(config, useSecretKey = false) {
   const fishRaidBosses = await Promise.all(settings.fishRaidBosses.map(async (boss) => ({
     ...boss,
     registrationBannerBase64: "",
-    registrationBannerUrl: await getStoredImageUrl(boss.registrationBannerRef, boss.registrationBannerUrl),
+    registrationBannerUrl: await getStoredImageUrl(boss.registrationBannerRef, boss.registrationBannerUrl, "", withImageCaller({ type: "fish raid boss registration banner", name: boss.name || boss.id }, caller)),
     runningBannerBase64: "",
-    runningBannerUrl: await getStoredImageUrl(boss.runningBannerRef, boss.runningBannerUrl),
+    runningBannerUrl: await getStoredImageUrl(boss.runningBannerRef, boss.runningBannerUrl, "", withImageCaller({ type: "fish raid boss running banner", name: boss.name || boss.id }, caller)),
     resultBannerBase64: "",
-    resultBannerUrl: await getStoredImageUrl(boss.resultBannerRef, boss.resultBannerUrl),
+    resultBannerUrl: await getStoredImageUrl(boss.resultBannerRef, boss.resultBannerUrl, "", withImageCaller({ type: "fish raid boss result banner", name: boss.name || boss.id }, caller)),
     fulfilledBannerBase64: "",
-    fulfilledBannerUrl: await getStoredImageUrl(boss.fulfilledBannerRef, boss.fulfilledBannerUrl),
+    fulfilledBannerUrl: await getStoredImageUrl(boss.fulfilledBannerRef, boss.fulfilledBannerUrl, "", withImageCaller({ type: "fish raid boss fulfilled banner", name: boss.name || boss.id }, caller)),
     failedBannerBase64: "",
-    failedBannerUrl: await getStoredImageUrl(boss.failedBannerRef, boss.failedBannerUrl)
+    failedBannerUrl: await getStoredImageUrl(boss.failedBannerRef, boss.failedBannerUrl, "", withImageCaller({ type: "fish raid boss failed banner", name: boss.name || boss.id }, caller))
   })));
 
   return {
@@ -1246,47 +1333,53 @@ async function attachConfigAssets(config, useSecretKey = false) {
     settings: {
       ...settings,
       rodStoreImageBase64: "",
-      rodStoreImageUrl: await getStoredImageUrl(settings.rodStoreImageRef, settings.rodStoreImageUrl, settings.rodStoreImageContentKey),
+      rodStoreImageUrl: await getStoredImageUrl(settings.rodStoreImageRef, settings.rodStoreImageUrl, settings.rodStoreImageContentKey, withImageCaller("rod store image", caller)),
       fishCompBannerBase64: "",
-      fishCompBannerUrl: await getStoredImageUrl(settings.fishCompBannerRef, settings.fishCompBannerUrl, settings.fishCompBannerContentKey),
+      fishCompBannerUrl: await getStoredImageUrl(settings.fishCompBannerRef, settings.fishCompBannerUrl, settings.fishCompBannerContentKey, withImageCaller("fish comp banner", caller)),
       fishCompRegistrationBannerBase64: "",
-      fishCompRegistrationBannerUrl: await getStoredImageUrl(settings.fishCompRegistrationBannerRef, settings.fishCompRegistrationBannerUrl),
+      fishCompRegistrationBannerUrl: await getStoredImageUrl(settings.fishCompRegistrationBannerRef, settings.fishCompRegistrationBannerUrl, "", withImageCaller("fish comp registration banner", caller)),
       fishCompRunningBannerBase64: "",
-      fishCompRunningBannerUrl: await getStoredImageUrl(settings.fishCompRunningBannerRef, settings.fishCompRunningBannerUrl),
+      fishCompRunningBannerUrl: await getStoredImageUrl(settings.fishCompRunningBannerRef, settings.fishCompRunningBannerUrl, "", withImageCaller("fish comp running banner", caller)),
       fishCompResultBannerBase64: "",
-      fishCompResultBannerUrl: await getStoredImageUrl(settings.fishCompResultBannerRef, settings.fishCompResultBannerUrl),
+      fishCompResultBannerUrl: await getStoredImageUrl(settings.fishCompResultBannerRef, settings.fishCompResultBannerUrl, "", withImageCaller("fish comp result banner", caller)),
       fishRaidBannerBase64: "",
-      fishRaidBannerUrl: await getStoredImageUrl(settings.fishRaidBannerRef, settings.fishRaidBannerUrl),
+      fishRaidBannerUrl: await getStoredImageUrl(settings.fishRaidBannerRef, settings.fishRaidBannerUrl, "", withImageCaller("fish raid banner", caller)),
       fishRaidRegistrationBannerBase64: "",
-      fishRaidRegistrationBannerUrl: await getStoredImageUrl(settings.fishRaidRegistrationBannerRef, settings.fishRaidRegistrationBannerUrl),
+      fishRaidRegistrationBannerUrl: await getStoredImageUrl(settings.fishRaidRegistrationBannerRef, settings.fishRaidRegistrationBannerUrl, "", withImageCaller("fish raid registration banner", caller)),
       fishRaidRunningBannerBase64: "",
-      fishRaidRunningBannerUrl: await getStoredImageUrl(settings.fishRaidRunningBannerRef, settings.fishRaidRunningBannerUrl),
+      fishRaidRunningBannerUrl: await getStoredImageUrl(settings.fishRaidRunningBannerRef, settings.fishRaidRunningBannerUrl, "", withImageCaller("fish raid running banner", caller)),
       fishRaidResultBannerBase64: "",
-      fishRaidResultBannerUrl: await getStoredImageUrl(settings.fishRaidResultBannerRef, settings.fishRaidResultBannerUrl),
+      fishRaidResultBannerUrl: await getStoredImageUrl(settings.fishRaidResultBannerRef, settings.fishRaidResultBannerUrl, "", withImageCaller("fish raid result banner", caller)),
+      fishDuelRegistrationBannerBase64: "",
+      fishDuelRegistrationBannerUrl: await getStoredImageUrl(settings.fishDuelRegistrationBannerRef, settings.fishDuelRegistrationBannerUrl, "", withImageCaller("fish duel registration banner", caller)),
+      fishDuelRunningBannerBase64: "",
+      fishDuelRunningBannerUrl: await getStoredImageUrl(settings.fishDuelRunningBannerRef, settings.fishDuelRunningBannerUrl, "", withImageCaller("fish duel running banner", caller)),
+      fishDuelResultBannerBase64: "",
+      fishDuelResultBannerUrl: await getStoredImageUrl(settings.fishDuelResultBannerRef, settings.fishDuelResultBannerUrl, "", withImageCaller("fish duel result banner", caller)),
       fishGuideBannerBase64: "",
-      fishGuideBannerUrl: await getStoredImageUrl(settings.fishGuideBannerRef, settings.fishGuideBannerUrl),
+      fishGuideBannerUrl: await getStoredImageUrl(settings.fishGuideBannerRef, settings.fishGuideBannerUrl, "", withImageCaller("fish guide banner", caller)),
       fishHelpBannerBase64: "",
-      fishHelpBannerUrl: await getStoredImageUrl(settings.fishHelpBannerRef, settings.fishHelpBannerUrl),
+      fishHelpBannerUrl: await getStoredImageUrl(settings.fishHelpBannerRef, settings.fishHelpBannerUrl, "", withImageCaller("fish help banner", caller)),
       sellFishBannerBase64: "",
-      sellFishBannerUrl: await getStoredImageUrl(settings.sellFishBannerRef, settings.sellFishBannerUrl),
+      sellFishBannerUrl: await getStoredImageUrl(settings.sellFishBannerRef, settings.sellFishBannerUrl, "", withImageCaller("sell fish banner", caller)),
       fishRaidBosses
     },
     activeEvent: activeEvent
       ? {
         ...activeEvent,
         bannerBase64: "",
-        bannerUrl: await getStoredImageUrl(activeEvent.bannerRef, activeEvent.bannerUrl, activeEvent.bannerContentKey)
+        bannerUrl: await getStoredImageUrl(activeEvent.bannerRef, activeEvent.bannerUrl, activeEvent.bannerContentKey, withImageCaller({ type: "active event banner", name: activeEvent.title || activeEvent.id }, caller))
       }
       : null,
     events: await Promise.all(events.map(async (event) => ({
       ...event,
       bannerBase64: "",
-      bannerUrl: await getStoredImageUrl(event.bannerRef, event.bannerUrl, event.bannerContentKey)
+      bannerUrl: await getStoredImageUrl(event.bannerRef, event.bannerUrl, event.bannerContentKey, withImageCaller({ type: "event banner", name: event.title || event.id }, caller))
     }))),
     routineMessages: await Promise.all(routineMessages.map(async (routine) => ({
       ...routine,
       bannerBase64: "",
-      bannerUrl: await getStoredImageUrl(routine.bannerRef, routine.bannerUrl, routine.bannerContentKey)
+      bannerUrl: await getStoredImageUrl(routine.bannerRef, routine.bannerUrl, routine.bannerContentKey, withImageCaller({ type: "routine message banner", name: routine.name || routine.title || routine.id }, caller))
     })))
   };
 }
@@ -1298,68 +1391,85 @@ function withoutIcons(items, type) {
   });
 }
 
-async function attachIcons(items, type, useSecretKey = false) {
+async function attachIcons(items, type, useSecretKey = false, caller = "") {
   return Promise.all(items.map(async (item) => {
     const iconContentKey = item.iconContentKey || "";
     const iconUrl = String(item.iconUrl || "").trim();
     return {
       ...item,
       iconBase64: "",
-      iconUrl: await getStoredImageUrl(item.iconRef, iconUrl, iconContentKey)
+      iconUrl: await getStoredImageUrl(item.iconRef, iconUrl, iconContentKey, withImageCaller({ type: `${type} icon`, name: item.name || item.id }, caller))
     };
   }));
 }
 
-async function getGameData() {
+function logGameDataLoad(caller, result) {
+  const source = String(caller || "unknown process").trim();
+  console.log(`Loaded ${result.fish.length} fish, ${result.rods.length} rods, ${result.fishBags.length} fish bags, and ${result.adminDiscordIds.length} admin IDs from PlayFab. | time=${new Date().toISOString()} | requestedBy=${source}`);
+}
+
+async function getGameData(options = {}) {
   const result = await callPlayFab("Server", "GetTitleData", {
     Keys: [titleDataKeys.config]
   }, true);
 
   const fish = parseList(await loadTitleAsset(titleDataKeys.fish, true), defaultFish);
   const rods = parseList(await loadTitleAsset(titleDataKeys.rods, true), defaultRods);
+  const fishBags = parseList(await loadTitleAsset(titleDataKeys.fishBags, true), defaultFishBags, { fallbackWhenEmpty: true });
   const config = parseConfig(parseAssetManifest(result.Data?.[titleDataKeys.config] || "")?.type === "inline"
     ? result.Data?.[titleDataKeys.config]
     : await loadTitleAsset(titleDataKeys.config, true), {});
-  const configWithAssets = await attachConfigAssets(config, true);
+  const caller = options.caller || "bot runtime";
+  const configWithAssets = await attachConfigAssets(config, true, caller);
 
-  return {
-    fish: await attachIcons(fish, "fish", true),
-    rods: await attachIcons(rods, "rod", true),
+  const gameData = {
+    fish: await attachIcons(fish, "fish", true, caller),
+    rods: await attachIcons(rods, "rod", true, caller),
+    fishBags: await attachIcons(fishBags, "fish-bag", true, caller),
     adminDiscordIds: configWithAssets.adminDiscordIds,
     settings: configWithAssets.settings,
     activeEvent: configWithAssets.activeEvent,
     events: configWithAssets.events,
     routineMessages: configWithAssets.routineMessages
   };
+  logGameDataLoad(caller, gameData);
+  return gameData;
 }
 
-async function adminGetGameData() {
+async function adminGetGameData(options = {}) {
   const result = await callPlayFab("Server", "GetTitleData", {
     Keys: [titleDataKeys.config]
   }, true);
 
   const fish = parseList(await loadTitleAsset(titleDataKeys.fish, true), defaultFish);
   const rods = parseList(await loadTitleAsset(titleDataKeys.rods, true), defaultRods);
+  const fishBags = parseList(await loadTitleAsset(titleDataKeys.fishBags, true), defaultFishBags, { fallbackWhenEmpty: true });
   const config = parseConfig(parseAssetManifest(result.Data?.[titleDataKeys.config] || "")?.type === "inline"
     ? result.Data?.[titleDataKeys.config]
     : await loadTitleAsset(titleDataKeys.config, true), {});
-  const configWithAssets = await attachConfigAssets(config, true);
-  return {
-    fish: await attachIcons(fish, "fish", true),
-    rods: await attachIcons(rods, "rod", true),
+  const caller = options.caller || "manager api";
+  const configWithAssets = await attachConfigAssets(config, true, caller);
+  const gameData = {
+    fish: await attachIcons(fish, "fish", true, caller),
+    rods: await attachIcons(rods, "rod", true, caller),
+    fishBags: await attachIcons(fishBags, "fish-bag", true, caller),
     adminDiscordIds: configWithAssets.adminDiscordIds,
     settings: configWithAssets.settings,
     activeEvent: configWithAssets.activeEvent,
     events: configWithAssets.events,
     routineMessages: configWithAssets.routineMessages
   };
+  logGameDataLoad(caller, gameData);
+  return gameData;
 }
 
-async function adminSaveGameData({ fish, rods, adminDiscordIds, settings, activeEvent, events, routineMessages }) {
+async function adminSaveGameData({ fish, rods, fishBags, adminDiscordIds, settings, activeEvent, events, routineMessages }) {
   const cleanFish = fish || [];
   const cleanRods = rods || [];
+  const cleanFishBags = fishBags || [];
   assertUniqueItemIds(cleanFish, "fish");
   assertUniqueItemIds(cleanRods, "rod");
+  assertUniqueItemIds(cleanFishBags, "fish bag");
   const cleanSettingsValue = cleanSettings(settings);
   const cleanEventValue = cleanEvent(activeEvent);
   const cleanEventsValue = cleanEvents(events, cleanEventValue);
@@ -1428,6 +1538,27 @@ async function adminSaveGameData({ fish, rods, adminDiscordIds, settings, active
     dataUrl: cleanSettingsValue.fishRaidResultBannerBase64,
     sourceUrl: cleanSettingsValue.fishRaidResultBannerUrl,
     keyForExtension: (extension) => settingsImageContentKeyFor("fish-raid-result-banner", extension)
+  });
+  const fishDuelRegistrationBanner = await saveContentImage({
+    currentUrl: cleanSettingsValue.fishDuelRegistrationBannerUrl,
+    currentRef: cleanSettingsValue.fishDuelRegistrationBannerRef,
+    dataUrl: cleanSettingsValue.fishDuelRegistrationBannerBase64,
+    sourceUrl: cleanSettingsValue.fishDuelRegistrationBannerUrl,
+    keyForExtension: (extension) => settingsImageContentKeyFor("fish-duel-registration-banner", extension)
+  });
+  const fishDuelRunningBanner = await saveContentImage({
+    currentUrl: cleanSettingsValue.fishDuelRunningBannerUrl,
+    currentRef: cleanSettingsValue.fishDuelRunningBannerRef,
+    dataUrl: cleanSettingsValue.fishDuelRunningBannerBase64,
+    sourceUrl: cleanSettingsValue.fishDuelRunningBannerUrl,
+    keyForExtension: (extension) => settingsImageContentKeyFor("fish-duel-running-banner", extension)
+  });
+  const fishDuelResultBanner = await saveContentImage({
+    currentUrl: cleanSettingsValue.fishDuelResultBannerUrl,
+    currentRef: cleanSettingsValue.fishDuelResultBannerRef,
+    dataUrl: cleanSettingsValue.fishDuelResultBannerBase64,
+    sourceUrl: cleanSettingsValue.fishDuelResultBannerUrl,
+    keyForExtension: (extension) => settingsImageContentKeyFor("fish-duel-result-banner", extension)
   });
   const fishGuideBanner = await saveContentImage({
     currentUrl: cleanSettingsValue.fishGuideBannerUrl,
@@ -1531,6 +1662,22 @@ async function adminSaveGameData({ fish, rods, adminDiscordIds, settings, active
       iconRef: icon.ref
     });
   }
+  const cleanFishBagsWithUrls = [];
+  for (const item of cleanFishBags) {
+    const icon = await saveContentImage({
+      currentUrl: item.iconUrl,
+      currentRef: item.iconRef,
+      legacyContentKey: item.iconContentKey,
+      dataUrl: item.iconBase64,
+      sourceUrl: item.iconUrl,
+      keyForExtension: (extension) => iconContentKeyFor("fish-bag", item.id, extension)
+    });
+    cleanFishBagsWithUrls.push({
+      ...item,
+      iconUrl: icon.url,
+      iconRef: icon.ref
+    });
+  }
   const fishRaidBosses = await saveFishRaidBossImages(cleanSettingsValue.fishRaidBosses);
   const cleanConfig = withoutConfigAssets({
     adminDiscordIds,
@@ -1554,6 +1701,12 @@ async function adminSaveGameData({ fish, rods, adminDiscordIds, settings, active
       fishRaidRunningBannerRef: fishRaidRunningBanner.ref,
       fishRaidResultBannerUrl: fishRaidResultBanner.url,
       fishRaidResultBannerRef: fishRaidResultBanner.ref,
+      fishDuelRegistrationBannerUrl: fishDuelRegistrationBanner.url,
+      fishDuelRegistrationBannerRef: fishDuelRegistrationBanner.ref,
+      fishDuelRunningBannerUrl: fishDuelRunningBanner.url,
+      fishDuelRunningBannerRef: fishDuelRunningBanner.ref,
+      fishDuelResultBannerUrl: fishDuelResultBanner.url,
+      fishDuelResultBannerRef: fishDuelResultBanner.ref,
       fishRaidBosses,
       fishGuideBannerUrl: fishGuideBanner.url,
       fishGuideBannerRef: fishGuideBanner.ref,
@@ -1575,11 +1728,13 @@ async function adminSaveGameData({ fish, rods, adminDiscordIds, settings, active
 
   await saveTitleAsset(titleDataKeys.fish, JSON.stringify(withoutIcons(cleanFishWithUrls, "fish")));
   await saveTitleAsset(titleDataKeys.rods, JSON.stringify(withoutIcons(cleanRodsWithUrls, "rod")));
+  await saveTitleAsset(titleDataKeys.fishBags, JSON.stringify(withoutIcons(cleanFishBagsWithUrls, "fish-bag")));
   await saveTitleAsset(titleDataKeys.config, JSON.stringify(cleanConfig));
 
   return {
     fish: withoutIcons(cleanFishWithUrls, "fish"),
     rods: withoutIcons(cleanRodsWithUrls, "rod"),
+    fishBags: withoutIcons(cleanFishBagsWithUrls, "fish-bag"),
     adminDiscordIds: cleanConfig.adminDiscordIds,
     settings: cleanConfig.settings,
     activeEvent: cleanConfig.activeEvent,

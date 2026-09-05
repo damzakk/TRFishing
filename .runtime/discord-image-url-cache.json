@@ -1,0 +1,401 @@
+{
+  "savedAt": "2026-09-05T17:45:15.300Z",
+  "entries": {
+    "discord_attachment:1543874293258260550:1544375841667031163:1544375841838866432:rod-store.png": {
+      "url": "https://cdn.discordapp.com/attachments/1543874293258260550/1544375841838866432/rod-store.png?ex=6a9ce4d5&is=6a9b9355&hm=7156f4497294a53f4357d3f8ca5dd88140d4b9cca5b571b46317c9041182929a&",
+      "expiresAt": 1788581674314,
+      "savedAt": 1788581374314,
+      "fileName": "rod-store.png"
+    },
+    "discord_attachment:1543874293258260550:1544373560032759918:1544373559802204230:fish-comp-registration-banner.png": {
+      "url": "https://cdn.discordapp.com/attachments/1543874293258260550/1544373559802204230/fish-comp-registration-banner.png?ex=6a9ce2b5&is=6a9b9135&hm=cb7dc38b36bea2993c38d5c459cb41d8e39920d0f4ebb6f5d2cbffa86b1d057f&",
+      "expiresAt": 1788581674206,
+      "savedAt": 1788581374206,
+      "fileName": "fish-comp-registration-banner.png"
+    },
+    "discord_attachment:1543874293258260550:1544374582587170887:1544374582339829870:fish-comp-running-banner.png": {
+      "url": "https://cdn.discordapp.com/attachments/1543874293258260550/1544374582339829870/fish-comp-running-banner.png?ex=6a9ce3a9&is=6a9b9229&hm=4e3fd12ba73e81eacaf2caf10d49095179d8a9618b5e69fe02cfa85e8a2a6a57&",
+      "expiresAt": 1788581674189,
+      "savedAt": 1788581374189,
+      "fileName": "fish-comp-running-banner.png"
+    },
+    "discord_attachment:1543874293258260550:1545252376632365217:1545252376787550248:fish-duel-registration-banner.png": {
+      "url": "https://cdn.discordapp.com/attachments/1543874293258260550/1545252376787550248/fish-duel-registration-banner.png?ex=6a9cc96c&is=6a9b77ec&hm=115344302654ccc00a68c0439fbbeef09f18dd8dc7d8e4df362d1180c819a7ee&",
+      "expiresAt": 1788581674577,
+      "savedAt": 1788581374577,
+      "fileName": "fish-duel-registration-banner.png"
+    },
+    "discord_attachment:1543874293258260550:1545247063275479142:1545247063128670208:fish-duel-running-banner.png": {
+      "url": "https://cdn.discordapp.com/attachments/1543874293258260550/1545247063128670208/fish-duel-running-banner.png?ex=6a9cc479&is=6a9b72f9&hm=8bff7c3c4d7ea95e7e114fa14a61c26e4f3c3d1ddd7a51114d98642f80189674&",
+      "expiresAt": 1788581676223,
+      "savedAt": 1788581376223,
+      "fileName": "fish-duel-running-banner.png"
+    },
+    "discord_attachment:1543874293258260550:1545252385952239637:1545252386107560018:fish-duel-result-banner.png": {
+      "url": "https://cdn.discordapp.com/attachments/1543874293258260550/1545252386107560018/fish-duel-result-banner.png?ex=6a9cc96e&is=6a9b77ee&hm=b5a1710880dead78f80af345cf0878e2f21e4b5bdd0618171309c2288ebd515f&",
+      "expiresAt": 1788581674670,
+      "savedAt": 1788581374670,
+      "fileName": "fish-duel-result-banner.png"
+    },
+    "discord_attachment:1543874293258260550:1544375851175379135:1544375850936311808:fish-guide-banner.png": {
+      "url": "https://cdn.discordapp.com/attachments/1543874293258260550/1544375850936311808/fish-guide-banner.png?ex=6a9ce4d7&is=6a9b9357&hm=ae1254d42aca6824f5b09a73dade7f2821b2f85126b1f8bfab690aabf79b2fbc&",
+      "expiresAt": 1788581676309,
+      "savedAt": 1788581376309,
+      "fileName": "fish-guide-banner.png"
+    },
+    "discord_attachment:1543874293258260550:1544375859895337041:1544375860059050085:fish-help-banner.png": {
+      "url": "https://cdn.discordapp.com/attachments/1543874293258260550/1544375860059050085/fish-help-banner.png?ex=6a9ce4da&is=6a9b935a&hm=4631ab754ebd3ac922164a0f5aa3b979a270d5eb7051669c6a92aced94ca0842&",
+      "expiresAt": 1788581677672,
+      "savedAt": 1788581377672,
+      "fileName": "fish-help-banner.png"
+    },
+    "discord_attachment:1543874293258260550:1545347193039364106:1545347192875782234:routine-message-1788509721953-banner.png": {
+      "url": "https://cdn.discordapp.com/attachments/1543874293258260550/1545347192875782234/routine-message-1788509721953-banner.png?ex=6a9c78f9&is=6a9b2779&hm=212a01e42629f6e1b9d18dc09499cac148bc5c2bdd885bab62ca65fa22cf4e33&",
+      "expiresAt": 1788581678390,
+      "savedAt": 1788581378390,
+      "fileName": "routine-message-1788509721953-banner.png"
+    },
+    "discord_attachment:1543874293258260550:1545346329209995306:1545346329394417714:routine-message-tips_tricks_random_30-banner.png": {
+      "url": "https://cdn.discordapp.com/attachments/1543874293258260550/1545346329394417714/routine-message-tips_tricks_random_30-banner.png?ex=6a9c782c&is=6a9b26ac&hm=352a3bb7daab202fbf2f76bf563f5b3fb9f6586ec057c65d1994217d78ed82e7&",
+      "expiresAt": 1788581679314,
+      "savedAt": 1788581379314,
+      "fileName": "routine-message-tips_tricks_random_30-banner.png"
+    },
+    "discord_attachment:1543874293258260550:1545008136857854043:1545008136765710427:ikan_nila.png": {
+      "url": "https://cdn.discordapp.com/attachments/1543874293258260550/1545008136765710427/ikan_nila.png?ex=6a9c8eb4&is=6a9b3d34&hm=bceccc557d570032fd924bfdf72d8d666ae240144e16a8fd2f03ab81939d90b2&",
+      "expiresAt": 1788581693498,
+      "savedAt": 1788581393498,
+      "fileName": "ikan_nila.png"
+    },
+    "discord_attachment:1543874293258260550:1545008145959616594:1545008146068545556:ikan_tongkol.png": {
+      "url": "https://cdn.discordapp.com/attachments/1543874293258260550/1545008146068545556/ikan_tongkol.png?ex=6a9c8eb6&is=6a9b3d36&hm=b7c020cf5d9102b8568fc2290839ebe82248e6fae6a0d267ddadfd675a708901&",
+      "expiresAt": 1788581695421,
+      "savedAt": 1788581395421,
+      "fileName": "ikan_tongkol.png"
+    },
+    "discord_attachment:1543874293258260550:1545001783154442283:1545001783020093450:ikan_kembung.png": {
+      "url": "https://cdn.discordapp.com/attachments/1543874293258260550/1545001783020093450/ikan_kembung.png?ex=6a9c88c9&is=6a9b3749&hm=71c351df21583a314918ede5c948da61c2f59c0334e46cc785d632adc9defdc6&",
+      "expiresAt": 1788581694515,
+      "savedAt": 1788581394515,
+      "fileName": "ikan_kembung.png"
+    },
+    "discord_attachment:1543874293258260550:1545001789412220980:1545001789500162128:ikan_lele.png": {
+      "url": "https://cdn.discordapp.com/attachments/1543874293258260550/1545001789500162128/ikan_lele.png?ex=6a9c88cb&is=6a9b374b&hm=b62975e2d23744bd1e7078d90021c9245b5e4ad9f0cd0f4a7202c8a5e94458f0&",
+      "expiresAt": 1788581697649,
+      "savedAt": 1788581397649,
+      "fileName": "ikan_lele.png"
+    },
+    "discord_attachment:1543874293258260550:1545008152196546581:1545008152171388948:ikan_teri.png": {
+      "url": "https://cdn.discordapp.com/attachments/1543874293258260550/1545008152171388948/ikan_teri.png?ex=6a9c8eb8&is=6a9b3d38&hm=4f03c0538da32d0cafd64db8d3d07f2bc74268d0bac1436d74350e74e68315c1&",
+      "expiresAt": 1788581696209,
+      "savedAt": 1788581396209,
+      "fileName": "ikan_teri.png"
+    },
+    "discord_attachment:1543874293258260550:1545056066637795330:1545056066499248158:rama_naufal.png": {
+      "url": "https://cdn.discordapp.com/attachments/1543874293258260550/1545056066499248158/rama_naufal.png?ex=6a9cbb58&is=6a9b69d8&hm=283e122f6fb9f962c1bc7ee353c53e1b47e88d934a25c9540edbfb564dab6582&",
+      "expiresAt": 1788581698469,
+      "savedAt": 1788581398469,
+      "fileName": "rama_naufal.png"
+    },
+    "discord_attachment:1543874293258260550:1545008178427858994:1545008178151030816:ikan_depok.png": {
+      "url": "https://cdn.discordapp.com/attachments/1543874293258260550/1545008178151030816/ikan_depok.png?ex=6a9c8ebe&is=6a9b3d3e&hm=83886d423245d147ac62aeee4a24c2af764f1b45ad983f0f964fc4c3ca51986e&",
+      "expiresAt": 1788581699230,
+      "savedAt": 1788581399230,
+      "fileName": "ikan_depok.png"
+    },
+    "discord_attachment:1543874293258260550:1545001809678962709:1545001809435824210:ebem.png": {
+      "url": "https://cdn.discordapp.com/attachments/1543874293258260550/1545001809435824210/ebem.png?ex=6a9c88d0&is=6a9b3750&hm=da7ea899d30ab8a05d77f7f5cf3cc9b924405bbccfa896465ff27ef6d8f8d5c1&",
+      "expiresAt": 1788581700272,
+      "savedAt": 1788581400272,
+      "fileName": "ebem.png"
+    },
+    "discord_attachment:1543874293258260550:1545017053830844497:1545017053948280853:ikan_goreng.png": {
+      "url": "https://cdn.discordapp.com/attachments/1543874293258260550/1545017053948280853/ikan_goreng.png?ex=6a9c9702&is=6a9b4582&hm=b273d807eb0d3b473838a0c6e45d8e94978e8e3f20fdc2b17e6f0db5b211c8ab&",
+      "expiresAt": 1788581335464,
+      "savedAt": 1788581035464,
+      "fileName": "ikan_goreng.png"
+    },
+    "discord_attachment:1543874293258260550:1545008184283111450:1545008184488362044:ikan_asam_manis.png": {
+      "url": "https://cdn.discordapp.com/attachments/1543874293258260550/1545008184488362044/ikan_asam_manis.png?ex=6a9c8ec0&is=6a9b3d40&hm=43107614a0cb96bafc6e78d30fa7fd0f2ea32d6dca1581ad7e2bc1bfb5f87e8d&",
+      "expiresAt": 1788581702283,
+      "savedAt": 1788581402283,
+      "fileName": "ikan_asam_manis.png"
+    },
+    "discord_attachment:1543874293258260550:1545008189886566471:1545008190016720956:ikan_cupang.png": {
+      "url": "https://cdn.discordapp.com/attachments/1543874293258260550/1545008190016720956/ikan_cupang.png?ex=6a9c8ec1&is=6a9b3d41&hm=7a9ff236f2d3a49d432c8c975d22acc3d50b12ec02082169bde8804e9b06ebd1&",
+      "expiresAt": 1788581701353,
+      "savedAt": 1788581401353,
+      "fileName": "ikan_cupang.png"
+    },
+    "discord_attachment:1543874293258260550:1545001815630938134:1545001815429357568:adhiet.png": {
+      "url": "https://cdn.discordapp.com/attachments/1543874293258260550/1545001815429357568/adhiet.png?ex=6a9c88d1&is=6a9b3751&hm=4c4bb09d4ef5908e943e9dc3b48015e82a7d88ca9efc113b6169cfa796fca051&",
+      "expiresAt": 1788581705191,
+      "savedAt": 1788581405191,
+      "fileName": "adhiet.png"
+    },
+    "discord_attachment:1543874293258260550:1545017059514257429:1545017059677573171:ikan_praroro.png": {
+      "url": "https://cdn.discordapp.com/attachments/1543874293258260550/1545017059677573171/ikan_praroro.png?ex=6a9c9704&is=6a9b4584&hm=c90ef967eb41f3cce03e65e2daf0ab5f02bcb2966928cb89f9637272baa40a34&",
+      "expiresAt": 1788581703718,
+      "savedAt": 1788581403718,
+      "fileName": "ikan_praroro.png"
+    },
+    "discord_attachment:1543874293258260550:1545017066468155423:1545017066283597824:ikan_nawas.png": {
+      "url": "https://cdn.discordapp.com/attachments/1543874293258260550/1545017066283597824/ikan_nawas.png?ex=6a9c9705&is=6a9b4585&hm=e76d0ab2736a165baaaeed8e32ff9dd08c61a21a7105bf1d5ea32ad7a3885048&",
+      "expiresAt": 1788581705377,
+      "savedAt": 1788581405377,
+      "fileName": "ikan_nawas.png"
+    },
+    "discord_attachment:1543874293258260550:1545040063509962874:1545040063648370708:ikan_crazy_killer.png": {
+      "url": "https://cdn.discordapp.com/attachments/1543874293258260550/1545040063648370708/ikan_crazy_killer.png?ex=6a9cac70&is=6a9b5af0&hm=24550d250f77b7e769f3bc04b20ee3b237ccea8c34502ea4bbb9a5513f5e0f84&",
+      "expiresAt": 1788581706763,
+      "savedAt": 1788581406763,
+      "fileName": "ikan_crazy_killer.png"
+    },
+    "discord_attachment:1543874293258260550:1545040076172693546:1545040076311101520:ikan_venomenom.png": {
+      "url": "https://cdn.discordapp.com/attachments/1543874293258260550/1545040076311101520/ikan_venomenom.png?ex=6a9cac73&is=6a9b5af3&hm=49aec9a6d8349edeca0ce693026c788e266ffb6515513547a6aa8660c5d9ef51&",
+      "expiresAt": 1788581708206,
+      "savedAt": 1788581408206,
+      "fileName": "ikan_venomenom.png"
+    },
+    "discord_attachment:1543874293258260550:1545017078686421064:1545017078526902282:ikan_butiran_debu_kosmik.png": {
+      "url": "https://cdn.discordapp.com/attachments/1543874293258260550/1545017078526902282/ikan_butiran_debu_kosmik.png?ex=6a9c9708&is=6a9b4588&hm=f9ada9d45fed40a3d2ab2078094f038bc3f42562099bb58f69828cbf93febf5b&",
+      "expiresAt": 1788581708474,
+      "savedAt": 1788581408474,
+      "fileName": "ikan_butiran_debu_kosmik.png"
+    },
+    "discord_attachment:1543874293258260550:1545017094784024587:1545017094876307466:sapi.png": {
+      "url": "https://cdn.discordapp.com/attachments/1543874293258260550/1545017094876307466/sapi.png?ex=6a9c970c&is=6a9b458c&hm=9d9325adfd5e89314d29ef37931bbb2da81fcccf4f382b78d64e048460362f93&",
+      "expiresAt": 1788581709805,
+      "savedAt": 1788581409805,
+      "fileName": "sapi.png"
+    },
+    "discord_attachment:1543874293258260550:1545017102585569352:1545017102690164826:hamim_jepang.png": {
+      "url": "https://cdn.discordapp.com/attachments/1543874293258260550/1545017102690164826/hamim_jepang.png?ex=6a9c970e&is=6a9b458e&hm=9d3b13851902f77baf02f6e0099c247fe29b5c44811472254b9e3b322900c3e2&",
+      "expiresAt": 1788581711350,
+      "savedAt": 1788581411350,
+      "fileName": "hamim_jepang.png"
+    },
+    "discord_attachment:1543874293258260550:1545030212033708093:1545030212159414282:ikan_andry_tepat_waktu.png": {
+      "url": "https://cdn.discordapp.com/attachments/1543874293258260550/1545030212159414282/ikan_andry_tepat_waktu.png?ex=6a9ca343&is=6a9b51c3&hm=8ba981e318501fca5dc34d591bdc3d46a2ec91d01d7a5451661ddd91aeccfdef&",
+      "expiresAt": 1788581711504,
+      "savedAt": 1788581411504,
+      "fileName": "ikan_andry_tepat_waktu.png"
+    },
+    "discord_attachment:1543874293258260550:1545029233502326855:1545029233435344906:ikan_heaven_rani.png": {
+      "url": "https://cdn.discordapp.com/attachments/1543874293258260550/1545029233435344906/ikan_heaven_rani.png?ex=6a9ca25a&is=6a9b50da&hm=299e49aca40e7e08eb7e83b2563efbdf780dbc90f0048dbd18cd2185064366de&",
+      "expiresAt": 1788581712348,
+      "savedAt": 1788581412348,
+      "fileName": "ikan_heaven_rani.png"
+    },
+    "discord_attachment:1543874293258260550:1545029227534090290:1545029227236171866:ikan_hell_rina.png": {
+      "url": "https://cdn.discordapp.com/attachments/1543874293258260550/1545029227236171866/ikan_hell_rina.png?ex=6a9ca259&is=6a9b50d9&hm=79cbf05cffe62488bfa214efa4e4c3567b2bb8fcd6bb7aee94df3f086860be80&",
+      "expiresAt": 1788581359697,
+      "savedAt": 1788581059697,
+      "fileName": "ikan_hell_rina.png"
+    },
+    "discord_attachment:1543874293258260550:1545022784105619578:1545022784256868402:ikan_kajian_ajimat_cinta_asrama_pesantren_gorontalo.png": {
+      "url": "https://cdn.discordapp.com/attachments/1543874293258260550/1545022784256868402/ikan_kajian_ajimat_cinta_asrama_pesantren_gorontalo.png?ex=6a9c9c58&is=6a9b4ad8&hm=d64525a3420a53edd3af4808fae3f800ad44837935a234faffd115de1ec454ad&",
+      "expiresAt": 1788581715345,
+      "savedAt": 1788581415345,
+      "fileName": "ikan_kajian_ajimat_cinta_asrama_pesantren_gorontalo.png"
+    },
+    "discord_attachment:1543874293258260550:1545025991720837200:1545025991494074399:ikan_preksu_keju_nasi_uduk.png": {
+      "url": "https://cdn.discordapp.com/attachments/1543874293258260550/1545025991494074399/ikan_preksu_keju_nasi_uduk.png?ex=6a9c9f55&is=6a9b4dd5&hm=229b1940190b912b0d74d06001ce5d5ce55d8e60493a93402afcb48a4bae66c2&",
+      "expiresAt": 1788581713207,
+      "savedAt": 1788581413207,
+      "fileName": "ikan_preksu_keju_nasi_uduk.png"
+    },
+    "discord_attachment:1543874293258260550:1545025997441863762:1545025997127295077:ikan_heaven_denied_parental_guidance.png": {
+      "url": "https://cdn.discordapp.com/attachments/1543874293258260550/1545025997127295077/ikan_heaven_denied_parental_guidance.png?ex=6a9c9f56&is=6a9b4dd6&hm=5a8441b24f5c3ae3c816f507de3412f63221789ed2117d5ea108bb102359b215&",
+      "expiresAt": 1788581717656,
+      "savedAt": 1788581417656,
+      "fileName": "ikan_heaven_denied_parental_guidance.png"
+    },
+    "discord_attachment:1543874293258260550:1545022790552256573:1545022790661439508:ikan_naga_dewa_menentang_langit.png": {
+      "url": "https://cdn.discordapp.com/attachments/1543874293258260550/1545022790661439508/ikan_naga_dewa_menentang_langit.png?ex=6a9c9c5a&is=6a9b4ada&hm=2c38fb8e12f8f2c6efb9e3836e48cc5b262a9519ca2aa25c64a3accd966ea884&",
+      "expiresAt": 1788581714502,
+      "savedAt": 1788581414502,
+      "fileName": "ikan_naga_dewa_menentang_langit.png"
+    },
+    "discord_attachment:1543874293258260550:1545001821641252866:1545001821150511145:ikan_geri.png": {
+      "url": "https://cdn.discordapp.com/attachments/1543874293258260550/1545001821150511145/ikan_geri.png?ex=6a9c88d2&is=6a9b3752&hm=0b712a596079ff46666a0d440fc0bb96b7e53c9d1a58a3630364b09c7b3a412e&",
+      "expiresAt": 1788581716185,
+      "savedAt": 1788581416185,
+      "fileName": "ikan_geri.png"
+    },
+    "discord_attachment:1543874293258260550:1545368153234866238:1545368153381404762:shidqi.png": {
+      "url": "https://cdn.discordapp.com/attachments/1543874293258260550/1545368153381404762/shidqi.png?ex=6a9c8c7f&is=6a9b3aff&hm=203dd5dca2cac3a60c6f4f360a9d7d3dd538090cc3053222da6b3dc292bfdef5&",
+      "expiresAt": 1788581718494,
+      "savedAt": 1788581418494,
+      "fileName": "shidqi.png"
+    },
+    "discord_attachment:1543874293258260550:1545008160308338698:1545008160052482128:ikan_gurame.png": {
+      "url": "https://cdn.discordapp.com/attachments/1543874293258260550/1545008160052482128/ikan_gurame.png?ex=6a9c8eba&is=6a9b3d3a&hm=5556299169625987e9738c0e9b36da5e9ec4282d65e5fc6a61c18a1782ceb2c9&",
+      "expiresAt": 1788581680742,
+      "savedAt": 1788581380742,
+      "fileName": "ikan_gurame.png"
+    },
+    "discord_attachment:1543874293258260550:1545017047883325462:1545017048000761866:ikan_jawa.png": {
+      "url": "https://cdn.discordapp.com/attachments/1543874293258260550/1545017048000761866/ikan_jawa.png?ex=6a9c9701&is=6a9b4581&hm=8d2ffdfbe434c3c4fbd5dc332e7ed120c05b09bd4ae306255d52d01b72b3e6fa&",
+      "expiresAt": 1788581681284,
+      "savedAt": 1788581381284,
+      "fileName": "ikan_jawa.png"
+    },
+    "discord_attachment:1543874293258260550:1545008196739932242:1545008196534538290:ikan_arwana.png": {
+      "url": "https://cdn.discordapp.com/attachments/1543874293258260550/1545008196534538290/ikan_arwana.png?ex=6a9c8ec2&is=6a9b3d42&hm=25738a624ca2d9b8aa2907478e48d21e09e914f299e575ef1c76c2756cb6cadd&",
+      "expiresAt": 1788581682434,
+      "savedAt": 1788581382434,
+      "fileName": "ikan_arwana.png"
+    },
+    "discord_attachment:1543874293258260550:1545040055981182988:1545040055838580827:ikan_hiu.png": {
+      "url": "https://cdn.discordapp.com/attachments/1543874293258260550/1545040055838580827/ikan_hiu.png?ex=6a9cac6e&is=6a9b5aee&hm=566a1a0b8855e32ff846aa1bbf181c8a0900743f883fd8a5cd8cbd0c6736a716&",
+      "expiresAt": 1788581684131,
+      "savedAt": 1788581384131,
+      "fileName": "ikan_hiu.png"
+    },
+    "discord_attachment:1543874293258260550:1545040048947200001:1545040049094004746:ikan_cupang_dragon.png": {
+      "url": "https://cdn.discordapp.com/attachments/1543874293258260550/1545040049094004746/ikan_cupang_dragon.png?ex=6a9cac6d&is=6a9b5aed&hm=eb12cc878109f9c92af785711df9486f4af1b703d9a4c31325bd53bf04e45e22&",
+      "expiresAt": 1788581684312,
+      "savedAt": 1788581384312,
+      "fileName": "ikan_cupang_dragon.png"
+    },
+    "discord_attachment:1543874293258260550:1545017072692625498:1545017072298491964:ikan_charger_poco.png": {
+      "url": "https://cdn.discordapp.com/attachments/1543874293258260550/1545017072298491964/ikan_charger_poco.png?ex=6a9c9707&is=6a9b4587&hm=6711001f93cfcfa89ad7a773322ecc0ae293a1ef7c8f29ad73ae335d525a168e&",
+      "expiresAt": 1788581685792,
+      "savedAt": 1788581385792,
+      "fileName": "ikan_charger_poco.png"
+    },
+    "discord_attachment:1543874293258260550:1545017085804150785:1545017086009409546:ikan_melompat_menuju_kahyangan.png": {
+      "url": "https://cdn.discordapp.com/attachments/1543874293258260550/1545017086009409546/ikan_melompat_menuju_kahyangan.png?ex=6a9c970a&is=6a9b458a&hm=ed0aa99758d0c15465b00001112e7fe9f76a53880bb3ee820b60ebf47c4ae3a2&",
+      "expiresAt": 1788581687371,
+      "savedAt": 1788581387371,
+      "fileName": "ikan_melompat_menuju_kahyangan.png"
+    },
+    "discord_attachment:1543874293258260550:1545040070120312833:1545040069923053568:ikan_dikala_senja.png": {
+      "url": "https://cdn.discordapp.com/attachments/1543874293258260550/1545040069923053568/ikan_dikala_senja.png?ex=6a9cac72&is=6a9b5af2&hm=d8fdbd028eb6bdb80c3eca61bab14240441cbb3a9142882eac1bca9784214377&",
+      "expiresAt": 1788581687467,
+      "savedAt": 1788581387467,
+      "fileName": "ikan_dikala_senja.png"
+    },
+    "discord_attachment:1543874293258260550:1545022772709957703:1545022772869079181:ikan_anjrotman.png": {
+      "url": "https://cdn.discordapp.com/attachments/1543874293258260550/1545022772869079181/ikan_anjrotman.png?ex=6a9c9c56&is=6a9b4ad6&hm=e99a046eab45fe471d5145ab5834395d453e2ae2b645945d992bd61ae31230d3&",
+      "expiresAt": 1788581688826,
+      "savedAt": 1788581388826,
+      "fileName": "ikan_anjrotman.png"
+    },
+    "discord_attachment:1543874293258260550:1545017110319734815:1545017112538644640:ikan_balmond.png": {
+      "url": "https://cdn.discordapp.com/attachments/1543874293258260550/1545017112538644640/ikan_balmond.png?ex=6a9c9710&is=6a9b4590&hm=badadc6590ff29d17b8a9329c4a5d349aa236ab2523957a1bcea4aa71d0aabf4&",
+      "expiresAt": 1788581690419,
+      "savedAt": 1788581390419,
+      "fileName": "ikan_balmond.png"
+    },
+    "discord_attachment:1543874293258260550:1545025985135513655:1545025985324519494:ikan_shinta_vr.png": {
+      "url": "https://cdn.discordapp.com/attachments/1543874293258260550/1545025985324519494/ikan_shinta_vr.png?ex=6a9c9f54&is=6a9b4dd4&hm=3601c8bb24efa5098c3b6327545ec11716ed2fcf0507eab2168595471f12efe5&",
+      "expiresAt": 1788581690463,
+      "savedAt": 1788581390463,
+      "fileName": "ikan_shinta_vr.png"
+    },
+    "discord_attachment:1543874293258260550:1545026006975385650:1545026006694363176:ikan_sahabat.png": {
+      "url": "https://cdn.discordapp.com/attachments/1543874293258260550/1545026006694363176/ikan_sahabat.png?ex=6a9c9f59&is=6a9b4dd9&hm=2a75728e4ab645f75def06b0f9c6f31963a23ee42e7989ebc7f792752dd227dd&",
+      "expiresAt": 1788581691504,
+      "savedAt": 1788581391504,
+      "fileName": "ikan_sahabat.png"
+    },
+    "discord_attachment:1543874293258260550:1545022778518937660:1545022778288242688:ikan_ambisi_budidaya_bakteri_pelepas_dahaga.png": {
+      "url": "https://cdn.discordapp.com/attachments/1543874293258260550/1545022778288242688/ikan_ambisi_budidaya_bakteri_pelepas_dahaga.png?ex=6a9c9c57&is=6a9b4ad7&hm=f236b38187fc1387d2187ac590e19bd3a8b2d485de8fabc1088dd98dd6fab909&",
+      "expiresAt": 1788581693191,
+      "savedAt": 1788581393191,
+      "fileName": "ikan_ambisi_budidaya_bakteri_pelepas_dahaga.png"
+    },
+    "discord_attachment:1543874293258260550:1545001801441345587:1545001801533751306:cumi.png": {
+      "url": "https://cdn.discordapp.com/attachments/1543874293258260550/1545001801533751306/cumi.png?ex=6a9c88ce&is=6a9b374e&hm=f40594640695af066fd0710b8a8392b70f1b06556d5f67295c5ec9158dcdde08&",
+      "expiresAt": 1788581796775,
+      "savedAt": 1788581496775,
+      "fileName": "cumi.png"
+    },
+    "discord_attachment:1543874293258260550:1545660303768035409:1545660303914569859:1788584488170.png": {
+      "url": "https://cdn.discordapp.com/attachments/1543874293258260550/1545660303914569859/1788584488170.png?ex=6a9cf3d5&is=6a9ba255&hm=2902395c5caad5dc23035d7bde0cfdb65b60efc0b2eeedf3bd79b1f6d505c12d&",
+      "expiresAt": 1788584843938,
+      "savedAt": 1788584543938,
+      "fileName": "1788584488170.png"
+    },
+    "discord_attachment:1543874293258260550:1545691287297069207:1545691287049736192:1788584488170.png": {
+      "url": "https://cdn.discordapp.com/attachments/1543874293258260550/1545691287049736192/1788584488170.png?ex=6a9d10b0&is=6a9bbf30&hm=c7ddf97991ddb74d5a3905e2caad2b5bff3383a2571749b40364d92bdd9ecfe7&",
+      "expiresAt": 1788592230765,
+      "savedAt": 1788591930765,
+      "fileName": "1788584488170.png"
+    },
+    "discord_attachment:1543874293258260550:1545704189194145913:1545704188866986106:1788584488170.png": {
+      "url": "https://cdn.discordapp.com/attachments/1543874293258260550/1545704188866986106/1788584488170.png?ex=6a9d1cb4&is=6a9bcb34&hm=0beeb1852ff69dec85616fb1671d47db9ab90ce401627f21b032ed44418ac8d6&",
+      "expiresAt": 1788595306616,
+      "savedAt": 1788595006616,
+      "fileName": "1788584488170.png"
+    },
+    "discord_attachment:1543874293258260550:1545708691452596274:1545708691225968710:1788584488170.png": {
+      "url": "https://cdn.discordapp.com/attachments/1543874293258260550/1545708691225968710/1788584488170.png?ex=6a9d20e5&is=6a9bcf65&hm=75ccebc1d0100fe0ea26c652dadf22e511c7f836d6b12ed48192e03d38c9fc38&",
+      "expiresAt": 1788596380442,
+      "savedAt": 1788596080442,
+      "fileName": "1788584488170.png"
+    },
+    "discord_attachment:1543874293258260550:1545840904290439219:1545840903984259082:1788627083622.png": {
+      "url": "https://cdn.discordapp.com/attachments/1543874293258260550/1545840903984259082/1788627083622.png?ex=6a9d9c07&is=6a9c4a87&hm=bd0cdad80e6604a7265e0d9915d4a9d8e1fc0cdc6316318807f011512ad85462&",
+      "expiresAt": 1788627902143,
+      "savedAt": 1788627602143,
+      "fileName": "1788627083622.png"
+    },
+    "discord_attachment:1543874293258260550:1545852206610129036:1545852205184319608:1788627083622.png": {
+      "url": "https://cdn.discordapp.com/attachments/1543874293258260550/1545852205184319608/1788627083622.png?ex=6a9da68e&is=6a9c550e&hm=64e32f77ffe5d1106a6394329e6e39fa6938dd239637616def702d00aeccbe3d&",
+      "expiresAt": 1788630610980,
+      "savedAt": 1788630310980,
+      "fileName": "1788627083622.png"
+    },
+    "discord_attachment:1543874293258260550:1545852212629217352:1545852212327096330:fara.png": {
+      "url": "https://cdn.discordapp.com/attachments/1543874293258260550/1545852212327096330/fara.png?ex=6a9da68f&is=6a9c550f&hm=05ba3fa135070783d1f32964cb4e3252d52839e8e5899d644d4463da779a4ece&",
+      "expiresAt": 1788630611324,
+      "savedAt": 1788630311324,
+      "fileName": "fara.png"
+    },
+    "discord_attachment:1543874293258260550:1545852218509623339:1545852218651975800:andry.png": {
+      "url": "https://cdn.discordapp.com/attachments/1543874293258260550/1545852218651975800/andry.png?ex=6a9da691&is=6a9c5511&hm=5593d660943a9fb66b34efc84a7ef12b7b4620248ed4d4311702c00f836ca018&",
+      "expiresAt": 1788630611343,
+      "savedAt": 1788630311343,
+      "fileName": "andry.png"
+    },
+    "discord_attachment:1543874293258260550:1545852225614520321:1545852225447010425:zect.png": {
+      "url": "https://cdn.discordapp.com/attachments/1543874293258260550/1545852225447010425/zect.png?ex=6a9da693&is=6a9c5513&hm=d6bc9e60b277594f1e9cf0cc620e369c40fdf5aa35fadcb4b79ce65717b4c594&",
+      "expiresAt": 1788630611372,
+      "savedAt": 1788630311372,
+      "fileName": "zect.png"
+    },
+    "discord_attachment:1543874293258260550:1545852234900832316:1545852234594521189:kambing.png": {
+      "url": "https://cdn.discordapp.com/attachments/1543874293258260550/1545852234594521189/kambing.png?ex=6a9da695&is=6a9c5515&hm=a99a8569e95f95e48338de5c871f3af99f66088d67f912162fa990532197933c&",
+      "expiresAt": 1788630611677,
+      "savedAt": 1788630311677,
+      "fileName": "kambing.png"
+    },
+    "discord_attachment:1543874293258260550:1545852254723112960:1545852254488109158:whatsapp.png": {
+      "url": "https://cdn.discordapp.com/attachments/1543874293258260550/1545852254488109158/whatsapp.png?ex=6a9da69a&is=6a9c551a&hm=a9e696dc0307639eccae8d7ef590d92def229a9dc3e33f7d3f85f13f4aaaa99d&",
+      "expiresAt": 1788630612017,
+      "savedAt": 1788630312017,
+      "fileName": "whatsapp.png"
+    },
+    "discord_attachment:1543874293258260550:1545852242807095326:1545852242505244682:teh_pucuk_1_3_liter.png": {
+      "url": "https://cdn.discordapp.com/attachments/1543874293258260550/1545852242505244682/teh_pucuk_1_3_liter.png?ex=6a9da697&is=6a9c5517&hm=75b30a2f98d446caaac472e1dd10b9e5895c8392cc10833315b5ac48c7b4b924&",
+      "expiresAt": 1788630613047,
+      "savedAt": 1788630313047,
+      "fileName": "teh_pucuk_1_3_liter.png"
+    },
+    "discord_attachment:1543874293258260550:1545852248419078165:1545852248553431050:kucing.png": {
+      "url": "https://cdn.discordapp.com/attachments/1543874293258260550/1545852248553431050/kucing.png?ex=6a9da698&is=6a9c5518&hm=7e298de590ac24bb85a78db70ea099da3a69898c9b5b27c8aea39f00de981df8&",
+      "expiresAt": 1788630614555,
+      "savedAt": 1788630314555,
+      "fileName": "kucing.png"
+    },
+    "discord_attachment:1543874293258260550:1545852265456337032:1545852265326182450:kubota_l4018.png": {
+      "url": "https://cdn.discordapp.com/attachments/1543874293258260550/1545852265326182450/kubota_l4018.png?ex=6a9da69c&is=6a9c551c&hm=039df0de510be818f42979194c0d3c244bd232ae374487d549e32c4913dab466&",
+      "expiresAt": 1788630615038,
+      "savedAt": 1788630315038,
+      "fileName": "kubota_l4018.png"
+    }
+  }
+}

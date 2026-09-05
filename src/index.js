@@ -31,6 +31,7 @@ const {
   VoiceConnectionStatus
 } = require("@discordjs/voice");
 const { adminListPlayers, adminSaveGameData, getGameData, getPlayer, savePlayer } = require("./playfab");
+const { makeFishShowoffBanner } = require("./fishShowoffBanner");
 const { makeIconAttachment, parseDataImage } = require("./imageUtils");
 
 const token = process.env.DISCORD_TOKEN;
@@ -46,8 +47,14 @@ const fishVoiceChannelsPath = path.join(runtimeDirectory, "fish-voice-channels.j
 const defaultFishingChannelsPath = path.join(runtimeDirectory, "default-fishing-channels.json");
 const fishRaidStatePath = path.join(runtimeDirectory, "fish-raid-state.json");
 const fishRaidSignalPath = path.join(runtimeDirectory, "fish-raid-signal.json");
+const fishDuelPendingPath = path.join(runtimeDirectory, "fish-duel-pending.json");
+const competitionHistoryPath = path.join(runtimeDirectory, "competition-history-logs.json");
+const announcementStatePath = path.join(runtimeDirectory, "announcement-state.json");
 const processStartedAt = Date.now();
 const voiceTickMs = 60_000;
+const fishDuelPendingTtlMs = 5 * 60_000;
+const publicShowoffTtlMs = 30 * 60_000;
+const fishDailyCooldownMs = 24 * 60 * 60 * 1000;
 
 const rarityColors = {
   Common: 0x95a5a6,
@@ -76,6 +83,7 @@ const client = new Client({
 let gameData = {
   fish: [],
   rods: [],
+  fishBags: [],
   adminDiscordIds: [],
   settings: {
     rodStoreImageBase64: "",
@@ -105,6 +113,15 @@ let gameData = {
     fishRaidBannerUrl: "",
     fishRaidEvents: [],
     fishRaidBosses: [],
+    fishDuelRegistrationBannerBase64: "",
+    fishDuelRegistrationBannerUrl: "",
+    fishDuelRunningBannerBase64: "",
+    fishDuelRunningBannerUrl: "",
+    fishDuelResultBannerBase64: "",
+    fishDuelResultBannerUrl: "",
+    fishDuelEvents: [],
+    fishDuelExpReward: 40,
+    fishDuelLogIntervalMs: 2500,
     fishCompLogIntervalMs: 2500,
     fishCompHistoryLogHours: 24,
     fishCompExpReward: 50,
@@ -135,8 +152,16 @@ const announcedEvents = new Set();
 const announcedEndedEvents = new Set();
 const competitions = new Map();
 const fishRaids = new Map();
+const fishDuels = new Map();
+const pendingFishDuels = new Map();
+const pendingFishDuelTimers = new Map();
 const dailyFishRaids = new Map();
 const finishedCompetitionLogs = new Map();
+let announcementState = {
+  activeEvents: {},
+  endedEvents: {},
+  routines: {}
+};
 const fishVoiceChannels = new Map();
 const defaultFishingChannels = new Map();
 const activeVoiceSessions = new Map();
@@ -154,13 +179,180 @@ const processedFishRaidSignalIds = new Set();
 let leaderboardCache = { records: [], loadedAt: 0 };
 const leaderboardCacheTtlMs = 2 * 60 * 1000;
 
-async function refreshGameData() {
-  gameData = await getGameData();
+function formatLogValue(value, fallback = "-") {
+  const text = String(value || "").trim();
+  return text || fallback;
+}
+
+function channelLogName(channel) {
+  if (!channel) {
+    return "";
+  }
+  const name = channel.name ? `#${channel.name}` : "";
+  return name ? `${name} (${channel.id})` : channel.id;
+}
+
+function guildLogName(channel, guildId = "") {
+  const guild = channel?.guild;
+  const id = guild?.id || guildId;
+  if (!id) {
+    return "";
+  }
+  return guild?.name ? `${guild.name} (${id})` : id;
+}
+
+function logBotAction(action, details = {}) {
+  const fields = [
+    `time=${new Date().toISOString()}`,
+    details.user ? `user=${formatLogValue(details.user)}` : "",
+    details.guild || details.guildId ? `server=${formatLogValue(details.guild || details.guildId)}` : "",
+    details.channel || details.channelId ? `channel=${formatLogValue(details.channel || details.channelId)}` : "",
+    details.extra ? String(details.extra) : ""
+  ].filter(Boolean);
+  console.log(`[Bot] ${action}${fields.length ? ` | ${fields.join(" | ")}` : ""}`);
+}
+
+function competitionLogName(competition) {
+  if (competition?.mode === "raid") return "Fish Raid";
+  if (competition?.mode === "duel") return "Fish Duel";
+  return "Fish Comp";
+}
+
+function readJsonFile(filePath, fallback) {
+  try {
+    if (!fs.existsSync(filePath)) {
+      return fallback;
+    }
+    const parsed = JSON.parse(fs.readFileSync(filePath, "utf8"));
+    return parsed && typeof parsed === "object" ? parsed : fallback;
+  } catch (error) {
+    console.warn(`Could not read runtime state | time=${new Date().toISOString()} | file=${path.basename(filePath)} | message=${error.message}`);
+    return fallback;
+  }
+}
+
+function writeJsonFile(filePath, payload) {
+  try {
+    fs.mkdirSync(runtimeDirectory, { recursive: true });
+    fs.writeFileSync(filePath, JSON.stringify(payload, null, 2));
+  } catch (error) {
+    console.warn(`Could not save runtime state | time=${new Date().toISOString()} | file=${path.basename(filePath)} | message=${error.message}`);
+  }
+}
+
+function loadCompetitionHistoryLogs() {
+  const saved = readJsonFile(competitionHistoryPath, { logs: [] });
+  finishedCompetitionLogs.clear();
+  for (const entry of Array.isArray(saved.logs) ? saved.logs : []) {
+    if (!entry?.id || !entry.content) {
+      continue;
+    }
+    finishedCompetitionLogs.set(String(entry.id), {
+      createdAt: Math.max(0, Number(entry.createdAt || 0)),
+      fileName: String(entry.fileName || "match_log.txt"),
+      content: String(entry.content || "")
+    });
+  }
+  cleanupFinishedCompetitionLogs();
+}
+
+function saveCompetitionHistoryLogs() {
+  writeJsonFile(competitionHistoryPath, {
+    savedAt: new Date().toISOString(),
+    logs: [...finishedCompetitionLogs.entries()].map(([id, record]) => ({
+      id,
+      createdAt: Math.max(0, Number(record.createdAt || 0)),
+      fileName: String(record.fileName || "match_log.txt"),
+      content: String(record.content || "")
+    }))
+  });
+}
+
+function loadAnnouncementState() {
+  const saved = readJsonFile(announcementStatePath, {});
+  announcementState = {
+    activeEvents: saved.activeEvents && typeof saved.activeEvents === "object" && !Array.isArray(saved.activeEvents) ? saved.activeEvents : {},
+    endedEvents: saved.endedEvents && typeof saved.endedEvents === "object" && !Array.isArray(saved.endedEvents) ? saved.endedEvents : {},
+    routines: saved.routines && typeof saved.routines === "object" && !Array.isArray(saved.routines) ? saved.routines : {}
+  };
+  for (const eventKey of Object.keys(announcementState.activeEvents)) {
+    announcedEvents.add(eventKey);
+  }
+  for (const eventKey of Object.keys(announcementState.endedEvents)) {
+    announcedEndedEvents.add(eventKey);
+  }
+}
+
+function saveAnnouncementState() {
+  writeJsonFile(announcementStatePath, {
+    savedAt: new Date().toISOString(),
+    activeEvents: announcementState.activeEvents,
+    endedEvents: announcementState.endedEvents,
+    routines: announcementState.routines
+  });
+}
+
+function eventAnnouncementKey(event, phase = "start") {
+  const marker = phase === "end" ? getEventEndedAt(event) || event.stoppedAt || event.endsAt : event.deployedAt || event.startAt || event.endsAt || "";
+  return `${event?.id || event?.title || "event"}:${phase}:${marker}`;
+}
+
+function isEventAnnouncementLocallyMarked(event, phase = "start") {
+  const key = eventAnnouncementKey(event, phase);
+  return phase === "end"
+    ? Boolean(announcementState.endedEvents[key] || announcedEndedEvents.has(key) || announcedEndedEvents.has(event.id))
+    : Boolean(announcementState.activeEvents[key] || announcedEvents.has(key) || announcedEvents.has(event.id));
+}
+
+function markEventAnnouncementLocal(event, phase = "start", guildId = "", channelId = "") {
+  const key = eventAnnouncementKey(event, phase);
+  const target = phase === "end" ? announcementState.endedEvents : announcementState.activeEvents;
+  target[key] = {
+    eventId: event?.id || "",
+    title: event?.title || "",
+    guildId: guildId || event?.guildId || "",
+    channelId: channelId || event?.announcementChannelId || "",
+    markedAt: new Date().toISOString()
+  };
+  if (phase === "end") {
+    announcedEndedEvents.add(key);
+    announcedEndedEvents.add(event.id);
+  } else {
+    announcedEvents.add(key);
+    announcedEvents.add(event.id);
+  }
+  saveAnnouncementState();
+}
+
+function routineAnnouncementKey(routineId, guildId, triggerKey) {
+  return `${routineId || "routine"}:${guildId || "guild"}:${triggerKey || "trigger"}`;
+}
+
+function isRoutineLocallyMarked(routineId, guildId, triggerKey) {
+  return Boolean(announcementState.routines[routineAnnouncementKey(routineId, guildId, triggerKey)]);
+}
+
+function markRoutineLocal(routineId, guildId, triggerKey, channelId = "") {
+  const key = routineAnnouncementKey(routineId, guildId, triggerKey);
+  announcementState.routines[key] = {
+    routineId,
+    guildId,
+    triggerKey,
+    channelId,
+    markedAt: new Date().toISOString()
+  };
+  saveAnnouncementState();
+}
+
+async function refreshGameData(caller = "unknown") {
+  gameData = await getGameData({ caller });
   if (client.isReady()) {
     await hydrateActiveEventGuilds();
   }
   scheduleNextEventAnnouncement();
-  console.log(`Loaded ${gameData.fish.length} fish, ${gameData.rods.length} rods, and ${gameData.adminDiscordIds.length} admin IDs from PlayFab.`);
+  if (!Array.isArray(gameData.fishBags)) {
+    gameData.fishBags = [];
+  }
 }
 
 function queuePlayerWork(userId, work) {
@@ -180,6 +372,50 @@ function queuePlayerWork(userId, work) {
 
 function getRod(rodId) {
   return gameData.rods.find((rod) => rod.id === rodId) || gameData.rods[0];
+}
+
+function getFishBag(fishBagId) {
+  const id = String(fishBagId || "").trim();
+  return id ? gameData.fishBags.find((bag) => bag.id === id) || null : null;
+}
+
+function getItemBonuses(item, context = {}) {
+  const bonuses = Array.isArray(item?.bonuses) ? item.bonuses : [];
+  return bonuses.filter((bonus) => {
+    if (!bonus?.type) return false;
+    if (bonus.mode && bonus.mode !== context.mode) return false;
+    if (bonus.target && bonus.target !== context.target) return false;
+    if (bonus.condition === "opponent_higher_level" && !(Number(context.opponentLevel || 0) > Number(context.userLevel || 0))) return false;
+    if (bonus.condition === "opponent_lower_level" && !(Number(context.opponentLevel || 0) < Number(context.userLevel || 0))) return false;
+    return true;
+  });
+}
+
+function sumItemBonus(item, type, context = {}) {
+  return getItemBonuses(item, context)
+    .filter((bonus) => bonus.type === type)
+    .reduce((total, bonus) => total + Number(bonus.value || 0), 0);
+}
+
+function getEffectiveRodAccuracy(rod, context = {}) {
+  return Math.max(0, Math.min(100, Number(rod?.accuracy ?? 50) + sumItemBonus(rod, "accuracy", context)));
+}
+
+function getEffectiveFishBagSpace(player, context = {}) {
+  const bag = getFishBag(player?.fishBagId);
+  if (!bag) {
+    return 0;
+  }
+  return Math.max(1, Number(bag.spaceKg || 0) + sumItemBonus(bag, "spaceKg", context));
+}
+
+function getEffectiveFishBagCapacity(player, context = {}) {
+  return getEffectiveFishBagSpace(player, context);
+}
+
+function hasEquippedFishBag(player) {
+  const bag = getFishBag(player?.fishBagId);
+  return Boolean(bag && Array.isArray(player?.ownedFishBags) && player.ownedFishBags.includes(bag.id));
 }
 
 function getSettings() {
@@ -211,6 +447,15 @@ function getSettings() {
     fishRaidBannerUrl: "",
     fishRaidEvents: [],
     fishRaidBosses: [],
+    fishDuelRegistrationBannerBase64: "",
+    fishDuelRegistrationBannerUrl: "",
+    fishDuelRunningBannerBase64: "",
+    fishDuelRunningBannerUrl: "",
+    fishDuelResultBannerBase64: "",
+    fishDuelResultBannerUrl: "",
+    fishDuelEvents: [],
+    fishDuelExpReward: 40,
+    fishDuelLogIntervalMs: 2500,
     fishCompLogIntervalMs: 2500,
     fishCompExpReward: 50,
     fishCompGoldReward: 0,
@@ -323,6 +568,162 @@ function saveDefaultFishingChannels() {
   fs.writeFileSync(defaultFishingChannelsPath, JSON.stringify(Object.fromEntries(defaultFishingChannels), null, 2));
 }
 
+function normalizePendingFishDuel(raw, options = {}) {
+  if (!raw || typeof raw !== "object") {
+    return null;
+  }
+  const id = String(raw.id || "").trim();
+  const creatorId = String(raw.creator?.id || raw.creatorId || "").trim();
+  const createdAt = Number(raw.createdAt || 0);
+  const allowExpired = Boolean(options.allowExpired);
+  if (!id || !creatorId || !createdAt || (!allowExpired && Date.now() - createdAt >= fishDuelPendingTtlMs)) {
+    return null;
+  }
+
+  const targetId = String(raw.target?.id || raw.targetId || "").trim();
+  return {
+    id,
+    guildId: raw.guildId ? String(raw.guildId) : "",
+    channelId: raw.channelId ? String(raw.channelId) : "",
+    messageId: raw.messageId ? String(raw.messageId) : "",
+    creatorId,
+    targetId,
+    creator: {
+      id: creatorId,
+      username: String(raw.creator?.username || "Challenger"),
+      globalName: String(raw.creator?.globalName || ""),
+      displayName: String(raw.creator?.displayName || raw.creator?.username || "Challenger")
+    },
+    target: targetId ? {
+      id: targetId,
+      username: String(raw.target?.username || "Target"),
+      globalName: String(raw.target?.globalName || ""),
+      displayName: String(raw.target?.displayName || raw.target?.username || "Target")
+    } : null,
+    betAmount: Math.max(0, Math.floor(Number(raw.betAmount || 0))),
+    createdAt
+  };
+}
+
+function savePendingFishDuels() {
+  try {
+    fs.mkdirSync(runtimeDirectory, { recursive: true });
+    fs.writeFileSync(fishDuelPendingPath, JSON.stringify({ duels: [...pendingFishDuels.values()] }, null, 2));
+  } catch (error) {
+    console.error("Could not save pending fish duels:", error);
+  }
+}
+
+async function deletePendingFishDuelMessage(pending) {
+  if (!pending?.channelId || !pending?.messageId) {
+    return;
+  }
+  const channel = await client.channels.fetch(pending.channelId).catch(() => null);
+  if (!channel?.messages?.fetch) {
+    return;
+  }
+  const message = await channel.messages.fetch(pending.messageId).catch(() => null);
+  await message?.delete?.().catch(() => {});
+}
+
+async function expirePendingFishDuel(duelId, deleteMessage = true) {
+  const pending = pendingFishDuels.get(duelId);
+  pendingFishDuelTimers.delete(duelId);
+  pendingFishDuels.delete(duelId);
+  savePendingFishDuels();
+  if (deleteMessage) {
+    await deletePendingFishDuelMessage(pending);
+  }
+}
+
+function schedulePendingFishDuelExpiry(duelId) {
+  const pending = pendingFishDuels.get(duelId);
+  if (!pending) {
+    return;
+  }
+  if (pendingFishDuelTimers.has(duelId)) {
+    clearTimeout(pendingFishDuelTimers.get(duelId));
+  }
+  const remainingMs = pending.createdAt + fishDuelPendingTtlMs - Date.now();
+  if (remainingMs <= 0) {
+    expirePendingFishDuel(duelId).catch((error) => console.error("Could not expire pending fish duel:", error));
+    return;
+  }
+  const timer = setTimeout(() => {
+    expirePendingFishDuel(duelId).catch((error) => console.error("Could not expire pending fish duel:", error));
+  }, remainingMs);
+  pendingFishDuelTimers.set(duelId, timer);
+}
+
+function setPendingFishDuel(duelId, pending) {
+  const normalized = normalizePendingFishDuel({ ...pending, id: duelId });
+  if (!normalized) {
+    return;
+  }
+  pendingFishDuels.set(duelId, normalized);
+  schedulePendingFishDuelExpiry(duelId);
+  savePendingFishDuels();
+}
+
+function deletePendingFishDuel(duelId) {
+  if (pendingFishDuelTimers.has(duelId)) {
+    clearTimeout(pendingFishDuelTimers.get(duelId));
+    pendingFishDuelTimers.delete(duelId);
+  }
+  pendingFishDuels.delete(duelId);
+  savePendingFishDuels();
+}
+
+function getPendingFishDuel(duelId) {
+  const pending = normalizePendingFishDuel(pendingFishDuels.get(duelId));
+  if (!pending) {
+    if (pendingFishDuels.has(duelId)) {
+      deletePendingFishDuel(duelId);
+    }
+    return null;
+  }
+  return pending;
+}
+
+function deletePendingFishDuelByMessageId(messageId) {
+  if (!messageId) {
+    return;
+  }
+  for (const pending of pendingFishDuels.values()) {
+    if (pending.messageId === messageId) {
+      deletePendingFishDuel(pending.id);
+    }
+  }
+}
+
+function loadPendingFishDuels() {
+  fs.mkdirSync(runtimeDirectory, { recursive: true });
+  if (!fs.existsSync(fishDuelPendingPath)) {
+    return;
+  }
+
+  try {
+    const saved = JSON.parse(fs.readFileSync(fishDuelPendingPath, "utf8"));
+    const duels = Array.isArray(saved?.duels) ? saved.duels : Array.isArray(saved) ? saved : [];
+    pendingFishDuels.clear();
+    for (const raw of duels) {
+      const pending = normalizePendingFishDuel(raw, { allowExpired: true });
+      if (!pending) {
+        continue;
+      }
+      if (Date.now() - pending.createdAt >= fishDuelPendingTtlMs) {
+        deletePendingFishDuelMessage(pending).catch((error) => console.error("Could not delete expired pending fish duel message:", error));
+      } else {
+        pendingFishDuels.set(pending.id, pending);
+        schedulePendingFishDuelExpiry(pending.id);
+      }
+    }
+    savePendingFishDuels();
+  } catch (error) {
+    console.error("Could not load pending fish duels:", error);
+  }
+}
+
 function voiceSessionKey(guildId, userId) {
   return `${guildId}:${userId}`;
 }
@@ -375,6 +776,24 @@ async function resolveParentTextChannel(channel) {
   return null;
 }
 
+function scheduleMessageDelete(message, delayMs = publicShowoffTtlMs) {
+  if (!message?.delete) {
+    return;
+  }
+  setTimeout(() => {
+    message.delete().catch(() => {});
+  }, Math.max(0, delayMs));
+}
+
+async function fetchMainTextChannel(player = null, guildId = "", fallbackChannel = null) {
+  let channel = await fetchFishingMessageChannel(player, guildId) || fallbackChannel;
+  if (!channel && !guildId && defaultFishingChannels.size === 1) {
+    const channelId = [...defaultFishingChannels.values()][0];
+    channel = await client.channels.fetch(channelId).catch(() => null);
+  }
+  return await resolveParentTextChannel(channel) || channel || null;
+}
+
 async function fetchRoutineMessageChannel(routine, guildId = "") {
   const channelId = String(routine?.channelId || "").trim();
   if (channelId) {
@@ -422,7 +841,8 @@ async function sendFishingCatchMessages(channel, user, catches, previousLevel, c
   }
 
   if (currentLevel > previousLevel && typeof user !== "string") {
-    await channel.send({ embeds: [makeLevelUpEmbed(user, currentLevel, member)] }).catch((error) => {
+    const levelUpChannel = await resolveParentTextChannel(channel) || channel;
+    await levelUpChannel.send({ embeds: [makeLevelUpEmbed(user, currentLevel, member)] }).catch((error) => {
       console.error("Could not send fishing level-up message:", error);
     });
   }
@@ -465,20 +885,22 @@ async function handleCatchShowcase(interaction) {
   }));
 
   if (components.length) {
-    await targetChannel.send(makeComponentsV2Message([
+    const showcaseMessage = await targetChannel.send(makeComponentsV2Message([
       makeTextDisplay(`### ${formatDiscordMention(interaction.user.id)} meminta izin untuk pamer nih bos!`),
       ...components
     ], {
       files,
       allowedMentions: { users: [interaction.user.id] }
     }));
+    scheduleMessageDelete(showcaseMessage);
   } else {
-    await targetChannel.send({
+    const showcaseMessage = await targetChannel.send({
       content: `${formatDiscordMention(interaction.user.id)} meminta izin untuk pamer nih bos!`,
       embeds,
       files,
       allowedMentions: { users: [interaction.user.id] }
     });
+    scheduleMessageDelete(showcaseMessage);
   }
   await interaction.reply({ content: "Tangkapanmu sudah dipamerkan di channel utama.", flags: MessageFlags.Ephemeral });
 }
@@ -711,7 +1133,7 @@ function scheduleNextEventAnnouncement() {
 
   const delayMs = Math.min(Math.max(0, nextStartAt - Date.now()), maxEventAnnouncementTimeoutMs);
   eventAnnouncementTimer = setTimeout(() => {
-    refreshGameData()
+    refreshGameData("scheduled event announcement")
       .then(() => announceEventUpdates())
       .catch((error) => console.error("Could not announce scheduled event:", error));
   }, delayMs);
@@ -839,7 +1261,17 @@ function makeEmbedPanelMessage(embed, options = {}) {
     container.addMediaGalleryComponents(makeMediaGallery(data.image.url, data.title || "Message image"));
   }
 
-  if (options.components?.length) {
+  if (options.componentBlocks?.length) {
+    container.addSeparatorComponents(new SeparatorBuilder());
+    for (const block of options.componentBlocks) {
+      if (block.text) {
+        container.addTextDisplayComponents(makeTextDisplay(block.text));
+      }
+      if (block.components?.length) {
+        container.addActionRowComponents(block.components);
+      }
+    }
+  } else if (options.components?.length) {
     container.addSeparatorComponents(new SeparatorBuilder());
     container.addActionRowComponents(options.components);
   }
@@ -912,8 +1344,63 @@ function getLevel(exp) {
   return level;
 }
 
-function formatFishLuckScore(luckScale) {
-  return Math.max(0, Math.round((1 - Number(luckScale || 0)) * 5000));
+const fishLuckRarityBaseScores = {
+  Common: 1000,
+  Uncommon: 2500,
+  Rare: 4000,
+  Epic: 5500,
+  Legendary: 7000,
+  Secret: 8500,
+  Mythic: 10000,
+  Divine: 11500,
+  Celestial: 13000,
+  Abyssal: 14500,
+  Transcendent: 16000
+};
+const fishRarities = Object.keys(fishLuckRarityBaseScores);
+
+function getFishLuckRarityBaseScore(rarity) {
+  const rarityName = String(rarity || "Common").trim();
+  if (fishLuckRarityBaseScores[rarityName] !== undefined) {
+    return fishLuckRarityBaseScores[rarityName];
+  }
+  const rarityIndex = fishRarities.indexOf(rarityName);
+  return rarityIndex >= 0 ? 1000 + rarityIndex * 1500 : 1000;
+}
+
+function normalizeLogRange(value, min, max) {
+  const safeValue = Math.max(0, Number(value || 0));
+  const safeMin = Math.max(0, Number(min || 0));
+  const safeMax = Math.max(safeMin, Number(max || safeMin));
+  if (safeMax <= safeMin) {
+    return 0;
+  }
+  const minLog = Math.log10(safeMin + 1);
+  const maxLog = Math.log10(safeMax + 1);
+  return (Math.log10(safeValue + 1) - minLog) / Math.max(0.000001, maxLog - minLog);
+}
+
+function getFishLuckScoreRanges() {
+  const fish = Array.isArray(gameData.fish) ? gameData.fish : [];
+  const baseWeights = fish.map((entry) => Math.max(0, Number(entry.baseWeight || 0))).filter((value) => value > 0);
+  const minWeights = fish.map((entry) => Math.max(0, Number(entry.minWeight || 0))).filter((value) => value > 0);
+  return {
+    minBaseWeight: Math.min(...baseWeights, 1),
+    maxBaseWeight: Math.max(...baseWeights, 1),
+    minWeight: Math.min(...minWeights, 0.01),
+    maxWeight: Math.max(...minWeights, 0.01)
+  };
+}
+
+function formatFishLuckScore(fishEntry) {
+  if (!fishEntry || typeof fishEntry !== "object") {
+    return Math.max(0, Math.round((1 + Number(fishEntry || 0)) * 5000));
+  }
+  const ranges = getFishLuckScoreRanges();
+  const baseScore = getFishLuckRarityBaseScore(fishEntry.rarity);
+  const scarcityScore = Math.round((1 - normalizeLogRange(fishEntry.baseWeight, ranges.minBaseWeight, ranges.maxBaseWeight)) * 700);
+  const weightScore = Math.round(normalizeLogRange(fishEntry.minWeight, ranges.minWeight, ranges.maxWeight) * 500);
+  return Math.max(0, baseScore + scarcityScore + weightScore);
 }
 
 function normalizeMessage(content) {
@@ -1004,7 +1491,7 @@ function rollFish(rod, guildId = "") {
 function addCatch(player, caughtFish, catchWeight, guildId = "") {
   const expReward = calculateCatchExp(caughtFish, guildId);
   const expGain = expReward.total;
-  const luckScore = formatFishLuckScore(caughtFish.luckScale);
+  const luckScore = formatFishLuckScore(caughtFish);
   player.inventory[caughtFish.id] = (player.inventory[caughtFish.id] || 0) + 1;
   player.fishDex = player.fishDex && typeof player.fishDex === "object" ? player.fishDex : {};
   const dexEntry = player.fishDex[caughtFish.id] && typeof player.fishDex[caughtFish.id] === "object"
@@ -1022,14 +1509,7 @@ function addCatch(player, caughtFish, catchWeight, guildId = "") {
       weight: Number(catchWeight || 0)
     };
   }
-  if (!player.luckiestFish || luckScore > Number(player.luckiestFish.score || 0)) {
-    player.luckiestFish = {
-      fishId: caughtFish.id,
-      name: caughtFish.name,
-      luckScale: Number(caughtFish.luckScale || 0),
-      score: luckScore
-    };
-  }
+  refreshPlayerLuckiestFish(player, guildId);
   player.exp += expGain;
   return { expGain, expBase: expReward.base, expEventInfo: expReward.eventInfo, luckScore };
 }
@@ -1081,6 +1561,41 @@ function getFishDexEntry(player, fishEntry) {
   const count = Math.max(0, Math.floor(Number(dexEntry.count || 0)), inventoryCount);
   const heaviestWeight = Math.max(0, Number(dexEntry.heaviestWeight || 0));
   return { count, heaviestWeight, caught: count > 0 || heaviestWeight > 0 };
+}
+
+function getLuckScoreFishPool(guildId = "") {
+  return guildId ? getAvailableFish(guildId) : gameData.fish;
+}
+
+function findFishEntryByRecord(record, guildId = "") {
+  const fishId = String(record?.fishId || "").trim();
+  const fishName = String(record?.name || "").trim();
+  return getLuckScoreFishPool(guildId).find((fishEntry) => fishEntry.id === fishId || fishEntry.name === fishName) || null;
+}
+
+function makeLuckiestFishRecord(fishEntry) {
+  return {
+    fishId: fishEntry.id,
+    name: fishEntry.name,
+    luckScale: Number(fishEntry.luckScale || 0),
+    score: formatFishLuckScore(fishEntry)
+  };
+}
+
+function refreshPlayerLuckiestFish(player, guildId = "") {
+  if (!player || typeof player !== "object") {
+    return null;
+  }
+  const candidates = getLuckScoreFishPool(guildId).filter((fishEntry) => getFishDexEntry(player, fishEntry).caught);
+  const storedFishEntry = findFishEntryByRecord(player.luckiestFish, guildId);
+  if (storedFishEntry && !candidates.some((fishEntry) => fishEntry.id === storedFishEntry.id)) {
+    candidates.push(storedFishEntry);
+  }
+  const luckiestFish = candidates
+    .map(makeLuckiestFishRecord)
+    .sort((a, b) => b.score - a.score || b.luckScale - a.luckScale || a.name.localeCompare(b.name))[0] || null;
+  player.luckiestFish = luckiestFish;
+  return luckiestFish;
 }
 
 function countCaughtFishTypes(player, guildId = "") {
@@ -1161,6 +1676,19 @@ function makeProfileRodOptions(player) {
     }));
 }
 
+function makeProfileFishBagOptions(player) {
+  const ownedFishBagIds = new Set(Array.isArray(player.ownedFishBags) ? player.ownedFishBags : []);
+  return gameData.fishBags
+    .filter((bag) => ownedFishBagIds.has(bag.id))
+    .slice(0, 25)
+    .map((bag) => ({
+      label: truncateText(bag.name, 100),
+      description: truncateText(`${bag.rarity || "Common"} · Capacity ${bag.spaceKg || 0} kg`, 100),
+      value: bag.id,
+      default: bag.id === player.fishBagId
+    }));
+}
+
 function makeProfileComponents(player, member = null, fishCompRoleOverride = null) {
   const components = [];
   const rodOptions = makeProfileRodOptions(player);
@@ -1174,12 +1702,24 @@ function makeProfileComponents(player, member = null, fishCompRoleOverride = nul
       )
     );
   }
+  const fishBagOptions = makeProfileFishBagOptions(player);
+  if (fishBagOptions.length) {
+    components.push(
+      new ActionRowBuilder().addComponents(
+        new StringSelectMenuBuilder()
+          .setCustomId("profile_fishbag_select")
+          .setPlaceholder("Pilih tas pancing aktif")
+          .addOptions(fishBagOptions)
+      )
+    );
+  }
   components.push(...makeFishCompRoleRow(member, fishCompRoleOverride));
   return components;
 }
 
 function makeProfileMessage(user, player, member = null, guildId = "", fishCompRoleOverride = null) {
   const rod = getRod(player.rodId);
+  const fishBag = getFishBag(player.fishBagId);
   const level = getLevel(player.exp);
   const nextExp = expForLevel(level);
   const heaviestFish = player.heaviestFish;
@@ -1219,12 +1759,101 @@ function makeProfileMessage(user, player, member = null, guildId = "", fishCompR
   const components = makeProfileComponents(player, member, fishCompRoleOverride);
   if (components.length) {
     container.addSeparatorComponents(new SeparatorBuilder());
-    container.addTextDisplayComponents(makeTextDisplay(`**Equipped Rod :** ${rod?.name || "No rod found"}`));
-    container.addActionRowComponents(components);
+    let renderedFishBagSelect = false;
+    for (const component of components) {
+      const row = component.toJSON?.() || {};
+      const customId = row.components?.[0]?.custom_id || "";
+      if (customId === "fishcomp_role_toggle" && !renderedFishBagSelect && gameData.fishBags.length) {
+        container.addTextDisplayComponents(makeTextDisplay("**Tas Pancing dipakai**\nBelum ada tas pancing yang bisa dipakai."));
+        renderedFishBagSelect = true;
+      }
+      if (customId === "profile_rod_select") {
+        container.addTextDisplayComponents(makeTextDisplay("**Pancing dipakai**"));
+      }
+      if (customId === "profile_fishbag_select") {
+        container.addTextDisplayComponents(makeTextDisplay("**Tas Pancing dipakai**"));
+        renderedFishBagSelect = true;
+      }
+      container.addActionRowComponents(component);
+    }
+    if (!renderedFishBagSelect && gameData.fishBags.length) {
+      container.addTextDisplayComponents(makeTextDisplay("**Tas Pancing dipakai**\nBelum ada tas pancing yang bisa dipakai."));
+    }
   }
   return makeComponentsV2Message([container], {
     files: icon?.attachment ? [icon.attachment] : []
   });
+}
+
+function getHeaviestFishEntry(player, guildId = "") {
+  const heaviestFish = player?.heaviestFish;
+  if (!heaviestFish) {
+    return null;
+  }
+  return getAvailableFish(guildId).find((fishEntry) => fishEntry.id === heaviestFish.fishId || fishEntry.name === heaviestFish.name)
+    || gameData.fish.find((fishEntry) => fishEntry.id === heaviestFish.fishId || fishEntry.name === heaviestFish.name)
+    || null;
+}
+
+function getLuckiestFishEntry(player, guildId = "") {
+  const luckiestFish = player?.luckiestFish;
+  if (!luckiestFish) {
+    return null;
+  }
+  return getAvailableFish(guildId).find((fishEntry) => fishEntry.id === luckiestFish.fishId || fishEntry.name === luckiestFish.name)
+    || gameData.fish.find((fishEntry) => fishEntry.id === luckiestFish.fishId || fishEntry.name === luckiestFish.name)
+    || null;
+}
+
+function getFishShowoffFish(player, guildId = "") {
+  return getShowcasedFish(player, guildId)
+    || getHeaviestFishEntry(player, guildId)
+    || getLuckiestFishEntry(player, guildId)
+    || null;
+}
+
+async function makeFishShowoffMessage(user, player, member = null, guildId = "") {
+  const rod = getRod(player.rodId);
+  const level = getLevel(player.exp);
+  const nextExp = expForLevel(level);
+  const heaviestFish = player.heaviestFish;
+  const heaviestText = heaviestFish
+    ? `${heaviestFish.name} - ${formatKg(heaviestFish.weight)}`
+    : "Belum ada";
+  const selectedFish = getFishShowoffFish(player, guildId);
+  const selectedFishDexEntry = selectedFish ? getFishDexEntry(player, selectedFish) : null;
+  const displayName = truncateText(member?.displayName || user.globalName || user.displayName || user.username, 28);
+  const avatarUrl = member?.displayAvatarURL?.({ extension: "png", size: 512 })
+    || user.displayAvatarURL?.({ extension: "png", size: 512 })
+    || player.discordAvatarUrl
+    || "";
+  const selectedFishLuckScore = selectedFish ? formatFishLuckScore(selectedFish) : "";
+  const banner = await makeFishShowoffBanner({
+    avatarUrl,
+    fish: selectedFish,
+    stats: {
+      displayName,
+      level,
+      exp: Math.max(0, Number(player.exp || 0)),
+      nextExp,
+      gold: Math.max(0, Number(player.gold || 0)),
+      totalFishCaught: Math.max(0, Number(player.totalFishCaught || 0)),
+      caughtFishTypes: countCaughtFishTypes(player, guildId),
+      availableFishCount: getAvailableFish(guildId).length,
+      fishName: selectedFish?.name || "",
+      fishRarity: selectedFish?.rarity || "",
+      fishMaxWeight: selectedFishDexEntry?.caught ? formatKg(selectedFishDexEntry.heaviestWeight) : "",
+      fishLuckScore: selectedFishLuckScore,
+      heaviestText,
+      rodName: rod?.name || ""
+    }
+  });
+  const fileName = `fishshowoff-${user.id}.png`;
+  return {
+    content: `## ${formatDiscordMention(user.id)} Ingin Pamer!`,
+    allowedMentions: { users: [user.id] },
+    files: [new AttachmentBuilder(banner, { name: fileName })]
+  };
 }
 
 function getRandomFishDescription(caughtFish) {
@@ -1239,7 +1868,7 @@ function makeCatchEmbed(user, caughtFish, catchWeight, expGain, expBase = expGai
   const description = getRandomFishDescription(caughtFish);
   const descriptionLine = description ? `\n${description}` : "";
   const bonusLine = formatBonusNotice("EXP", expEventInfo, expGain, expBase);
-  const luckScore = formatFishLuckScore(caughtFish.luckScale);
+  const luckScore = formatFishLuckScore(caughtFish);
   const embed = new EmbedBuilder()
     .setColor(rarityColors[caughtFish.rarity] || 0x2ecc71)
     .setTitle("Umpan Disambar!")
@@ -1315,6 +1944,76 @@ function makeLevelUpEmbed(user, level, member = null) {
     embed.setThumbnail(avatarUrl);
   }
   return embed;
+}
+
+function getFishDailyNextAvailableAt(player) {
+  const lastClaimedAt = Math.max(0, Number(player?.dailyLastClaimedAt || 0));
+  return lastClaimedAt > 0 ? lastClaimedAt + fishDailyCooldownMs : 0;
+}
+
+function isFishDailyAvailable(player, now = Date.now()) {
+  const nextAvailableAt = getFishDailyNextAvailableAt(player);
+  return nextAvailableAt <= 0 || now >= nextAvailableAt;
+}
+
+function claimFishDailyReward(player, now = Date.now()) {
+  const nextAvailableAt = getFishDailyNextAvailableAt(player);
+  if (nextAvailableAt > 0 && now < nextAvailableAt) {
+    return { ok: false, remainingMs: nextAvailableAt - now, nextAvailableAt };
+  }
+
+  const lastClaimedAt = Math.max(0, Number(player.dailyLastClaimedAt || 0));
+  const oldStreak = Math.max(0, Math.floor(Number(player.dailyStreak || 0)));
+  const nextStreak = lastClaimedAt > 0 && now - lastClaimedAt < fishDailyCooldownMs * 2
+    ? oldStreak + 1
+    : 1;
+  const rewardGold = 35 * nextStreak;
+  const goldBefore = Math.max(0, Math.floor(Number(player.gold || 0)));
+
+  player.gold = goldBefore + rewardGold;
+  player.dailyLastClaimedAt = now;
+  player.dailyStreak = nextStreak;
+
+  return {
+    ok: true,
+    rewardGold,
+    streak: nextStreak,
+    goldBefore,
+    goldAfter: player.gold,
+    nextAvailableAt: now + fishDailyCooldownMs
+  };
+}
+
+function makeFishDailyResultMessage(result) {
+  if (!result.ok) {
+    return makeSimplePanelMessage(
+      "Fish Daily",
+      `Hadiah harianmu belum siap. Coba lagi dalam **${formatDurationIndonesian(result.remainingMs)}**.`,
+      0xf1c40f
+    );
+  }
+
+  return makeSimplePanelMessage(
+    "Fish Daily",
+    [
+      `Kamu mendapat **${result.rewardGold} Gold**.`,
+      `Daily streak: **${result.streak}**`,
+      `Gold: **${result.goldBefore} -> ${result.goldAfter}**`,
+      "",
+      "Hadiah berikutnya tersedia 24 jam lagi."
+    ].join("\n"),
+    0x2ecc71
+  );
+}
+
+async function replyWithFishDaily(interaction) {
+  await interaction.deferReply({ flags: MessageFlags.Ephemeral });
+  let claimResult = null;
+  await withPlayer(interaction.user, async (player) => {
+    claimResult = claimFishDailyReward(player);
+    return claimResult.ok ? undefined : { save: false };
+  });
+  await interaction.editReply(makeFishDailyResultMessage(claimResult));
 }
 
 function getPublicImageUrl(value) {
@@ -1506,6 +2205,16 @@ function makeFishRaidImage(status = "registration", boss = null) {
   return null;
 }
 
+function makeFishDuelImage(status = "registration") {
+  const bannerKey = {
+    registration: "fishDuelRegistrationBanner",
+    closed: "fishDuelRegistrationBanner",
+    running: "fishDuelRunningBanner",
+    result: "fishDuelResultBanner"
+  }[status] || "fishDuelRegistrationBanner";
+  return makeSettingsImage(bannerKey);
+}
+
 function makeMessageWithBanner(embed, banner) {
   if (banner?.url) {
     embed.setImage(banner.url);
@@ -1616,7 +2325,10 @@ async function loadLeaderboardPlayersSafely(forceRefresh = false) {
   if (!forceRefresh && leaderboardCache.records.length && now - leaderboardCache.loadedAt < leaderboardCacheTtlMs) {
     return leaderboardCache.records;
   }
-  const records = await loadAdminPlayersSafely("", { preferIndex: true });
+  const records = (await loadAdminPlayersSafely("", { preferIndex: true })).map((record) => {
+    refreshPlayerLuckiestFish(record.player);
+    return record;
+  });
   leaderboardCache = { records, loadedAt: Date.now() };
   return records;
 }
@@ -1681,7 +2393,7 @@ async function hydrateEventGuild(event) {
 async function announceActiveEvent() {
   for (const event of getEvents().filter(isEventRunning)) {
     await hydrateEventGuild(event);
-    if (!event?.announcementChannelId || !event.deployedAt || event.isAnnounced || announcedEvents.has(event.id)) {
+    if (!event?.announcementChannelId || !event.deployedAt || event.isAnnounced || isEventAnnouncementLocallyMarked(event, "start")) {
       continue;
     }
 
@@ -1701,12 +2413,22 @@ async function announceActiveEvent() {
 
     const eventMessage = makeEventEmbed(event);
     try {
+      logBotAction("Event start announcement sending", {
+        guild: guildLogName(channel, event.guildId),
+        channel: channelLogName(channel),
+        extra: `event=${event.id || event.title || "unknown"}`
+      });
       await channel.send({ embeds: [eventMessage.embed], files: eventMessage.files });
     } catch (error) {
-      console.error(`Could not send announcement for event ${event.id || event.title || "unknown"} to channel ${event.announcementChannelId}:`, error);
+      console.error(`Could not send announcement for event ${event.id || event.title || "unknown"} to channel ${event.announcementChannelId}: ${error.message}`);
       continue;
     }
-    announcedEvents.add(event.id);
+    logBotAction("Event start announcement sent", {
+      guild: guildLogName(channel, event.guildId),
+      channel: channelLogName(channel),
+      extra: `event=${event.id || event.title || "unknown"}`
+    });
+    markEventAnnouncementLocal(event, "start", event.guildId || channel.guildId || "", channel.id);
     await markEventAnnounced(event.id, event.guildId || channel.guildId || "");
   }
 }
@@ -1753,7 +2475,7 @@ async function markEventAnnounced(eventId, guildId = "") {
 async function announceEndedEvents() {
   for (const event of getEvents().filter(isEventEnded)) {
     const endedAt = getEventEndedAt(event);
-    if (endedAt < processStartedAt || announcedEndedEvents.has(event.id)) {
+    if (endedAt < processStartedAt || isEventAnnouncementLocallyMarked(event, "end")) {
       continue;
     }
 
@@ -1767,8 +2489,18 @@ async function announceEndedEvents() {
     }
 
     const eventMessage = makeEventEndedEmbed(event);
+    logBotAction("Event end announcement sending", {
+      guild: guildLogName(channel, event.guildId),
+      channel: channelLogName(channel),
+      extra: `event=${event.id || event.title || "unknown"}`
+    });
     await channel.send({ embeds: [eventMessage.embed], files: eventMessage.files });
-    announcedEndedEvents.add(event.id);
+    logBotAction("Event end announcement sent", {
+      guild: guildLogName(channel, event.guildId),
+      channel: channelLogName(channel),
+      extra: `event=${event.id || event.title || "unknown"}`
+    });
+    markEventAnnouncementLocal(event, "end", event.guildId || channel.guildId || "", channel.id);
   }
 }
 
@@ -1792,6 +2524,11 @@ function getRoutineGuildIds(routine) {
 
 function routineTriggerKey(routine, guildId, now = new Date()) {
   const condition = routine.condition || {};
+  if (condition.type === "fishraid_cooldown_ready") {
+    const state = normalizeDailyRaidState(guildId);
+    const cooldownMs = Math.max(0, Number(getSettings().fishRaidCooldownMinutes ?? 60)) * 60_000;
+    return `${guildId}:fishraid_cooldown_ready:${Number(state.lastRaidEndedAt || 0) + cooldownMs}`;
+  }
   if (condition.type === "daily_time") {
     return `${guildId}:${getLocalDateKey(now)}:${condition.time || "00:00"}`;
   }
@@ -1815,6 +2552,14 @@ function isRoutineDueForGuild(routine, guildId, now = new Date()) {
   const nowMs = now.getTime();
   const guildState = getRoutineGuildState(routine, guildId);
   const lastSentMs = Date.parse(guildState.lastSentAt || routine.lastSentAt || 0) || 0;
+  if (condition.type === "fishraid_cooldown_ready") {
+    const state = normalizeDailyRaidState(guildId);
+    if (fishRaids.has(guildId) || state.fulfilledAt || !Number(state.lastRaidEndedAt || 0)) {
+      return false;
+    }
+    return getRaidCooldownRemainingMs(guildId) <= 0
+      && guildState.lastTriggerKey !== routineTriggerKey(routine, guildId, now);
+  }
   if (condition.type === "interval") {
     return !lastSentMs || nowMs - lastSentMs >= Math.max(1, Number(condition.intervalMinutes || 60)) * 60_000;
   }
@@ -1871,13 +2616,33 @@ async function processRoutineMessages() {
         continue;
       }
       const triggerKey = routineTriggerKey(routine, guildId, now);
+      if (isRoutineLocallyMarked(routine.id, guildId, triggerKey)) {
+        continue;
+      }
       const channel = await fetchRoutineMessageChannel(routine, guildId);
       if (!channel?.isTextBased?.()) {
         continue;
       }
-      await channel.send(makeRoutineMessage(routine)).catch((error) => {
-        console.error(`Could not send routine message ${routine.id || routine.name || "unknown"}:`, error);
+      let sent = false;
+      logBotAction("Routine message sending", {
+        guild: guildLogName(channel, guildId),
+        channel: channelLogName(channel),
+        extra: `routine=${routine.id || routine.name || "unknown"} trigger=${triggerKey}`
       });
+      await channel.send(makeRoutineMessage(routine)).then(() => {
+        sent = true;
+        logBotAction("Routine message sent", {
+          guild: guildLogName(channel, guildId),
+          channel: channelLogName(channel),
+          extra: `routine=${routine.id || routine.name || "unknown"} trigger=${triggerKey}`
+        });
+        markRoutineLocal(routine.id, guildId, triggerKey, channel.id);
+      }).catch((error) => {
+        console.error(`Could not send routine message ${routine.id || routine.name || "unknown"} to channel ${channel.id}: ${error.message}`);
+      });
+      if (!sent) {
+        continue;
+      }
       await markRoutineSent(routine.id, guildId, triggerKey);
     }
   }
@@ -1901,7 +2666,7 @@ let signalRefreshTimer = null;
 function scheduleSignalRefresh() {
   clearTimeout(signalRefreshTimer);
   signalRefreshTimer = setTimeout(() => {
-    refreshGameData()
+    refreshGameData("manager config refresh signal")
       .then(() => Promise.all([announceEventUpdates(), processRoutineMessages()]))
       .catch((error) => console.error("Could not refresh PlayFab config from manager signal:", error));
   }, 500);
@@ -1928,6 +2693,11 @@ async function processEnforcedFishingSignal() {
   }
   processedEnforcedFishingIds.add(request.id);
   const catches = Array.isArray(request.catches) && request.catches.length ? request.catches : [request];
+  logBotAction("Enforce Fishing signal received", {
+    guildId: request.guildId || catches[0]?.guildId,
+    channelId: request.channelId || catches[0]?.channelId,
+    extra: `catches=${catches.length}`
+  });
   for (const entry of catches) {
     if (!entry.fish?.id || !entry.discordUserId || !entry.channelId) {
       console.warn("Could not post enforced fishing catch: signal payload is incomplete.");
@@ -1944,14 +2714,26 @@ async function processEnforcedFishingSignal() {
       continue;
     }
 
-    const user = await client.users.fetch(String(entry.discordUserId || "")).catch(() => null);
-    const mention = user || `<@${entry.discordUserId}>`;
+    logBotAction("Enforce Fishing sending Discord popup", {
+      user: entry.discordUserId,
+      guild: guildLogName(channel, entry.guildId),
+      channel: channelLogName(channel),
+      extra: `fish=${entry.fish.name || entry.fish.id}`
+    });
+    const mention = `<@${entry.discordUserId}>`;
     await channel.send(makeCatchMessage(mention, entry.fish, entry.catchWeight, entry.expGain, {
       enforced: true,
       expBase: entry.expBase,
       expEventInfo: entry.expEventInfo
-    })).catch((error) => {
-      console.error("Could not post enforced fishing catch:", error);
+    })).then(() => {
+      logBotAction("Enforce Fishing Discord popup sent", {
+        user: entry.discordUserId,
+        guild: guildLogName(channel, entry.guildId),
+        channel: channelLogName(channel),
+        extra: `fish=${entry.fish.name || entry.fish.id}`
+      });
+    }).catch((error) => {
+      console.error(`Could not post enforced fishing catch for ${entry.discordUserId} in channel ${entry.channelId}: ${error.message}`);
     });
   }
   fs.writeFileSync(enforcedFishingSignalPath, JSON.stringify({ id: "", processedAt: new Date().toISOString(), processedId: request.id }));
@@ -2208,10 +2990,11 @@ function makeInventoryEmbed(user, player, guildId = "") {
 function makeStoreEmbed(player, status = "") {
   const statusLine = status ? `\n\n${status}` : "";
   const storeImageUrl = getPublicImageUrl(getSettings().rodStoreImageUrl);
+  const fishBag = getFishBag(player.fishBagId);
   return new EmbedBuilder()
     .setColor(0xf1c40f)
     .setTitle("Toko Pancingan")
-    .setDescription(`Gold kamu: **${player.gold}**\nPancingan sekarang: **${getRod(player.rodId)?.name || "Belum ada"}**${statusLine}`)
+    .setDescription(`Gold kamu: **${player.gold}**\nPancingan sekarang: **${getRod(player.rodId)?.name || "Belum ada"}**\nTas pancing sekarang: **${fishBag?.name || "Belum ada"}**${fishBag ? ` (${formatKg(getEffectiveFishBagCapacity(player))} Capacity)` : ""}${statusLine}`)
     .setImage(storeImageUrl || (getSettings().rodStoreImageBase64 ? "attachment://rod-store-custom.png" : "attachment://rod-store.svg"));
 }
 
@@ -2230,24 +3013,30 @@ function makeRodStoreImageAttachment(player) {
   const cardWidth = 164;
   const cardHeight = 164;
   const gap = 12;
-  const rows = Math.max(1, Math.ceil(gameData.rods.length / columns));
+  const items = [
+    ...gameData.rods.map((item) => ({ ...item, storeType: "rod" })),
+    ...gameData.fishBags.map((item) => ({ ...item, storeType: "fishBag" }))
+  ];
+  const rows = Math.max(1, Math.ceil(items.length / columns));
   const height = 24 + rows * cardHeight + (rows - 1) * gap + 24;
-  const cards = gameData.rods.map((rod, index) => {
+  const cards = items.map((item, index) => {
     const x = 24 + (index % columns) * (cardWidth + gap);
     const y = 24 + Math.floor(index / columns) * (cardHeight + gap);
-    const owned = player.ownedRods.includes(rod.id);
-    const equipped = player.rodId === rod.id;
-    const status = equipped ? "Equipped" : owned ? "Owned" : `${rod.price} gold`;
-    const icon = makeIconAttachment(rod, "rod");
+    const isBag = item.storeType === "fishBag";
+    const owned = isBag ? (player.ownedFishBags || []).includes(item.id) : player.ownedRods.includes(item.id);
+    const equipped = isBag ? player.fishBagId === item.id : player.rodId === item.id;
+    const status = equipped ? "Equipped" : owned ? "Owned" : `${item.price} gold`;
+    const icon = makeIconAttachment(item, isBag ? "fish-bag" : "rod");
     const image = icon
       ? `<image href="${escapeXml(icon.url)}" x="${x + 46}" y="${y + 16}" width="72" height="72" preserveAspectRatio="xMidYMid meet" />`
-      : `<rect x="${x + 46}" y="${y + 16}" width="72" height="72" rx="10" fill="#30323a" /><text x="${x + 82}" y="${y + 59}" text-anchor="middle" font-size="18" font-weight="700" fill="#f1c40f">ROD</text>`;
+      : `<rect x="${x + 46}" y="${y + 16}" width="72" height="72" rx="10" fill="#30323a" /><text x="${x + 82}" y="${y + 59}" text-anchor="middle" font-size="16" font-weight="700" fill="#f1c40f">${isBag ? "BAG" : "ROD"}</text>`;
+    const statLine = isBag ? `Capacity ${item.spaceKg || 0} kg` : `SPD ${item.speed} · LUCK ${item.luck}`;
     return `
       <rect x="${x}" y="${y}" width="${cardWidth}" height="${cardHeight}" rx="8" fill="#272933" stroke="#444755" />
       ${image}
-      <text x="${x + 12}" y="${y + 108}" font-size="16" font-weight="700" fill="#ffffff">${escapeXml(truncateText(rod.name, 18))}</text>
-      <text x="${x + 12}" y="${y + 128}" font-size="12" fill="#f1c40f">${escapeXml(rod.rarity || "Common")}</text>
-      <text x="${x + 12}" y="${y + 145}" font-size="13" fill="#c9cad3">SPD ${rod.speed} · LUCK ${rod.luck}</text>
+      <text x="${x + 12}" y="${y + 108}" font-size="16" font-weight="700" fill="#ffffff">${escapeXml(truncateText(item.name, 18))}</text>
+      <text x="${x + 12}" y="${y + 128}" font-size="12" fill="#f1c40f">${escapeXml(item.rarity || "Common")} · ${isBag ? "Bag" : "Rod"}</text>
+      <text x="${x + 12}" y="${y + 145}" font-size="13" fill="#c9cad3">${escapeXml(statLine)}</text>
       <text x="${x + 12}" y="${y + 160}" font-size="13" fill="${equipped ? "#36c28a" : owned ? "#86a8ff" : "#f1c40f"}">${escapeXml(status)}</text>
     `;
   }).join("");
@@ -2278,11 +3067,26 @@ function makeRodSelectOptions(player) {
   });
 }
 
-function makeStoreComponents(player, selectedRodId = null) {
+function makeFishBagSelectOptions(player) {
+  return gameData.fishBags.slice(0, 25).map((bag) => {
+    const owned = (player.ownedFishBags || []).includes(bag.id);
+    const equipped = player.fishBagId === bag.id;
+    const status = equipped ? "[Equipped]" : owned ? "[Owned]" : "";
+    const price = owned ? "-" : `${bag.price} gold`;
+    return {
+      label: truncateText(`${bag.name} ${status}`.trim(), 100),
+      description: truncateText(`${bag.rarity || "Common"} · Capacity ${bag.spaceKg || 0} kg · Price ${price}`, 100),
+      value: bag.id
+    };
+  });
+}
+
+function makeStoreComponents(player, selectedRodId = null, selectedFishBagId = null) {
   const selectedRod = gameData.rods.find((rod) => rod.id === selectedRodId) || gameData.rods[0];
+  const selectedFishBag = gameData.fishBags.find((bag) => bag.id === selectedFishBagId) || gameData.fishBags[0];
   const owned = selectedRod ? player.ownedRods.includes(selectedRod.id) : false;
   const equipped = selectedRod ? player.rodId === selectedRod.id : false;
-  const select = new StringSelectMenuBuilder()
+  const rodSelect = new StringSelectMenuBuilder()
     .setCustomId(`rod_select:${selectedRod?.id || ""}`)
     .setPlaceholder("Pilih pancingan")
     .addOptions(makeRodSelectOptions(player).map((option) => ({
@@ -2294,18 +3098,44 @@ function makeStoreComponents(player, selectedRodId = null) {
     .setLabel(equipped ? "Equipped" : owned ? "Equip" : "Buy")
     .setStyle(owned ? ButtonStyle.Primary : ButtonStyle.Success)
     .setDisabled(!selectedRod || equipped);
-
-  return [
-    new ActionRowBuilder().addComponents(select),
+  const components = [
+    new ActionRowBuilder().addComponents(rodSelect),
     new ActionRowBuilder().addComponents(button)
   ];
+
+  if (gameData.fishBags.length) {
+    const bagOwned = selectedFishBag ? (player.ownedFishBags || []).includes(selectedFishBag.id) : false;
+    const bagEquipped = selectedFishBag ? player.fishBagId === selectedFishBag.id : false;
+    const bagSelect = new StringSelectMenuBuilder()
+      .setCustomId(`fishbag_select:${selectedFishBag?.id || ""}`)
+      .setPlaceholder("Pilih tas pancing")
+      .addOptions(makeFishBagSelectOptions(player).map((option) => ({
+        ...option,
+        default: option.value === selectedFishBag?.id
+      })));
+    const bagButton = new ButtonBuilder()
+      .setCustomId(`fishbag_buy:${selectedFishBag?.id || ""}`)
+      .setLabel(bagEquipped ? "Equipped" : bagOwned ? "Equip Fish Bag" : "Buy Fish Bag")
+      .setStyle(bagOwned ? ButtonStyle.Primary : ButtonStyle.Success)
+      .setDisabled(!selectedFishBag || bagEquipped);
+    components.push(new ActionRowBuilder().addComponents(bagSelect));
+    components.push(new ActionRowBuilder().addComponents(bagButton));
+  }
+  return components;
 }
 
-function makeStoreMessage(player, selectedRodId = null, status = "") {
+function makeStoreMessage(player, selectedRodId = null, status = "", selectedFishBagId = null) {
   const imageAttachment = makeRodStoreImageAttachment(player);
+  const components = makeStoreComponents(player, selectedRodId, selectedFishBagId);
+  const componentBlocks = gameData.fishBags.length
+    ? [
+      { text: "**Pancingan**", components: components.slice(0, 2) },
+      { text: "**Tas Pancing**", components: components.slice(2) }
+    ]
+    : [{ text: "**Pancingan**", components }];
   return makeEmbedPanelMessage(makeStoreEmbed(player, status), {
     files: imageAttachment ? [imageAttachment] : [],
-    components: makeStoreComponents(player, selectedRodId)
+    componentBlocks
   });
 }
 
@@ -2467,16 +3297,17 @@ function makeFishDexMessage(user, player, selectedFishId = "", guildId = "", pag
 function makeCompetitionEmbed(competition, status = "registration") {
   const startsAt = Math.floor(competition.startsAt / 1000);
   const isRaid = competition.mode === "raid";
+  const isDuel = competition.mode === "duel";
   const raidState = isRaid ? normalizeDailyRaidState(competition.guildId) : null;
   const embed = new EmbedBuilder()
-    .setColor(isRaid ? 0x3ba1ff : 0xe67e22)
-    .setTitle(isRaid ? "Fish Raid" : "Kompetisi Memancing");
+    .setColor(isDuel ? 0xf39c12 : isRaid ? 0x3ba1ff : 0xe67e22)
+    .setTitle(isDuel ? "Duel Adu Dermawan!" : isRaid ? "Fish Raid" : "Kompetisi Memancing");
 
   if (status === "closed") {
     embed.setDescription(
       [
         "Registrasi sudah ditutup.",
-        isRaid ? "Raid sedang disiapkan." : "Kompetisi sedang disiapkan."
+        isDuel ? "Duel sedang disiapkan." : isRaid ? "Raid sedang disiapkan." : "Kompetisi sedang disiapkan."
       ].join("\n")
     );
     return embed;
@@ -2486,8 +3317,8 @@ function makeCompetitionEmbed(competition, status = "registration") {
     embed.setColor(0x2ecc71);
     embed.setDescription(
       [
-        isRaid ? "Raid sudah selesai." : "Kompetisi sudah selesai.",
-        isRaid ? "Hasil raid sudah keluar." : "Hasil kompetisi sudah keluar."
+        isDuel ? "Duel sudah selesai." : isRaid ? "Raid sudah selesai." : "Kompetisi sudah selesai.",
+        isDuel ? "Hasil duel sudah keluar." : isRaid ? "Hasil raid sudah keluar." : "Hasil kompetisi sudah keluar."
       ].join("\n")
     );
     return embed;
@@ -2504,9 +3335,10 @@ function makeCompetitionEmbed(competition, status = "registration") {
     : [];
   embed.setDescription(
     [
+      ...(isDuel ? ["Siapa yang bisa membuat tas lawannya penuh lebih dahulu ialah yang lebih dermawan!", competition.betAmount > 0 ? `Taruhan: **${formatGoldAmount(competition.betAmount)}** per pemain` : "Tanpa taruhan", ""] : []),
       ...raidIntro,
       `Dimulai: <t:${startsAt}:R> · <t:${startsAt}:T>`,
-      `Durasi: **${competition.turns} turn**`,
+      isDuel ? "Durasi: **sampai salah satu tas penuh**" : `Durasi: **${competition.turns} turn**`,
       `Peserta: **${competition.participants.size}/${competition.maxParticipants}**`,
       "",
       participants
@@ -2519,18 +3351,19 @@ function makeCompetitionEmbed(competition, status = "registration") {
     const recentLogs = formatCompetitionLogs(visibleLogs) || "Menunggu hasil...";
     embed.setDescription(
       [
+        ...(isDuel ? ["Duel Adu Dermawan!", "Siapa yang bisa membuat tas lawannya penuh lebih dahulu ialah yang lebih dermawan!", ""] : []),
         ...(isRaid ? [`Boss: **${raidState.boss.name}**`, formatRaidQuotaLine({ ...raidState, filledKg: Math.min(raidState.quotaKg, Number(raidState.filledKg || 0) + Number(competition.raidGainedWeight || 0)) }), ""] : []),
         scoreboard || "Belum ada hasil.",
         "",
-        isRaid ? "Raid sedang berjalan." : "Kompetisi sedang berjalan.",
-        `Turn: **${competition.currentTurn}/${competition.turns}**`,
+        isDuel ? "Duel sedang berjalan." : isRaid ? "Raid sedang berjalan." : "Kompetisi sedang berjalan.",
+        isDuel ? `Ronde: **${competition.currentTurn}**` : `Turn: **${competition.currentTurn}/${competition.turns}**`,
         "",
         recentLogs
       ].join("\n")
     );
   }
   if (status !== "complete") {
-    const banner = isRaid ? makeFishRaidImage(status, raidState.boss) : makeFishCompImage(status);
+    const banner = isDuel ? makeFishDuelImage(status) : isRaid ? makeFishRaidImage(status, raidState.boss) : makeFishCompImage(status);
     if (banner?.url) {
       embed.setImage(banner.url);
     }
@@ -2542,7 +3375,7 @@ function makeCompetitionMessage(competition, status = "registration", components
   const embed = makeCompetitionEmbed(competition, status);
   const banner = status === "closed" || status === "complete"
     ? null
-    : competition.mode === "raid" ? makeFishRaidImage(status, normalizeDailyRaidState(competition.guildId).boss) : makeFishCompImage(status);
+    : competition.mode === "duel" ? makeFishDuelImage(status) : competition.mode === "raid" ? makeFishRaidImage(status, normalizeDailyRaidState(competition.guildId).boss) : makeFishCompImage(status);
   return makeEmbedPanelMessage(embed, {
     files: banner?.attachment ? [banner.attachment] : [],
     components
@@ -2603,7 +3436,7 @@ function shuffleCompetitionParticipants(participants) {
 }
 
 function getFishCompEvents(mode = "competition") {
-  const settingsKey = mode === "raid" ? "fishRaidEvents" : "fishCompEvents";
+  const settingsKey = mode === "duel" ? "fishDuelEvents" : mode === "raid" ? "fishRaidEvents" : "fishCompEvents";
   return (Array.isArray(getSettings()[settingsKey]) ? getSettings()[settingsKey] : [])
     .filter((event) => event && Number(event.chance || 0) > 0 && event.startText);
 }
@@ -2771,6 +3604,64 @@ function makeFishRaidJoinRow(disabled = false) {
         .setDisabled(disabled)
     )
   ];
+}
+
+function makeFishDuelAcceptRow(duelId, disabled = false) {
+  return [
+    new ActionRowBuilder().addComponents(
+      new ButtonBuilder()
+        .setCustomId(`fishduel_accept:${duelId}`)
+        .setLabel("Accept")
+        .setStyle(ButtonStyle.Success)
+        .setDisabled(disabled),
+      new ButtonBuilder()
+        .setCustomId(`fishduel_decline:${duelId}`)
+        .setLabel("Decline")
+        .setStyle(ButtonStyle.Secondary)
+        .setDisabled(disabled)
+    )
+  ];
+}
+
+function makeOpenFishDuelRow(duelId, disabled = false) {
+  return [
+    new ActionRowBuilder().addComponents(
+      new ButtonBuilder()
+        .setCustomId(`fishduel_open_accept:${duelId}`)
+        .setLabel("Terima")
+        .setStyle(ButtonStyle.Success)
+        .setDisabled(disabled),
+      new ButtonBuilder()
+        .setCustomId(`fishduel_open_cancel:${duelId}`)
+        .setLabel("Batalkan")
+        .setStyle(ButtonStyle.Danger)
+        .setDisabled(disabled)
+    )
+  ];
+}
+
+function makeOpenFishDuelMessage(pending, components = makeOpenFishDuelRow(pending.id), status = "") {
+  const embed = new EmbedBuilder()
+    .setColor(0xf39c12)
+    .setTitle("Duel Adu Dermawan!")
+    .setDescription([
+      `${formatDiscordMention(pending.creator.id)} membuka FishDuel untuk siapa saja yang merasa lebih dermawan darinya!`,
+      "",
+      "Siapa yang bisa membuat tas lawannya penuh lebih dahulu ialah yang lebih dermawan!",
+      "",
+      pending.betAmount > 0 ? `Taruhan: **${formatGoldAmount(pending.betAmount)}** per pemain` : "Tanpa taruhan gold.",
+      status ? `\n${status}` : "",
+      "",
+      "Tekan **Terima** untuk melawan, atau pembuat duel bisa menekan **Batalkan**."
+    ].filter((line) => line !== "").join("\n"));
+  const banner = makeFishDuelImage("registration");
+  if (banner?.url) {
+    embed.setImage(banner.url);
+  }
+  return makeEmbedPanelMessage(embed, {
+    files: banner?.attachment ? [banner.attachment] : [],
+    components
+  });
 }
 
 function makeCompetitionResultRow(logId) {
@@ -2961,16 +3852,25 @@ function getSortedCompetitionResults(competition) {
   if (competition.mode === "raid") {
     return getSortedRaidResults(competition.results.values());
   }
+  if (competition.mode === "duel") {
+    return [...competition.results.values()]
+      .sort((a, b) => Number(b.opponentFilledAt || 0) - Number(a.opponentFilledAt || 0) || b.totalWeight - a.totalWeight || a.username.localeCompare(b.username));
+  }
   return [...competition.results.values()]
     .sort((a, b) => b.count - a.count || b.totalWeight - a.totalWeight || a.username.localeCompare(b.username));
 }
 
-function formatCompetitionResultLine(result) {
+function formatCompetitionResultLine(result, competition = null) {
+  if (competition?.mode === "duel") {
+    const filled = Math.max(0, Number(result.bagFilled || 0));
+    const capacity = Math.max(1, Number(result.bagSpaceKg || 1));
+    return `${result.displayName} ${formatKg(filled)} / ${formatKg(capacity)}\n${makeProgressBar(filled, capacity, 18)}`;
+  }
   return `${result.displayName} - ${result.count} ${result.count === 1 ? "ikan" : "Ikan"} - Total ${formatKg(result.totalWeight)}`;
 }
 
 function formatCompetitionScoreboard(competition) {
-  return getSortedCompetitionResults(competition).map(formatCompetitionResultLine).join("\n");
+  return getSortedCompetitionResults(competition).map((result) => formatCompetitionResultLine(result, competition)).join("\n");
 }
 
 function getCompetitionRewardExp(competition) {
@@ -3068,7 +3968,7 @@ function listCompetitionResultParticipants(competition) {
   if (!results.length) {
     return "Tidak ada peserta.";
   }
-  return results.map((result, index) => `${index + 1}. ${formatCompetitionResultLine(result)}`).join("\n");
+  return results.map((result, index) => `${index + 1}. ${formatCompetitionResultLine(result, competition)}`).join("\n");
 }
 
 function getCompetitionLogName(participant) {
@@ -3091,9 +3991,13 @@ async function prepareCompetitionParticipant(participant) {
   try {
     const { player } = await withCompetitionTimeout(getPlayer(participant.id), `Loading ${participant.username}`);
     participant.rodId = player.rodId;
+    participant.fishBagId = player.fishBagId || "";
+    participant.level = getLevel(player.exp);
   } catch (error) {
     console.error(`Could not load competition player ${participant.id}:`, error);
     participant.rodId = "";
+    participant.fishBagId = "";
+    participant.level = 1;
   }
 }
 
@@ -3237,7 +4141,7 @@ async function finishFishRaid(raid, channel) {
       ].join("\n")
     );
   const logId = `${raid.guildId}:raid:${Date.now()}`;
-  finishedCompetitionLogs.set(logId, {
+  rememberCompetitionHistoryLog(logId, {
     createdAt: Date.now(),
     fileName: "fishraid_log.txt",
     content: buildCompetitionLogFile(raid)
@@ -3250,6 +4154,11 @@ async function finishFishRaid(raid, channel) {
     files: banner?.attachment ? [banner.attachment] : [],
     components: makeFishRaidResultRow(logId)
   })).catch(() => {});
+  logBotAction("Fish Raid finished", {
+    guild: guildLogName(channel, raid.guildId),
+    channel: channelLogName(channel),
+    extra: `participants=${raid.participants.size} fulfilled=${fulfilled} mvp=${raidWinner?.displayName || "-"}`
+  });
   await raid.message?.delete().catch(() => {});
   await raid.pingMessage?.delete().catch(() => {});
   if (raid.logMessage) {
@@ -3266,7 +4175,8 @@ async function finishFishRaid(raid, channel) {
     const member = await channel.guild?.members.fetch(levelUp.id).catch(() => null);
     const user = member?.user || await client.users.fetch(levelUp.id).catch(() => null);
     if (user) {
-      await channel.send({ embeds: [makeLevelUpEmbed(user, levelUp.level, member)] }).catch(() => {});
+      const levelUpChannel = await resolveParentTextChannel(channel) || channel;
+      await levelUpChannel.send({ embeds: [makeLevelUpEmbed(user, levelUp.level, member)] }).catch(() => {});
     }
   }
   fishRaids.delete(raid.guildId);
@@ -3288,9 +4198,16 @@ function runCompetitionTurnForParticipant(competition, participant, turn, turnEf
     return;
   }
 
+  const opponent = competition.mode === "duel" ? [...competition.participants.values()].find((entry) => entry.id !== participant.id) : null;
+  const context = {
+    mode: competition.mode === "duel" ? "duel" : competition.mode === "raid" ? "raid" : "competition",
+    target: "self",
+    userLevel: Number(participant.level || 1),
+    opponentLevel: Number(opponent?.level || 1)
+  };
   const baseRod = getRod(participant.rodId);
   const rod = baseRod ? { ...baseRod, luck: Number(baseRod.luck || 0) + luckModifier } : null;
-  const accuracy = Math.max(0, Math.min(100, Number(rod?.accuracy ?? 50)));
+  const accuracy = getEffectiveRodAccuracy(rod, context);
   const result = competition.results.get(participant.id);
   if (!rod || !result || Math.random() * 100 >= accuracy) {
     competition.logs.push(`[${turn}] ${participant.displayName} gagal mendapatkan ikan.`);
@@ -3305,12 +4222,28 @@ function runCompetitionTurnForParticipant(competition, participant, turn, turnEf
 
   result.count += 1;
   result.totalWeight += catchResult.catchWeight;
+  if (competition.mode === "duel" && opponent) {
+    const opponentResult = competition.results.get(opponent.id);
+    if (opponentResult) {
+      opponentResult.bagFilled = Math.max(0, Number(opponentResult.bagFilled || 0)) + catchResult.catchWeight;
+      result.opponentFilledAt = opponentResult.bagFilled;
+      if (!competition.winnerId && opponentResult.bagFilled >= Number(opponentResult.bagSpaceKg || 1)) {
+        competition.winnerId = participant.id;
+        competition.finishedTurn = turn;
+      }
+    }
+  }
   if (competition.mode === "raid") {
     competition.raidGainedWeight = Math.max(0, Number(competition.raidGainedWeight || 0)) + catchResult.catchWeight;
   }
   if (catchResult.catchWeight > result.heaviestWeight) {
     result.heaviestWeight = catchResult.catchWeight;
     result.heaviestName = catchResult.fish.name;
+  }
+  if (competition.mode === "duel" && opponent) {
+    const opponentResult = competition.results.get(opponent.id);
+    competition.logs.push(`[${turn}] ${participant.displayName} memberi ${catchResult.fish.name} ke tas ${opponent.displayName}! (${formatKg(catchResult.catchWeight)} · ${formatKg(opponentResult?.bagFilled || 0)}/${formatKg(opponentResult?.bagSpaceKg || 1)})`);
+    return;
   }
   competition.logs.push(`[${turn}] ${participant.displayName} berhasil mendapatkan ${catchResult.fish.name}! (${formatKg(catchResult.catchWeight)})`);
 }
@@ -3326,33 +4259,61 @@ async function runCompetition(competition) {
   competition.status = "running";
   competition.currentTurn = 0;
   competition.visibleLogs = [];
-  await competition.message.edit(makeCompetitionMessage(
+  const channel = await client.channels.fetch(competition.channelId).catch(() => null);
+  logBotAction(`${competitionLogName(competition)} started`, {
+    guild: guildLogName(channel, competition.guildId),
+    channel: channelLogName(channel),
+    extra: `participants=${competition.participants.size}`
+  });
+  await competition.message?.edit(makeCompetitionMessage(
     competition,
     "closed",
-    competition.mode === "raid" ? makeFishRaidJoinRow(true) : makeCompetitionJoinRow(true)
+    competition.mode === "duel" ? [] : competition.mode === "raid" ? makeFishRaidJoinRow(true) : makeCompetitionJoinRow(true)
   )).catch(() => {});
   for (const participant of competition.participants.values()) {
     await prepareCompetitionParticipant(participant);
   }
-  const channel = await client.channels.fetch(competition.channelId).catch(() => null);
   if (!channel?.isTextBased()) {
     throw new Error("Competition channel is no longer available.");
   }
   competition.logMessage = await channel.send(makeCompetitionMessage(competition, "running", []));
 
-  for (let turn = 1; turn <= competition.turns; turn += 1) {
-    competition.currentTurn = turn;
-    competition.currentTurnEffects = new Map();
-    for (const participant of shuffleCompetitionParticipants(competition.participants.values())) {
-      const turnEffect = competition.currentTurnEffects.get(participant.id) || null;
-      runCompetitionTurnForParticipant(competition, participant, turn, turnEffect);
-      await revealPendingCompetitionLogs(competition);
+  if (competition.mode === "duel") {
+    while (!competition.winnerId && competition.status === "running") {
+      competition.currentTurn += 1;
+      competition.currentTurnEffects = new Map();
+      for (const participant of shuffleCompetitionParticipants(competition.participants.values())) {
+        const turnEffect = competition.currentTurnEffects.get(participant.id) || null;
+        runCompetitionTurnForParticipant(competition, participant, competition.currentTurn, turnEffect);
+        await revealPendingCompetitionLogs(competition);
+        if (competition.winnerId) {
+          break;
+        }
+      }
+    }
+    if (competition.status === "cancelled") {
+      fishDuels.delete(competition.duelKey);
+      return;
+    }
+  } else {
+    for (let turn = 1; turn <= competition.turns; turn += 1) {
+      competition.currentTurn = turn;
+      competition.currentTurnEffects = new Map();
+      for (const participant of shuffleCompetitionParticipants(competition.participants.values())) {
+        const turnEffect = competition.currentTurnEffects.get(participant.id) || null;
+        runCompetitionTurnForParticipant(competition, participant, turn, turnEffect);
+        await revealPendingCompetitionLogs(competition);
+      }
     }
   }
 
   competition.status = "finished";
   if (competition.mode === "raid") {
     await finishFishRaid(competition, channel);
+    return;
+  }
+  if (competition.mode === "duel") {
+    await finishFishDuel(competition, channel);
     return;
   }
 
@@ -3395,7 +4356,7 @@ async function runCompetition(competition) {
       ].filter((line) => line !== "").join("\n")
     );
   const logId = `${competition.guildId}:${Date.now()}`;
-  finishedCompetitionLogs.set(logId, {
+  rememberCompetitionHistoryLog(logId, {
     createdAt: Date.now(),
     fileName: "match_log.txt",
     content: buildCompetitionLogFile(competition)
@@ -3408,6 +4369,11 @@ async function runCompetition(competition) {
     files: banner?.attachment ? [banner.attachment] : [],
     components: makeCompetitionResultRow(logId)
   })).catch(() => {});
+  logBotAction("Fish Comp finished", {
+    guild: guildLogName(channel, competition.guildId),
+    channel: channelLogName(channel),
+    extra: `participants=${competition.participants.size} winner=${winner?.displayName || "-"}`
+  });
   await competition.message?.delete().catch(() => {});
   await competition.pingMessage?.delete().catch(() => {});
   if (competition.logMessage) {
@@ -3417,18 +4383,92 @@ async function runCompetition(competition) {
     const member = await channel.guild?.members.fetch(winner.id).catch(() => null);
     const user = member?.user || await client.users.fetch(winner.id).catch(() => null);
     if (user) {
-      await channel.send({ embeds: [makeLevelUpEmbed(user, winnerLevel, member)] }).catch(() => {});
+      const levelUpChannel = await resolveParentTextChannel(channel) || channel;
+      await levelUpChannel.send({ embeds: [makeLevelUpEmbed(user, winnerLevel, member)] }).catch(() => {});
     }
   }
   competitions.delete(competition.guildId);
 }
 
+async function finishFishDuel(duel, channel) {
+  const sorted = getSortedCompetitionResults(duel);
+  const winner = duel.winnerId ? duel.results.get(duel.winnerId) : sorted[0] || null;
+  const loser = winner ? sorted.find((result) => result.id !== winner.id) || null : null;
+  const expReward = Math.round(Number(getSettings().fishDuelExpReward ?? 40) * Number(getSettings().expMultiplier || 1) * getEventMultiplier("exp_multiplier", duel.guildId));
+  const baseExpReward = Math.round(Number(getSettings().fishDuelExpReward ?? 40) * Number(getSettings().expMultiplier || 1));
+  const expEventInfo = getEventMultiplierInfo("exp_multiplier", duel.guildId);
+  const levelUps = [];
+
+  if (winner?.id && expReward > 0) {
+    const reward = await giveRaidReward(winner.id, expReward, 0);
+    if (reward.level > reward.previousLevel) {
+      levelUps.push({ id: winner.id, level: reward.level });
+    }
+  }
+
+  if (winner?.id && Number(duel.betAmount || 0) > 0) {
+    await withPlayer(winner.id, async (player) => {
+      player.gold = Math.max(0, Math.floor(Number(player.gold || 0))) + Number(duel.betAmount || 0) * 2;
+    });
+  }
+
+  const embed = new EmbedBuilder()
+    .setColor(0x2ecc71)
+    .setTitle("Hasil Duel Adu Dermawan!")
+    .setDescription(
+      [
+        "Terbukti diantara kedunya, siapakah yang paling dermawan",
+        "",
+        "**Peserta**",
+        listCompetitionResultParticipants(duel),
+        "",
+        winner ? `# Paling Dermawan: ${winner.displayName}` : "# Paling Dermawan: -",
+        loser ? `Tas ${loser.displayName}: **${formatKg(loser.bagFilled || 0)} / ${formatKg(loser.bagSpaceKg || 1)}**` : "",
+        `Reward: **${formatRewardWithBonus(expReward, baseExpReward, "EXP")}**`,
+        Number(duel.betAmount || 0) > 0 && winner ? `Taruhan dimenangkan: **${formatGoldAmount(Number(duel.betAmount || 0) * 2)}**` : "Tanpa taruhan gold.",
+        formatBonusNotice("EXP", expEventInfo, expReward, baseExpReward)
+      ].filter(Boolean).join("\n")
+    );
+  const logId = `${duel.guildId}:duel:${Date.now()}`;
+  rememberCompetitionHistoryLog(logId, {
+    createdAt: Date.now(),
+    fileName: "fishduel_log.txt",
+    content: buildCompetitionLogFile(duel)
+  });
+  const banner = makeFishDuelImage("result");
+  if (banner?.url) {
+    embed.setImage(banner.url);
+  }
+  await channel.send(makeEmbedPanelMessage(embed, {
+    files: banner?.attachment ? [banner.attachment] : [],
+    components: makeCompetitionResultRow(logId)
+  })).catch(() => {});
+  logBotAction("Fish Duel finished", {
+    guild: guildLogName(channel, duel.guildId),
+    channel: channelLogName(channel),
+    extra: `participants=${duel.participants.size} winner=${winner?.displayName || "-"}`
+  });
+  await duel.message?.delete().catch(() => {});
+  if (duel.logMessage) {
+    await duel.logMessage.delete().catch(() => {});
+  }
+  for (const levelUp of levelUps) {
+    const member = await channel.guild?.members.fetch(levelUp.id).catch(() => null);
+    const user = member?.user || await client.users.fetch(levelUp.id).catch(() => null);
+    if (user) {
+      const levelUpChannel = await resolveParentTextChannel(channel) || channel;
+      await levelUpChannel.send({ embeds: [makeLevelUpEmbed(user, levelUp.level, member)] }).catch(() => {});
+    }
+  }
+  fishDuels.delete(duel.duelKey);
+}
+
 function buildCompetitionLogFile(competition) {
   return [
-    competition.mode === "raid" ? "TRFishing Fish Raid Match Log" : "TRFishing Competition Match Log",
+    competition.mode === "duel" ? "TRFishing Fish Duel Match Log" : competition.mode === "raid" ? "TRFishing Fish Raid Match Log" : "TRFishing Competition Match Log",
     `Guild ID: ${competition.guildId}`,
     `Channel ID: ${competition.channelId}`,
-    `Turns: ${competition.turns}`,
+    competition.mode === "duel" ? `Rounds: ${competition.currentTurn}` : `Turns: ${competition.turns}`,
     `Participants: ${competition.participants.size}`,
     "",
     "Participants",
@@ -3439,16 +4479,30 @@ function buildCompetitionLogFile(competition) {
   ].join("\n");
 }
 
+function rememberCompetitionHistoryLog(logId, record) {
+  finishedCompetitionLogs.set(logId, record);
+  cleanupFinishedCompetitionLogs();
+  saveCompetitionHistoryLogs();
+}
+
 async function cancelCompetition(competition, reason) {
   if (competition.timeout) {
     clearTimeout(competition.timeout);
     competition.timeout = null;
   }
   competition.status = "cancelled";
+  const channel = competition.channelId ? await client.channels.fetch(competition.channelId).catch(() => null) : null;
+  logBotAction(`${competitionLogName(competition)} cancelled`, {
+    guild: guildLogName(channel, competition.guildId),
+    channel: channelLogName(channel),
+    extra: `reason=${reason}`
+  });
   await competition.message?.edit(makeSimplePanelMessage("Kompetisi Dibatalkan", reason)).catch(() => {});
   await competition.pingMessage?.delete().catch(() => {});
   if (competition.mode === "raid") {
     fishRaids.delete(competition.guildId);
+  } else if (competition.mode === "duel") {
+    fishDuels.delete(competition.duelKey);
   } else {
     competitions.delete(competition.guildId);
   }
@@ -3458,14 +4512,22 @@ function cleanupFinishedCompetitionLogs() {
   const historyHours = Math.max(0, Number(getSettings().fishCompHistoryLogHours ?? 24));
   const maxAgeMs = historyHours * 60 * 60 * 1000;
   if (maxAgeMs <= 0) {
-    finishedCompetitionLogs.clear();
+    if (finishedCompetitionLogs.size) {
+      finishedCompetitionLogs.clear();
+      saveCompetitionHistoryLogs();
+    }
     return;
   }
   const now = Date.now();
+  let changed = false;
   for (const [logId, record] of finishedCompetitionLogs.entries()) {
     if (now - Number(record.createdAt || 0) > maxAgeMs) {
       finishedCompetitionLogs.delete(logId);
+      changed = true;
     }
+  }
+  if (changed) {
+    saveCompetitionHistoryLogs();
   }
 }
 
@@ -3591,6 +4653,7 @@ async function withPlayer(userOrId, action) {
   const { userId, identity } = getUserIdentity(userOrId);
   return queuePlayerWork(userId, async () => {
     const { sessionTicket, player } = await getPlayer(userId, identity);
+    refreshPlayerLuckiestFish(player);
     const result = await action(player);
     if (result?.save !== false) {
       await savePlayer(sessionTicket, player);
@@ -3603,6 +4666,7 @@ async function withPlayerReadOnly(userOrId, action) {
   const { userId, identity } = getUserIdentity(userOrId);
   return queuePlayerWork(userId, async () => {
     const { player } = await getPlayer(userId, identity);
+    refreshPlayerLuckiestFish(player);
     return action(player);
   });
 }
@@ -3643,13 +4707,18 @@ function makeHelpEmbed(showAdminCommands = false) {
         inline: false
       },
       {
+        name: "/fishshowoff",
+        value: "Membuat banner publik untuk pamer profil memancing, avatar Discord, ikan pilihan, dan statistik utama.",
+        inline: false
+      },
+      {
         name: "/fishinventory",
         value: "Melihat daftar ikan yang kamu punya di inventory.",
         inline: false
       },
       {
         name: "/fishstore",
-        value: "Melihat daftar pancingan yang tersedia di toko.",
+        value: "Melihat daftar pancingan dan fish bag yang tersedia di toko.",
         inline: false
       },
       {
@@ -3700,6 +4769,11 @@ function makeHelpEmbed(showAdminCommands = false) {
       {
         name: "/fishcomp regtime:<menit> duration:<turn>",
         value: "Memulai kompetisi memancing. Pemain lain bisa ikut dengan tombol Join, lalu hasilnya berjalan per turn.",
+        inline: false
+      },
+      {
+        name: "/fishduel target:<user> bet:<gold opsional>",
+        value: "Menantang pemain lain dalam Duel Adu Dermawan. Kedua pemain harus memakai fish bag.",
         inline: false
       },
       {
@@ -3782,12 +4856,12 @@ function makeFishGuideEmbed() {
       },
       {
         name: "Gold dan Jual Ikan",
-        value: "Ikan yang kamu dapat masuk inventory. Gunakan `/sellfish` untuk menjual semua ikan, atau `/sellfish fish:<nama/id>` untuk menjual satu jenis ikan. Gold dipakai untuk membeli pancingan.",
+        value: "Ikan yang kamu dapat masuk inventory. Gunakan `/sellfish` untuk menjual semua ikan, atau `/sellfish fish:<nama/id>` untuk menjual satu jenis ikan. Gold dipakai untuk membeli pancingan dan fish bag.",
         inline: false
       },
       {
-        name: "Store dan Pancingan",
-        value: "Gunakan `/fishstore` untuk membeli atau memakai pancingan. **Speed** menentukan jumlah chat yang dibutuhkan, **Luck** membantu peluang ikan lebih bagus, **Max Kg** membatasi berat ikan yang bisa ditangkap, dan **Accuracy** dipakai untuk peluang berhasil di kompetisi.",
+        name: "Store, Pancingan, dan Fish Bag",
+        value: "Gunakan `/fishstore` untuk membeli atau memakai pancingan dan fish bag. **Capacity** fish bag menentukan kapasitas tas saat FishDuel.",
         inline: false
       },
       {
@@ -3801,13 +4875,18 @@ function makeFishGuideEmbed() {
         inline: false
       },
       {
+        name: "FishDuel",
+        value: "Gunakan `/fishduel target:<user> bet:<gold opsional>` untuk menantang pemain lain. Target menerima lewat tombol di channel. Yang lebih dulu memenuhi tas lawan menang.",
+        inline: false
+      },
+      {
         name: "Voice Progress",
         value: "Gunakan `/fishvoice` saat kamu sedang berada di voice channel. Bot akan join dalam keadaan mute dan deafen, lalu pemain di voice channel server itu bisa mendapat fishing progress pasif.",
         inline: false
       },
       {
         name: "Detailed Guide",
-        value: "Gunakan `/fishguide info:<nama>` untuk membaca panduan detail. Guide yang tersedia: `level`, `inventory`, `store`, `competition`.",
+        value: "Gunakan `/fishguide info:<nama>` untuk membaca panduan detail. Guide yang tersedia: `level`, `inventory`, `store`, `competition`, `fishraid`.",
         inline: false
       },
       {
@@ -3865,8 +4944,8 @@ function makeInventoryGuideEmbed() {
       "## Jual Ikan",
       "Gunakan `/sellfish` untuk menjual semua ikan. Kalau hanya mau menjual satu jenis ikan, gunakan `/sellfish fish:<nama/id>`.",
       "",
-      "## Gold dan Rod",
-      "Gold dari hasil jual ikan bisa dipakai di `/fishstore` untuk membeli pancingan. Pancingan yang lebih baik membantu kamu mendapat ikan lebih bagus."
+      "## Gold, Rod, dan Fish Bag",
+      "Gold dari hasil jual ikan bisa dipakai di `/fishstore` untuk membeli pancingan dan fish bag. Fish bag dibutuhkan untuk FishDuel."
     ].join("\n"));
 }
 
@@ -3876,14 +4955,14 @@ function makeStoreGuideEmbed() {
     .setTitle("TRFishing · Store Guide")
     .setDescription([
       "# Store Guide",
-      "Store dipakai untuk membeli dan memakai rod.",
+      "Store dipakai untuk membeli dan memakai rod serta fish bag.",
       "",
       "━━━━━━━━━━━━━━━━━━━━",
       "## Kenapa Rod Penting",
       "Rod memengaruhi cara kamu memancing. **Speed** menentukan berapa banyak progress yang dibutuhkan, **Luck** membantu peluang ikan lebih bagus, **Max Kg** menentukan batas berat ikan yang bisa ditangkap, dan **Accuracy** dipakai saat kompetisi.",
       "",
       "## Cara Pakai",
-      "Gunakan `/fishstore`, pilih rod dari menu, lalu beli atau gunakan rod yang sudah kamu punya."
+      "Gunakan `/fishstore`, pilih rod atau fish bag dari menu, lalu beli atau gunakan item yang sudah kamu punya."
     ].join("\n"));
 }
 
@@ -4016,6 +5095,14 @@ function makeSlashCommands() {
       description: "Lihat profil memancing kamu secara privat."
     },
     {
+      name: "fishshowoff",
+      description: "Pamerkan banner profil memancing kamu."
+    },
+    {
+      name: "fishdaily",
+      description: "Ambil hadiah harian memancing kamu."
+    },
+    {
       name: "fishinventory",
       description: "Lihat inventory ikan kamu secara privat."
     },
@@ -4127,6 +5214,24 @@ function makeSlashCommands() {
         {
           name: "duration",
       description: "Durasi kompetisi dalam jumlah turn. Default 15.",
+          type: ApplicationCommandOptionType.Integer,
+          required: false
+        }
+      ]
+    },
+    {
+      name: "fishduel",
+      description: "Tantang pemain lain dalam Duel Adu Dermawan.",
+      options: [
+        {
+          name: "target",
+          description: "Pemain yang ingin kamu tantang.",
+          type: ApplicationCommandOptionType.User,
+          required: false
+        },
+        {
+          name: "bet",
+          description: "Taruhan gold opsional.",
           type: ApplicationCommandOptionType.Integer,
           required: false
         }
@@ -4259,7 +5364,8 @@ async function handleCommand(message) {
     }));
     const currentLevel = getLevel(player.exp);
     if (currentLevel > previousLevel) {
-      await popupChannel.send({ embeds: [makeLevelUpEmbed(message.author, currentLevel, message.member)] });
+      const levelUpChannel = await fetchMainTextChannel(player, message.guildId, message.channel) || popupChannel;
+      await levelUpChannel.send({ embeds: [makeLevelUpEmbed(message.author, currentLevel, message.member)] });
     }
   });
 }
@@ -4299,7 +5405,8 @@ async function handleFishingProgress(message) {
     }
     const currentLevel = getLevel(player.exp);
     if (currentLevel > previousLevel) {
-      await popupChannel.send({ embeds: [makeLevelUpEmbed(message.author, currentLevel, message.member)] });
+      const levelUpChannel = await fetchMainTextChannel(player, message.guildId, message.channel) || popupChannel;
+      await levelUpChannel.send({ embeds: [makeLevelUpEmbed(message.author, currentLevel, message.member)] });
     }
   });
 }
@@ -4353,6 +5460,11 @@ async function startFishCompFromInteraction(interaction, options = {}) {
   competitions.set(interaction.guildId, competition);
   await interaction.reply(makeCompetitionMessage(competition, "registration", makeCompetitionJoinRow(false)));
   competition.message = await interaction.fetchReply();
+  logBotAction("Fish Comp registration opened", {
+    guild: guildLogName(interaction.channel, interaction.guildId),
+    channel: channelLogName(interaction.channel),
+    extra: `startsInMinutes=${registrationMinutes} turns=${turns}`
+  });
   const fishCompRole = interaction.guild ? await ensureFishCompRole(interaction.guild) : null;
   competition.pingMessage = await interaction.channel?.send({
     content: `## Ayo! Kompetisi memancing sudah dimulai!! ${fishCompRole ? fishCompRole.toString() : "@FishComp"}\n-# *buka /fishprofile dan tekan tombol untuk mendapatkan role @FishComp*`,
@@ -4368,6 +5480,45 @@ async function startFishCompFromInteraction(interaction, options = {}) {
       competitions.delete(competition.guildId);
     });
   }, registrationMinutes * 60_000);
+}
+
+function buyFishBag(player, fishBagId) {
+  const bag = getFishBag(fishBagId);
+
+  if (!bag) {
+    return { ok: false, message: "Fish bag itu tidak ditemukan." };
+  }
+
+  if (!Array.isArray(player.ownedFishBags)) {
+    player.ownedFishBags = [];
+  }
+
+  if (player.ownedFishBags.includes(bag.id)) {
+    const changed = player.fishBagId !== bag.id;
+    player.fishBagId = bag.id;
+    return { ok: changed, message: `Berhasil memakai ${bag.name}.` };
+  }
+
+  if (player.gold < Number(bag.price || 0)) {
+    return { ok: false, message: `Gold kamu kurang ${Number(bag.price || 0) - player.gold} untuk membeli ${bag.name}.` };
+  }
+
+  player.gold -= Number(bag.price || 0);
+  player.ownedFishBags.push(bag.id);
+  player.fishBagId = bag.id;
+  return { ok: true, message: `Berhasil membeli dan memakai ${bag.name}.` };
+}
+
+function equipOwnedFishBag(player, fishBagId) {
+  const bag = getFishBag(fishBagId);
+  if (!bag) {
+    return { ok: false, message: "Fish bag itu tidak ditemukan." };
+  }
+  if (!Array.isArray(player.ownedFishBags) || !player.ownedFishBags.includes(bag.id)) {
+    return { ok: false, message: "Kamu belum punya fish bag itu." };
+  }
+  player.fishBagId = bag.id;
+  return { ok: true, message: `Berhasil memakai ${bag.name}.` };
 }
 
 async function startFishRaidFromInteraction(interaction, options = {}) {
@@ -4418,6 +5569,11 @@ async function startFishRaidFromInteraction(interaction, options = {}) {
   fishRaids.set(interaction.guildId, raid);
   await interaction.reply(makeCompetitionMessage(raid, "registration", makeFishRaidJoinRow(false)));
   raid.message = await interaction.fetchReply();
+  logBotAction("Fish Raid registration opened", {
+    guild: guildLogName(interaction.channel, interaction.guildId),
+    channel: channelLogName(interaction.channel),
+    extra: `startsInMinutes=${registrationMinutes} turns=${raid.turns} boss=${dailyState.boss.name}`
+  });
   const fishCompRole = interaction.guild ? await ensureFishCompRole(interaction.guild) : null;
   raid.pingMessage = await interaction.channel?.send({
     content: `## Fish Raid dibuka! ${fishCompRole ? fishCompRole.toString() : "@FishComp"}\nBoss hari ini: **${dailyState.boss.name}** · Quota **${formatKg(dailyState.quotaKg)}**\n-# *Join raid untuk bantu memenuhi pesanan ikan hari ini.*`,
@@ -4435,6 +5591,190 @@ async function startFishRaidFromInteraction(interaction, options = {}) {
   }, registrationMinutes * 60_000);
 }
 
+function makeFishDuelKey(guildId, userIdA, userIdB) {
+  return `${guildId}:${[userIdA, userIdB].sort().join(":")}`;
+}
+
+function hasActiveFishDuel(guildId, userIdA = "", userIdB = "") {
+  const userIds = new Set([userIdA, userIdB].filter(Boolean));
+  return [...fishDuels.values()].some((duel) => {
+    if (!["registration", "running"].includes(duel.status)) {
+      return false;
+    }
+    if (duel.guildId !== guildId) {
+      return false;
+    }
+    return [duel.creatorId, duel.targetId].some((userId) => userIds.has(userId));
+  });
+}
+
+function forgetFishDuel(duel) {
+  if (!duel) {
+    return;
+  }
+  if (duel.timeout) {
+    clearTimeout(duel.timeout);
+    duel.timeout = null;
+  }
+  duel.status = "cancelled";
+  fishDuels.delete(duel.duelKey);
+}
+
+async function isDiscordMessageStillAvailable(channelId, messageId) {
+  if (!channelId || !messageId) {
+    return true;
+  }
+  const channel = await client.channels.fetch(channelId).catch(() => null);
+  if (!channel?.messages?.fetch) {
+    return true;
+  }
+  const message = await channel.messages.fetch(messageId).catch(() => null);
+  return Boolean(message);
+}
+
+async function cleanupDeletedFishDuelMessages(guildId = "") {
+  for (const duel of [...fishDuels.values()]) {
+    if (guildId && duel.guildId !== guildId) {
+      continue;
+    }
+    const registrationMessageId = duel.message?.id || "";
+    const logMessageId = duel.logMessage?.id || "";
+    const registrationExists = await isDiscordMessageStillAvailable(duel.channelId, registrationMessageId);
+    const logExists = await isDiscordMessageStillAvailable(duel.channelId, logMessageId);
+    if (!registrationExists || !logExists) {
+      forgetFishDuel(duel);
+    }
+  }
+}
+
+function makeParticipantFromUser(user, member = null) {
+  const memberDisplayName = member?.displayName || user.globalName || user.username;
+  const globalDisplayName = user.globalName || user.username;
+  return {
+    id: user.id,
+    username: user.username,
+    globalName: globalDisplayName,
+    displayName: formatDiscordMention(user.id),
+    logName: memberDisplayName
+  };
+}
+
+async function chargeFishDuelBet(duel) {
+  const betAmount = Math.max(0, Math.floor(Number(duel.betAmount || 0)));
+  if (betAmount <= 0) {
+    return { ok: true };
+  }
+
+  for (const userId of [duel.creatorId, duel.targetId]) {
+    let enoughGold = false;
+    await withPlayer(userId, async (player) => {
+      enoughGold = Number(player.gold || 0) >= betAmount;
+      if (enoughGold) {
+        player.gold = Math.max(0, Math.floor(Number(player.gold || 0))) - betAmount;
+      }
+      return enoughGold ? undefined : { save: false };
+    });
+    if (!enoughGold) {
+      for (const refundUserId of [duel.creatorId, duel.targetId].filter((id) => id !== userId)) {
+        await withPlayer(refundUserId, async (player) => {
+          player.gold = Math.max(0, Math.floor(Number(player.gold || 0))) + betAmount;
+        });
+      }
+      return { ok: false, message: "Salah satu pemain tidak punya cukup gold untuk taruhan saat duel diterima." };
+    }
+  }
+
+  return { ok: true };
+}
+
+async function startFishDuelFromPending(interaction, pending) {
+  const channel = await client.channels.fetch(pending.channelId).catch(() => null);
+  if (!channel?.isTextBased?.()) {
+    await interaction.reply({ content: "Channel duel sudah tidak tersedia.", flags: MessageFlags.Ephemeral });
+    return;
+  }
+
+  if (!pending.target?.id) {
+    if (!interaction.user || interaction.user.id === pending.creator.id) {
+      await interaction.reply({ content: "Hey! Kamu tidak bisa menerima duelmu sendiri!", flags: MessageFlags.Ephemeral });
+      return;
+    }
+    pending.targetId = interaction.user.id;
+    pending.target = {
+      id: interaction.user.id,
+      username: interaction.user.username,
+      globalName: interaction.user.globalName,
+      displayName: interaction.user.displayName
+    };
+  }
+
+  const duelKey = makeFishDuelKey(pending.guildId, pending.creator.id, pending.target.id);
+  await cleanupDeletedFishDuelMessages(pending.guildId);
+  if (hasActiveFishDuel(pending.guildId, pending.creator.id, pending.target.id)) {
+    await interaction.reply({ content: "Salah satu pemain masih berada di duel lain.", flags: MessageFlags.Ephemeral });
+    return;
+  }
+
+  let creatorPlayer = null;
+  let targetPlayer = null;
+  await withPlayerReadOnly(pending.creator.id, async (player) => { creatorPlayer = player; });
+  await withPlayerReadOnly(pending.target.id, async (player) => { targetPlayer = player; });
+  if (!hasEquippedFishBag(creatorPlayer) || !hasEquippedFishBag(targetPlayer)) {
+    await interaction.reply({ content: "Kedua pemain harus punya fish bag yang sedang dipakai untuk mulai duel.", flags: MessageFlags.Ephemeral });
+    return;
+  }
+
+  const creatorMember = await channel.guild?.members.fetch(pending.creator.id).catch(() => null);
+  const targetMember = await channel.guild?.members.fetch(pending.target.id).catch(() => null);
+  const creatorParticipant = makeParticipantFromUser(pending.creator, creatorMember);
+  const targetParticipant = makeParticipantFromUser(pending.target, targetMember);
+  creatorParticipant.level = getLevel(creatorPlayer.exp);
+  targetParticipant.level = getLevel(targetPlayer.exp);
+  creatorParticipant.fishBagId = creatorPlayer.fishBagId;
+  targetParticipant.fishBagId = targetPlayer.fishBagId;
+  const creatorSpace = getEffectiveFishBagSpace(creatorPlayer, { mode: "duel", target: "self", userLevel: creatorParticipant.level, opponentLevel: targetParticipant.level });
+  const targetSpace = getEffectiveFishBagSpace(targetPlayer, { mode: "duel", target: "self", userLevel: targetParticipant.level, opponentLevel: creatorParticipant.level });
+
+  const betCharge = await chargeFishDuelBet(pending);
+  if (!betCharge.ok) {
+    await interaction.reply({ content: betCharge.message, flags: MessageFlags.Ephemeral });
+    return;
+  }
+
+  const duel = {
+    mode: "duel",
+    duelKey,
+    guildId: pending.guildId,
+    channelId: pending.channelId,
+    creatorId: pending.creator.id,
+    targetId: pending.target.id,
+    startsAt: Date.now(),
+    maxParticipants: 2,
+    status: "registration",
+    participants: new Map([[creatorParticipant.id, creatorParticipant], [targetParticipant.id, targetParticipant]]),
+    results: new Map([
+      [creatorParticipant.id, { ...creatorParticipant, count: 0, totalWeight: 0, heaviestWeight: 0, heaviestName: "", bagFilled: 0, bagSpaceKg: creatorSpace, opponentSpaceKg: targetSpace, opponentFilledAt: 0 }],
+      [targetParticipant.id, { ...targetParticipant, count: 0, totalWeight: 0, heaviestWeight: 0, heaviestName: "", bagFilled: 0, bagSpaceKg: targetSpace, opponentSpaceKg: creatorSpace, opponentFilledAt: 0 }]
+    ]),
+    logs: [],
+    eventStates: new Map(),
+    currentTurnEffects: new Map(),
+    currentTurn: 0,
+    winnerId: "",
+    betAmount: Math.max(0, Math.floor(Number(pending.betAmount || 0))),
+    logIntervalMs: Math.max(0, Number(getSettings().fishDuelLogIntervalMs ?? getSettings().fishCompLogIntervalMs ?? 2500)),
+    message: null,
+    timeout: null
+  };
+  fishDuels.set(duelKey, duel);
+  duel.message = interaction.message || null;
+  await interaction.update(makeCompetitionMessage(duel, "registration", [])).catch(() => {});
+  runCompetition(duel).catch((error) => {
+    console.error("Fish duel failed:", error);
+    fishDuels.delete(duel.duelKey);
+  });
+}
+
 async function handleRoutineButton(interaction) {
   const [, routineId, buttonId] = interaction.customId.split(":");
   const routine = getRoutineMessages().find((entry) => entry.id === routineId);
@@ -4448,7 +5788,7 @@ async function handleRoutineButton(interaction) {
     interaction.message?.delete?.().catch(() => {});
   }
 
-  if (["fishcomp", "fishraid", "fishstore", "fishdex"].includes(button.action) && !isActivityAllowed()) {
+  if (["fishcomp", "fishraid", "fishstore", "fishdex", "fishdaily"].includes(button.action) && !isActivityAllowed()) {
     await interaction.reply({ content: activityBlockedMessage(), flags: MessageFlags.Ephemeral });
     return;
   }
@@ -4469,6 +5809,10 @@ async function handleRoutineButton(interaction) {
   if (button.action === "fishdex") {
     await interaction.deferReply({ flags: MessageFlags.Ephemeral });
     await withPlayerReadOnly(interaction.user, async (player) => interaction.editReply(makeFishDexMessage(interaction.user, player, "", interaction.guildId)));
+    return;
+  }
+  if (button.action === "fishdaily") {
+    await replyWithFishDaily(interaction);
     return;
   }
   if (button.action === "fishguide") {
@@ -4494,6 +5838,67 @@ client.on("interactionCreate", async (interaction) => {
   try {
     if (interaction.isButton() && interaction.customId.startsWith("routine:")) {
       await handleRoutineButton(interaction);
+      return;
+    }
+
+    if (interaction.isButton() && (interaction.customId.startsWith("fishduel_accept:") || interaction.customId.startsWith("fishduel_decline:"))) {
+      const [action, duelId] = interaction.customId.split(":");
+      const pending = getPendingFishDuel(duelId);
+      if (!pending) {
+        await interaction.reply({ content: "Permintaan duel ini sudah tidak aktif.", flags: MessageFlags.Ephemeral });
+        return;
+      }
+      if (pending.target.id !== interaction.user.id) {
+        await interaction.reply({ content: "Permintaan duel ini bukan untuk kamu.", flags: MessageFlags.Ephemeral });
+        return;
+      }
+      deletePendingFishDuel(duelId);
+      if (action === "fishduel_decline") {
+        await interaction.update({ content: `Duel dari ${pending.creator.username} ditolak.`, components: [] });
+        return;
+      }
+      await startFishDuelFromPending(interaction, pending);
+      return;
+    }
+
+    if (interaction.isButton() && (interaction.customId.startsWith("fishduel_open_accept:") || interaction.customId.startsWith("fishduel_open_cancel:"))) {
+      const isAccept = interaction.customId.startsWith("fishduel_open_accept:");
+      const duelId = interaction.customId.slice(isAccept ? "fishduel_open_accept:".length : "fishduel_open_cancel:".length);
+      const pending = getPendingFishDuel(duelId);
+      if (!pending) {
+        await interaction.reply({ content: "Open duel ini sudah tidak aktif.", flags: MessageFlags.Ephemeral });
+        return;
+      }
+      if (!isAccept) {
+        if (interaction.user.id !== pending.creator.id && !isAdmin(interaction.user)) {
+          await interaction.reply({ content: "Hey! Ini bukan duelmu, kamu tidak bisa membatalkannya", flags: MessageFlags.Ephemeral });
+          return;
+        }
+        deletePendingFishDuel(duelId);
+        await interaction.message?.delete?.().catch(() => {});
+        await interaction.reply({ content: "Open duel dibatalkan.", flags: MessageFlags.Ephemeral }).catch(() => {});
+        return;
+      }
+      if (interaction.user.id === pending.creator.id) {
+        await interaction.reply({ content: "Hey! Kamu tidak bisa menerima duelmu sendiri!", flags: MessageFlags.Ephemeral });
+        return;
+      }
+      if (!isActivityAllowed()) {
+        await interaction.reply({ content: activityBlockedMessage(), flags: MessageFlags.Ephemeral });
+        return;
+      }
+      let accepterPlayer = null;
+      await withPlayerReadOnly(interaction.user, async (player) => { accepterPlayer = player; });
+      if (!hasEquippedFishBag(accepterPlayer)) {
+        await interaction.reply({ content: "Kamu belum memakai fish bag. Beli dan equip fish bag dulu lewat `/fishstore`.", flags: MessageFlags.Ephemeral });
+        return;
+      }
+      if (Number(pending.betAmount || 0) > 0 && Number(accepterPlayer.gold || 0) < Number(pending.betAmount || 0)) {
+        await interaction.reply({ content: "Gold kamu belum cukup untuk menerima taruhan duel ini.", flags: MessageFlags.Ephemeral });
+        return;
+      }
+      deletePendingFishDuel(duelId);
+      await startFishDuelFromPending(interaction, pending);
       return;
     }
 
@@ -4573,6 +5978,20 @@ client.on("interactionCreate", async (interaction) => {
       return;
     }
 
+    if (interaction.isStringSelectMenu() && interaction.customId === "profile_fishbag_select") {
+      const selectedFishBagId = interaction.values[0];
+      await interaction.deferUpdate();
+      const member = interaction.guild?.members?.fetch
+        ? await interaction.guild.members.fetch(interaction.user.id).catch(() => null)
+        : null;
+      await withPlayer(interaction.user, async (player) => {
+        const result = equipOwnedFishBag(player, selectedFishBagId);
+        await interaction.editReply(makeProfileMessage(interaction.user, player, member, interaction.guildId));
+        return result.ok ? undefined : { save: false };
+      });
+      return;
+    }
+
     if (interaction.isButton() && interaction.customId.startsWith("rod_buy:")) {
       if (!isActivityAllowed()) {
         await interaction.reply({ content: activityBlockedMessage(), flags: MessageFlags.Ephemeral });
@@ -4583,6 +6002,30 @@ client.on("interactionCreate", async (interaction) => {
       await withPlayer(interaction.user, async (player) => {
         const result = buyRod(player, selectedRodId);
         await interaction.editReply(makeStoreMessage(player, selectedRodId, result.message));
+        return result.ok ? undefined : { save: false };
+      });
+      return;
+    }
+
+    if (interaction.isStringSelectMenu() && interaction.customId.startsWith("fishbag_select:")) {
+      const selectedFishBagId = interaction.values[0];
+      await interaction.deferUpdate();
+      await withPlayerReadOnly(interaction.user, async (player) => {
+        await interaction.editReply(makeStoreMessage(player, null, "", selectedFishBagId));
+      });
+      return;
+    }
+
+    if (interaction.isButton() && interaction.customId.startsWith("fishbag_buy:")) {
+      if (!isActivityAllowed()) {
+        await interaction.reply({ content: activityBlockedMessage(), flags: MessageFlags.Ephemeral });
+        return;
+      }
+      const selectedFishBagId = interaction.customId.split(":")[1] || "";
+      await interaction.deferUpdate();
+      await withPlayer(interaction.user, async (player) => {
+        const result = buyFishBag(player, selectedFishBagId);
+        await interaction.editReply(makeStoreMessage(player, null, result.message, selectedFishBagId));
         return result.ok ? undefined : { save: false };
       });
       return;
@@ -4788,7 +6231,7 @@ client.on("interactionCreate", async (interaction) => {
       return;
     }
 
-    if (["sellfish", "fishstore", "fishdex", "fishvoice", "fishcomp", "fishraid"].includes(interaction.commandName) && !isActivityAllowed()) {
+    if (["sellfish", "fishstore", "fishdex", "fishvoice", "fishshowoff", "fishdaily", "fishcomp", "fishduel", "fishraid"].includes(interaction.commandName) && !isActivityAllowed()) {
       await interaction.reply({ content: activityBlockedMessage(), flags: MessageFlags.Ephemeral });
       return;
     }
@@ -4801,6 +6244,23 @@ client.on("interactionCreate", async (interaction) => {
       await withPlayerReadOnly(interaction.user, async (player) => {
         await interaction.editReply(makeProfileMessage(interaction.user, player, member, interaction.guildId));
       });
+      return;
+    }
+
+    if (interaction.commandName === "fishshowoff") {
+      await interaction.deferReply();
+      const member = interaction.guild?.members?.fetch
+        ? await interaction.guild.members.fetch(interaction.user.id).catch(() => null)
+        : null;
+      await withPlayerReadOnly(interaction.user, async (player) => {
+        const showoffMessage = await interaction.editReply(await makeFishShowoffMessage(interaction.user, player, member, interaction.guildId));
+        scheduleMessageDelete(showoffMessage);
+      });
+      return;
+    }
+
+    if (interaction.commandName === "fishdaily") {
+      await replyWithFishDaily(interaction);
       return;
     }
 
@@ -4962,6 +6422,11 @@ client.on("interactionCreate", async (interaction) => {
       competitions.set(interaction.guildId, competition);
       await interaction.reply(makeCompetitionMessage(competition, "registration", makeCompetitionJoinRow(false)));
       competition.message = await interaction.fetchReply();
+      logBotAction("Fish Comp registration opened", {
+        guild: guildLogName(interaction.channel, interaction.guildId),
+        channel: channelLogName(interaction.channel),
+        extra: `startsInMinutes=${registrationMinutes} turns=${turns}`
+      });
       const fishCompRole = interaction.guild ? await ensureFishCompRole(interaction.guild) : null;
       competition.pingMessage = await interaction.channel?.send({
         content: `## Ayo! Kompetisi memancing sudah dimulai!! ${fishCompRole ? fishCompRole.toString() : "@FishComp"}\n-# *buka /fishprofile dan tekan tombol untuk mendapatkan role @FishComp*`,
@@ -4977,6 +6442,105 @@ client.on("interactionCreate", async (interaction) => {
           competitions.delete(competition.guildId);
         });
       }, registrationMinutes * 60_000);
+      return;
+    }
+
+    if (interaction.commandName === "fishduel") {
+      recordGuildActivity(interaction.guildId);
+      if (!interaction.guildId || !interaction.guild) {
+        await interaction.reply({ content: "FishDuel hanya bisa dibuat di server.", flags: MessageFlags.Ephemeral });
+        return;
+      }
+      const targetUser = interaction.options.getUser("target");
+      const betAmount = Math.max(0, Math.floor(Number(interaction.options.getInteger("bet") || 0)));
+      if (targetUser?.bot) {
+        await interaction.reply({ content: "Pilih pemain server yang bukan bot.", flags: MessageFlags.Ephemeral });
+        return;
+      }
+      if (targetUser?.id === interaction.user.id) {
+        await interaction.reply({ content: "Kamu tidak bisa duel melawan diri sendiri.", flags: MessageFlags.Ephemeral });
+        return;
+      }
+      await cleanupDeletedFishDuelMessages(interaction.guildId);
+      if (hasActiveFishDuel(interaction.guildId, interaction.user.id, targetUser?.id || "")) {
+        await interaction.reply({ content: "Salah satu pemain masih berada di duel lain.", flags: MessageFlags.Ephemeral });
+        return;
+      }
+
+      let challengerPlayer = null;
+      let targetPlayer = null;
+      await withPlayerReadOnly(interaction.user, async (player) => { challengerPlayer = player; });
+      if (targetUser) {
+        await withPlayerReadOnly(targetUser.id, async (player) => { targetPlayer = player; });
+      }
+      if (!hasEquippedFishBag(challengerPlayer)) {
+        await interaction.reply({ content: "Kamu belum memakai fish bag. Beli dan equip fish bag dulu lewat `/fishstore`.", flags: MessageFlags.Ephemeral });
+        return;
+      }
+      if (targetUser && !hasEquippedFishBag(targetPlayer)) {
+        await interaction.reply({ content: "Target belum memakai fish bag, jadi belum bisa menerima duel.", flags: MessageFlags.Ephemeral });
+        return;
+      }
+      if (betAmount > 0 && Number(challengerPlayer.gold || 0) < betAmount) {
+        await interaction.reply({ content: "Gold kamu belum cukup untuk jumlah taruhan itu.", flags: MessageFlags.Ephemeral });
+        return;
+      }
+      if (targetUser && betAmount > 0 && Number(targetPlayer.gold || 0) < betAmount) {
+        await interaction.reply({ content: "Kedua pemain harus punya cukup gold untuk jumlah taruhan itu.", flags: MessageFlags.Ephemeral });
+        return;
+      }
+
+      const duelId = `${Date.now()}_${interaction.user.id}_${targetUser?.id || "open"}`;
+      const pending = {
+        id: duelId,
+        guildId: interaction.guildId,
+        channelId: interaction.channelId,
+        creatorId: interaction.user.id,
+        targetId: targetUser?.id || "",
+        creator: {
+          id: interaction.user.id,
+          username: interaction.user.username,
+          globalName: interaction.user.globalName,
+          displayName: interaction.user.displayName
+        },
+        target: targetUser ? {
+          id: targetUser.id,
+          username: targetUser.username,
+          globalName: targetUser.globalName,
+          displayName: targetUser.displayName
+        } : null,
+        betAmount,
+        createdAt: Date.now()
+      };
+      setPendingFishDuel(duelId, pending);
+      if (!targetUser) {
+        await interaction.reply(makeOpenFishDuelMessage(pending));
+        const replyMessage = await interaction.fetchReply().catch(() => null);
+        if (replyMessage?.id) {
+          pending.messageId = replyMessage.id;
+          setPendingFishDuel(duelId, pending);
+        }
+        return;
+      }
+      const prompt = [
+        `${formatDiscordMention(interaction.user.id)} menantang ${formatDiscordMention(targetUser.id)} untuk duel adu dermawan! Akankah diterima atau ${formatDiscordMention(targetUser.id)} hanya pecundang yang tidak dermawan?`,
+        "",
+        `Apakah ingin menerima duel dari ${interaction.user.username}?`,
+        "",
+        "**Duel Adu Dermawan!**",
+        "Siapa yang bisa membuat tas lawannya penuh lebih dahulu ialah yang lebih dermawan!",
+        betAmount > 0 ? `Taruhan: **${formatGoldAmount(betAmount)}** per pemain` : "Tanpa taruhan gold."
+      ].join("\n");
+      await interaction.reply({
+        content: prompt,
+        components: makeFishDuelAcceptRow(duelId),
+        allowedMentions: { users: [interaction.user.id, targetUser.id] }
+      });
+      const replyMessage = await interaction.fetchReply().catch(() => null);
+      if (replyMessage?.id) {
+        pending.messageId = replyMessage.id;
+        setPendingFishDuel(duelId, pending);
+      }
       return;
     }
 
@@ -5029,6 +6593,11 @@ client.on("interactionCreate", async (interaction) => {
       fishRaids.set(interaction.guildId, raid);
       await interaction.reply(makeCompetitionMessage(raid, "registration", makeFishRaidJoinRow(false)));
       raid.message = await interaction.fetchReply();
+      logBotAction("Fish Raid registration opened", {
+        guild: guildLogName(interaction.channel, interaction.guildId),
+        channel: channelLogName(interaction.channel),
+        extra: `startsInMinutes=${registrationMinutes} turns=${turns} boss=${dailyState.boss.name}`
+      });
       const fishCompRole = interaction.guild ? await ensureFishCompRole(interaction.guild) : null;
       raid.pingMessage = await interaction.channel?.send({
         content: `## Fish Raid dibuka! ${fishCompRole ? fishCompRole.toString() : "@FishComp"}\nBoss hari ini: **${dailyState.boss.name}** · Quota **${formatKg(dailyState.quotaKg)}**\n-# *Join raid untuk bantu memenuhi pesanan ikan hari ini.*`,
@@ -5078,6 +6647,19 @@ client.on("voiceStateUpdate", async (oldState, newState) => {
   }
 });
 
+client.on("messageDelete", (message) => {
+  const messageId = message?.id || "";
+  if (!messageId) {
+    return;
+  }
+  deletePendingFishDuelByMessageId(messageId);
+  for (const duel of [...fishDuels.values()]) {
+    if (duel.message?.id === messageId || duel.logMessage?.id === messageId) {
+      forgetFishDuel(duel);
+    }
+  }
+});
+
 client.on("messageCreate", async (message) => {
   try {
     if (message.author.bot) {
@@ -5104,7 +6686,9 @@ async function start() {
     process.exit(1);
   }
 
-  await refreshGameData();
+  await refreshGameData("bot startup");
+  loadAnnouncementState();
+  loadCompetitionHistoryLogs();
   loadFishRaidState();
   loadFishVoiceChannels();
   loadDefaultFishingChannels();
@@ -5115,12 +6699,13 @@ async function start() {
   scheduleFishRaidMidnightReset();
   scheduleRoutineMessages();
   setInterval(() => {
-    refreshGameData()
+    refreshGameData("automatic config refresh interval")
       .then(() => Promise.all([announceEventUpdates(), processRoutineMessages()]))
       .catch((error) => console.error("Could not refresh PlayFab config:", error));
   }, configRefreshMs);
 
   await client.login(token);
+  loadPendingFishDuels();
   await processFishRaidMidnightReset().catch((error) => console.error("Could not process fish raid midnight catch-up:", error));
   await announceEventUpdates().catch((error) => console.error("Could not announce event updates:", error));
   await processRoutineMessages().catch((error) => console.error("Could not process routine messages:", error));

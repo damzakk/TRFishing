@@ -1,5 +1,8 @@
 require("dotenv").config();
 
+const fs = require("node:fs");
+const pathModule = require("node:path");
+
 const discordApiBaseUrl = "https://discord.com/api/v10";
 const token = process.env.DISCORD_TOKEN;
 const storageGuildId = process.env.DISCORD_STORAGE_GUILD_ID || "";
@@ -7,6 +10,17 @@ const storageGuildName = process.env.DISCORD_STORAGE_GUILD_NAME || "TR Fishing T
 const storageChannelId = process.env.DISCORD_STORAGE_CHANNEL_ID || "";
 const storageChannelName = process.env.DISCORD_STORAGE_CHANNEL_NAME || "storage";
 const discordRequestTimeoutMs = 30_000;
+const discordImageUrlCacheTtlMs = readPositiveInteger(process.env.DISCORD_IMAGE_URL_CACHE_MS, 5 * 60_000);
+const discordImageRefreshConcurrency = readPositiveInteger(process.env.DISCORD_IMAGE_REFRESH_CONCURRENCY, 3);
+const runtimeDirectory = pathModule.join(__dirname, "..", ".runtime");
+const discordImageUrlCachePath = pathModule.join(runtimeDirectory, "discord-image-url-cache.json");
+const discordImageUrlCache = new Map();
+const discordImageRefreshInFlight = new Map();
+const discordImageRefreshQueue = [];
+const refreshStaleDiscordImageUrls = /^(1|true|yes)$/i.test(String(process.env.DISCORD_IMAGE_REFRESH_STALE || ""));
+let activeDiscordImageRefreshes = 0;
+let persistentCacheLoaded = false;
+let persistentCacheSaveTimer = null;
 
 function requireDiscordToken() {
   if (!token) {
@@ -16,6 +30,119 @@ function requireDiscordToken() {
 
 function sleep(ms) {
   return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
+function readPositiveInteger(value, fallback) {
+  const number = Number(value);
+  return Number.isFinite(number) && number > 0 ? Math.floor(number) : fallback;
+}
+
+function discordImageRefCacheKey(ref) {
+  return [
+    ref.storage,
+    ref.channelId,
+    ref.messageId,
+    ref.attachmentId || "",
+    ref.fileName || ""
+  ].map((part) => String(part)).join(":");
+}
+
+function loadPersistentDiscordImageCache() {
+  if (persistentCacheLoaded) {
+    return;
+  }
+  persistentCacheLoaded = true;
+  try {
+    if (!fs.existsSync(discordImageUrlCachePath)) {
+      return;
+    }
+    const saved = JSON.parse(fs.readFileSync(discordImageUrlCachePath, "utf8"));
+    const entries = saved && typeof saved === "object" && !Array.isArray(saved) ? saved.entries || saved : {};
+    for (const [cacheKey, entry] of Object.entries(entries)) {
+      if (!entry?.url) {
+        continue;
+      }
+      discordImageUrlCache.set(cacheKey, {
+        url: String(entry.url || ""),
+        expiresAt: Math.max(0, Number(entry.expiresAt || 0)),
+        savedAt: Math.max(0, Number(entry.savedAt || 0)),
+        fileName: String(entry.fileName || "")
+      });
+    }
+  } catch (error) {
+    console.warn(`Discord image URL cache ignored | time=${new Date().toISOString()} | message=Could not read saved cache: ${error.message}`);
+  }
+}
+
+function schedulePersistentDiscordImageCacheSave() {
+  clearTimeout(persistentCacheSaveTimer);
+  persistentCacheSaveTimer = setTimeout(() => {
+    try {
+      fs.mkdirSync(runtimeDirectory, { recursive: true });
+      const entries = {};
+      for (const [cacheKey, entry] of discordImageUrlCache.entries()) {
+        if (!entry?.url) {
+          continue;
+        }
+        entries[cacheKey] = {
+          url: entry.url,
+          expiresAt: Math.max(0, Number(entry.expiresAt || 0)),
+          savedAt: Math.max(0, Number(entry.savedAt || Date.now())),
+          fileName: String(entry.fileName || "")
+        };
+      }
+      fs.writeFileSync(discordImageUrlCachePath, JSON.stringify({ savedAt: new Date().toISOString(), entries }, null, 2));
+    } catch (error) {
+      console.warn(`Discord image URL cache save failed | time=${new Date().toISOString()} | message=${error.message}`);
+    }
+  }, 250);
+}
+
+function rememberDiscordImageUrl(cacheKey, ref, url) {
+  if (!url) {
+    return;
+  }
+  discordImageUrlCache.set(cacheKey, {
+    url,
+    expiresAt: Date.now() + discordImageUrlCacheTtlMs,
+    savedAt: Date.now(),
+    fileName: String(ref?.fileName || "")
+  });
+  schedulePersistentDiscordImageCacheSave();
+}
+
+function enqueueDiscordImageRefresh(work) {
+  return new Promise((resolve, reject) => {
+    discordImageRefreshQueue.push({ work, resolve, reject });
+    drainDiscordImageRefreshQueue();
+  });
+}
+
+function drainDiscordImageRefreshQueue() {
+  while (activeDiscordImageRefreshes < discordImageRefreshConcurrency && discordImageRefreshQueue.length) {
+    const task = discordImageRefreshQueue.shift();
+    activeDiscordImageRefreshes += 1;
+
+    Promise.resolve()
+      .then(task.work)
+      .then(task.resolve, task.reject)
+      .finally(() => {
+        activeDiscordImageRefreshes -= 1;
+        drainDiscordImageRefreshQueue();
+      });
+  }
+}
+
+function refreshDiscordImageUrlInBackground(ref, cacheKey) {
+  return enqueueDiscordImageRefresh(async () => {
+    const url = await fetchDiscordImageUrl(ref);
+    if (url) {
+      rememberDiscordImageUrl(cacheKey, ref, url);
+    }
+    return url;
+  }).catch((error) => {
+    console.warn(`Discord image background refresh failed | time=${new Date().toISOString()} | image=${ref.fileName || "image.png"} | source=${ref.messageId || "Discord storage"} | message=${error.message}`);
+  });
 }
 
 async function callDiscordApi(path, options = {}) {
@@ -135,17 +262,58 @@ async function uploadDiscordImageWithRef({ buffer, contentType, fileName }) {
   };
 }
 
-async function getDiscordImageUrl(ref) {
-  if (!ref || ref.storage !== "discord_attachment" || !ref.channelId || !ref.messageId) {
-    return "";
-  }
-
+async function fetchDiscordImageUrl(ref) {
   const message = await callDiscordApi(`/channels/${ref.channelId}/messages/${ref.messageId}`);
   const attachment = (message.attachments || []).find((entry) => (
     String(entry.id || "") === String(ref.attachmentId || "")
     || String(entry.filename || "") === String(ref.fileName || "")
   )) || message.attachments?.[0];
   return attachment?.url || "";
+}
+
+async function getDiscordImageUrl(ref) {
+  if (!ref || ref.storage !== "discord_attachment" || !ref.channelId || !ref.messageId) {
+    return "";
+  }
+  loadPersistentDiscordImageCache();
+
+  const cacheKey = discordImageRefCacheKey(ref);
+  const cached = discordImageUrlCache.get(cacheKey);
+  if (cached?.url && (!refreshStaleDiscordImageUrls || cached.expiresAt > Date.now())) {
+    return cached.url;
+  }
+  if (cached?.url) {
+    if (!discordImageRefreshInFlight.has(cacheKey)) {
+      const refresh = Promise.resolve()
+        .then(() => refreshDiscordImageUrlInBackground(ref, cacheKey))
+        .finally(() => discordImageRefreshInFlight.delete(cacheKey));
+      discordImageRefreshInFlight.set(cacheKey, refresh);
+    }
+    return cached.url;
+  }
+
+  const inFlight = discordImageRefreshInFlight.get(cacheKey);
+  if (inFlight) {
+    return inFlight;
+  }
+
+  const refresh = enqueueDiscordImageRefresh(async () => {
+    const url = await fetchDiscordImageUrl(ref).catch((error) => {
+      if (cached?.url) {
+        error.staleUrl = cached.url;
+      }
+      throw error;
+    });
+    if (url) {
+      rememberDiscordImageUrl(cacheKey, ref, url);
+    }
+    return url;
+  }).finally(() => {
+    discordImageRefreshInFlight.delete(cacheKey);
+  });
+
+  discordImageRefreshInFlight.set(cacheKey, refresh);
+  return refresh;
 }
 
 module.exports = {

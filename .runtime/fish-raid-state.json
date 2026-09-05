@@ -1,3 +1,101 @@
 {
-  "guilds": {}
+  "guilds": {
+    "891474628122394634": {
+      "dateKey": "2026-09-06",
+      "boss": {
+        "id": "mbg_tedi",
+        "name": "MBG TEDDY",
+        "description": "Pikirkan anak anak yang kelaparan!\n\nSelesaikan pesanan ikan untuk dapur MBG Pak Tedi sebelum hari esok, agar beliau bisa membuat anak-anak Indonesia tumbuh sehat dan kuat!",
+        "quotaKg": 500,
+        "registrationBannerBase64": "",
+        "registrationBannerUrl": "https://cdn.discordapp.com/attachments/1543874293258260550/1545119609403871362/mbg_tedi-registrationbanner.png?ex=6a9afc45&is=6a99aac5&hm=561fdd10a57f922d2b06a2c0bcd7418ff9756cc0930d5f01abb74f24d76e7af4&",
+        "registrationBannerRef": null,
+        "runningBannerBase64": "",
+        "runningBannerUrl": "https://cdn.discordapp.com/attachments/1543874293258260550/1545119618195267756/mbg_tedi-runningbanner.png?ex=6a9afc47&is=6a99aac7&hm=3bb7c13dff59537a526e14ce7ad1e952643676a172fb1578c49cee4d91a5dcd8&",
+        "runningBannerRef": null,
+        "resultBannerBase64": "",
+        "resultBannerUrl": "https://cdn.discordapp.com/attachments/1543874293258260550/1545119627368206366/mbg_tedi-resultbanner.png?ex=6a9afc4a&is=6a99aaca&hm=4f0b902390ebc046e18f89d1bfbe58902e96eeed6689b8fe9fcd1fa237a82986&",
+        "resultBannerRef": null,
+        "fulfilledBannerBase64": "",
+        "fulfilledBannerUrl": "https://cdn.discordapp.com/attachments/1543874293258260550/1545119633877639378/mbg_tedi-fulfilledbanner.png?ex=6a9afc4b&is=6a99aacb&hm=a5f229eadd898711cbcbf47c12b8d108d8da797ad2f4e8d2963786e7720d4575&",
+        "fulfilledBannerRef": null,
+        "failedBannerBase64": "",
+        "failedBannerUrl": "https://cdn.discordapp.com/attachments/1543874293258260550/1545119644757524480/mbg_tedi-failedbanner.png?ex=6a9afc4e&is=6a99aace&hm=39be88abfe6c3a6e0908790d27201a6f32a9db8fd05027f582b5ea2ad40765ac&",
+        "failedBannerRef": null
+      },
+      "quotaKg": 500,
+      "filledKg": 162.53890281590503,
+      "participants": {
+        "215382509851115520": {
+          "id": "215382509851115520",
+          "username": "zect52",
+          "globalName": "Zect",
+          "displayName": "<@215382509851115520>",
+          "logName": "Discord",
+          "count": 8,
+          "totalWeight": 19.762453805171962,
+          "heaviestWeight": 5.040413742933265,
+          "heaviestName": "Ikan Gurame"
+        },
+        "367669792993181697": {
+          "id": "367669792993181697",
+          "username": "paktuki",
+          "globalName": "PakTuki",
+          "displayName": "<@367669792993181697>",
+          "logName": "TR | Ebol Ebol",
+          "count": 12,
+          "totalWeight": 26.431577269113973,
+          "heaviestWeight": 3.4123176918753586,
+          "heaviestName": "Rama Naufal"
+        },
+        "363275626662330369": {
+          "id": "363275626662330369",
+          "username": "fnadh",
+          "globalName": "Miradh",
+          "displayName": "<@363275626662330369>",
+          "logName": "TR | Celup (Adhiet)",
+          "count": 12,
+          "totalWeight": 20.237190905411442,
+          "heaviestWeight": 3.7719022387427725,
+          "heaviestName": "Ikan Tongkol"
+        },
+        "422751836567633925": {
+          "id": "422751836567633925",
+          "username": "varkrie",
+          "globalName": "LeaLia",
+          "displayName": "<@422751836567633925>",
+          "logName": "TR | Serah",
+          "count": 9,
+          "totalWeight": 15.364514490336731,
+          "heaviestWeight": 3.4116704726247074,
+          "heaviestName": "Ikan Depok"
+        },
+        "451776326723174401": {
+          "id": "451776326723174401",
+          "username": "azaralea",
+          "globalName": "Azara",
+          "displayName": "<@451776326723174401>",
+          "logName": "TR | Aktor (Adam) (Awiwir)",
+          "count": 17,
+          "totalWeight": 53.06027960723445,
+          "heaviestWeight": 9.727445017529957,
+          "heaviestName": "Ikan Cupang Dragon"
+        },
+        "281139082380312576": {
+          "id": "281139082380312576",
+          "username": "vnmrm",
+          "globalName": "venomenom",
+          "displayName": "<@281139082380312576>",
+          "logName": "TR | Mereun",
+          "count": 8,
+          "totalWeight": 27.68288673863643,
+          "heaviestWeight": 15.650047495991913,
+          "heaviestName": "Ikan Crazy Killer"
+        }
+      },
+      "fulfilledAt": "",
+      "lastRaidEndedAt": 1788629048806,
+      "channelId": "891474628122394637"
+    }
+  }
 }
