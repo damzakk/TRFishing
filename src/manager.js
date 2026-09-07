@@ -1,7 +1,6 @@
 require("dotenv").config();
 
 const http = require("node:http");
-const crypto = require("node:crypto");
 const fs = require("node:fs");
 const path = require("node:path");
 const {
@@ -14,6 +13,8 @@ const {
   makeDefaultPlayer
 } = require("./playfab");
 const { defaultFish, defaultRods, defaultFishBags } = require("./defaultData");
+const { extensionFromContentType, getCachedImageForUrl, rememberCachedImageForUrl } = require("./imageUtils");
+const { resolveDiscordStoredImage } = require("./discordStorage");
 
 const port = Number(process.env.MANAGER_PORT || 3000);
 const prefix = process.env.PREFIX || "!";
@@ -24,9 +25,6 @@ const giveMoneySignalPath = path.join(runtimeDirectory, "give-money.json");
 const defaultFishingChannelsPath = path.join(runtimeDirectory, "default-fishing-channels.json");
 const fishRaidStatePath = path.join(runtimeDirectory, "fish-raid-state.json");
 const fishRaidSignalPath = path.join(runtimeDirectory, "fish-raid-signal.json");
-const imageCacheDirectory = path.join(runtimeDirectory, "manager-image-cache");
-const imageCacheMetaPath = path.join(imageCacheDirectory, "index.json");
-const imageCacheMaxAgeMs = 7 * 24 * 60 * 60 * 1000;
 
 function sendJson(response, statusCode, payload) {
   response.writeHead(statusCode, { "Content-Type": "application/json" });
@@ -57,90 +55,38 @@ function readBody(request) {
   });
 }
 
-function ensureImageCacheDirectory() {
-  if (!fs.existsSync(imageCacheDirectory)) {
-    fs.mkdirSync(imageCacheDirectory, { recursive: true });
-  }
-}
-
-function readImageCacheMeta() {
-  try {
-    return JSON.parse(fs.readFileSync(imageCacheMetaPath, "utf8"));
-  } catch {
-    return {};
-  }
-}
-
-function writeImageCacheMeta(meta) {
-  ensureImageCacheDirectory();
-  fs.writeFileSync(imageCacheMetaPath, JSON.stringify(meta, null, 2));
-}
-
-function imageCacheFilePath(cacheKey) {
-  return path.join(imageCacheDirectory, `${cacheKey}.img`);
-}
-
 function isAllowedImageContentType(contentType) {
   return ["image/png", "image/jpeg", "image/jpg", "image/gif", "image/webp"].includes(String(contentType || "").split(";")[0].trim().toLowerCase());
 }
 
 async function serveCachedImage(requestUrl, response) {
   const sourceUrl = String(requestUrl.searchParams.get("url") || "").trim();
-  if (!sourceUrl) {
-    sendJson(response, 400, { error: "Missing image URL." });
+  const messageUrl = String(requestUrl.searchParams.get("messageUrl") || "").trim();
+  const fileName = String(requestUrl.searchParams.get("name") || "image.png").trim();
+  if (!sourceUrl && !messageUrl) {
+    sendJson(response, 400, { error: "Missing image source." });
     return;
   }
 
-  let parsedSource;
   try {
-    parsedSource = new URL(sourceUrl);
-  } catch {
-    sendJson(response, 400, { error: "Invalid image URL." });
-    return;
-  }
-
-  if (!["http:", "https:"].includes(parsedSource.protocol)) {
-    sendJson(response, 400, { error: "Image URL must use HTTP or HTTPS." });
-    return;
-  }
-
-  ensureImageCacheDirectory();
-  const cacheKey = crypto.createHash("sha256").update(sourceUrl).digest("hex");
-  const meta = readImageCacheMeta();
-  const entry = meta[cacheKey];
-  const filePath = imageCacheFilePath(cacheKey);
-  if (entry && fs.existsSync(filePath) && Date.now() - Number(entry.savedAt || 0) < imageCacheMaxAgeMs) {
-    sendBinary(response, 200, fs.readFileSync(filePath), entry.contentType || "application/octet-stream");
-    return;
-  }
-
-  const controller = new AbortController();
-  const timeout = setTimeout(() => controller.abort(), 15000);
-  try {
-    const remoteResponse = await fetch(sourceUrl, { signal: controller.signal });
-    if (!remoteResponse.ok) {
-      throw new Error(`Image request failed: ${remoteResponse.status} ${remoteResponse.statusText}`);
+    const image = await resolveDiscordStoredImage({ messageUrl, fallbackUrl: sourceUrl, fileName });
+    if (!image?.buffer?.length) {
+      throw new Error("No image could be recovered.");
     }
-    const contentType = String(remoteResponse.headers.get("content-type") || "").split(";")[0].trim().toLowerCase();
-    if (!isAllowedImageContentType(contentType)) {
-      throw new Error("URL did not return a supported image.");
-    }
-    const buffer = Buffer.from(await remoteResponse.arrayBuffer());
-    if (buffer.length > 8_000_000) {
-      throw new Error("Image is too large for manager preview cache.");
-    }
-    fs.writeFileSync(filePath, buffer);
-    meta[cacheKey] = { url: sourceUrl, contentType, savedAt: Date.now(), size: buffer.length };
-    writeImageCacheMeta(meta);
-    sendBinary(response, 200, buffer, contentType);
-  } finally {
-    clearTimeout(timeout);
+    sendBinary(response, 200, image.buffer, image.contentType || "application/octet-stream");
+  } catch (error) {
+    console.warn(`Manager image recovery failed | time=${new Date().toISOString()} | image=${fileName} | messageUrl=${messageUrl || "none"} | url=${sourceUrl || "none"} | message=${error.message}`);
+    sendJson(response, 502, { error: "Image could not be recovered." });
   }
 }
 
 function cleanNumber(value, fallback = 0) {
   const number = Number(value);
   return Number.isFinite(number) ? number : fallback;
+}
+
+function imageNeedsRehost(source, key) {
+  return source?.[`${key}NeedsRehost`] === true;
 }
 
 function cleanItemBonuses(bonuses) {
@@ -360,6 +306,14 @@ function addManagerCatch(data, player, caughtFish, catchWeight) {
   const expGain = Math.max(0, Math.round(expBase * expMultiplier));
   const luckScore = formatFishLuckScore(caughtFish, data.fish);
   player.inventory[caughtFish.id] = (player.inventory[caughtFish.id] || 0) + 1;
+  player.fishDex = player.fishDex && typeof player.fishDex === "object" && !Array.isArray(player.fishDex) ? player.fishDex : {};
+  const dexEntry = player.fishDex[caughtFish.id] && typeof player.fishDex[caughtFish.id] === "object"
+    ? player.fishDex[caughtFish.id]
+    : {};
+  player.fishDex[caughtFish.id] = {
+    count: Math.max(0, Math.floor(cleanNumber(dexEntry.count, 0))) + 1,
+    heaviestWeight: Math.max(0, cleanNumber(dexEntry.heaviestWeight, 0), Number(catchWeight || 0))
+  };
   player.totalFishCaught = Math.max(0, Number(player.totalFishCaught || 0)) + 1;
   if (!player.heaviestFish || Number(catchWeight || 0) > Number(player.heaviestFish.weight || 0)) {
     player.heaviestFish = { fishId: caughtFish.id, name: caughtFish.name, weight: Number(catchWeight || 0) };
@@ -392,7 +346,9 @@ function cleanItem(item, type) {
     name: String(item.name || "").trim(),
     iconBase64: String(item.iconBase64 || ""),
     iconUrl: String(item.iconUrl || "").trim(),
+    iconMessageUrl: String(item.iconMessageUrl || item.iconRef?.messageUrl || "").trim(),
     iconRef: item.iconRef && typeof item.iconRef === "object" ? item.iconRef : null,
+    iconNeedsRehost: item.iconNeedsRehost === true,
     bonuses: cleanItemBonuses(item.bonuses)
   };
 
@@ -464,48 +420,63 @@ function cleanSettings(settings) {
     rodStoreImageBase64: String(source.rodStoreImageBase64 || ""),
     rodStoreImageUrl,
     rodStoreImageRef: source.rodStoreImageRef && typeof source.rodStoreImageRef === "object" ? source.rodStoreImageRef : null,
+    rodStoreImageUrlNeedsRehost: imageNeedsRehost(source, "rodStoreImageUrl"),
     fishCompBannerBase64: String(source.fishCompBannerBase64 || ""),
     fishCompBannerUrl,
     fishCompBannerRef: source.fishCompBannerRef && typeof source.fishCompBannerRef === "object" ? source.fishCompBannerRef : null,
+    fishCompBannerUrlNeedsRehost: imageNeedsRehost(source, "fishCompBannerUrl"),
     fishCompRegistrationBannerBase64: String(source.fishCompRegistrationBannerBase64 || ""),
     fishCompRegistrationBannerUrl,
     fishCompRegistrationBannerRef: source.fishCompRegistrationBannerRef && typeof source.fishCompRegistrationBannerRef === "object" ? source.fishCompRegistrationBannerRef : null,
+    fishCompRegistrationBannerUrlNeedsRehost: imageNeedsRehost(source, "fishCompRegistrationBannerUrl"),
     fishCompRunningBannerBase64: String(source.fishCompRunningBannerBase64 || ""),
     fishCompRunningBannerUrl,
     fishCompRunningBannerRef: source.fishCompRunningBannerRef && typeof source.fishCompRunningBannerRef === "object" ? source.fishCompRunningBannerRef : null,
+    fishCompRunningBannerUrlNeedsRehost: imageNeedsRehost(source, "fishCompRunningBannerUrl"),
     fishCompResultBannerBase64: String(source.fishCompResultBannerBase64 || ""),
     fishCompResultBannerUrl,
     fishCompResultBannerRef: source.fishCompResultBannerRef && typeof source.fishCompResultBannerRef === "object" ? source.fishCompResultBannerRef : null,
+    fishCompResultBannerUrlNeedsRehost: imageNeedsRehost(source, "fishCompResultBannerUrl"),
     fishRaidBannerBase64: String(source.fishRaidBannerBase64 || ""),
     fishRaidBannerUrl,
     fishRaidBannerRef: source.fishRaidBannerRef && typeof source.fishRaidBannerRef === "object" ? source.fishRaidBannerRef : null,
+    fishRaidBannerUrlNeedsRehost: imageNeedsRehost(source, "fishRaidBannerUrl"),
     fishRaidRegistrationBannerBase64: String(source.fishRaidRegistrationBannerBase64 || ""),
     fishRaidRegistrationBannerUrl,
     fishRaidRegistrationBannerRef: source.fishRaidRegistrationBannerRef && typeof source.fishRaidRegistrationBannerRef === "object" ? source.fishRaidRegistrationBannerRef : null,
+    fishRaidRegistrationBannerUrlNeedsRehost: imageNeedsRehost(source, "fishRaidRegistrationBannerUrl"),
     fishRaidRunningBannerBase64: String(source.fishRaidRunningBannerBase64 || ""),
     fishRaidRunningBannerUrl,
     fishRaidRunningBannerRef: source.fishRaidRunningBannerRef && typeof source.fishRaidRunningBannerRef === "object" ? source.fishRaidRunningBannerRef : null,
+    fishRaidRunningBannerUrlNeedsRehost: imageNeedsRehost(source, "fishRaidRunningBannerUrl"),
     fishRaidResultBannerBase64: String(source.fishRaidResultBannerBase64 || ""),
     fishRaidResultBannerUrl,
     fishRaidResultBannerRef: source.fishRaidResultBannerRef && typeof source.fishRaidResultBannerRef === "object" ? source.fishRaidResultBannerRef : null,
+    fishRaidResultBannerUrlNeedsRehost: imageNeedsRehost(source, "fishRaidResultBannerUrl"),
     fishDuelRegistrationBannerBase64: String(source.fishDuelRegistrationBannerBase64 || ""),
     fishDuelRegistrationBannerUrl,
     fishDuelRegistrationBannerRef: source.fishDuelRegistrationBannerRef && typeof source.fishDuelRegistrationBannerRef === "object" ? source.fishDuelRegistrationBannerRef : null,
+    fishDuelRegistrationBannerUrlNeedsRehost: imageNeedsRehost(source, "fishDuelRegistrationBannerUrl"),
     fishDuelRunningBannerBase64: String(source.fishDuelRunningBannerBase64 || ""),
     fishDuelRunningBannerUrl,
     fishDuelRunningBannerRef: source.fishDuelRunningBannerRef && typeof source.fishDuelRunningBannerRef === "object" ? source.fishDuelRunningBannerRef : null,
+    fishDuelRunningBannerUrlNeedsRehost: imageNeedsRehost(source, "fishDuelRunningBannerUrl"),
     fishDuelResultBannerBase64: String(source.fishDuelResultBannerBase64 || ""),
     fishDuelResultBannerUrl,
     fishDuelResultBannerRef: source.fishDuelResultBannerRef && typeof source.fishDuelResultBannerRef === "object" ? source.fishDuelResultBannerRef : null,
+    fishDuelResultBannerUrlNeedsRehost: imageNeedsRehost(source, "fishDuelResultBannerUrl"),
     fishGuideBannerBase64: String(source.fishGuideBannerBase64 || ""),
     fishGuideBannerUrl,
     fishGuideBannerRef: source.fishGuideBannerRef && typeof source.fishGuideBannerRef === "object" ? source.fishGuideBannerRef : null,
+    fishGuideBannerUrlNeedsRehost: imageNeedsRehost(source, "fishGuideBannerUrl"),
     fishHelpBannerBase64: String(source.fishHelpBannerBase64 || ""),
     fishHelpBannerUrl,
     fishHelpBannerRef: source.fishHelpBannerRef && typeof source.fishHelpBannerRef === "object" ? source.fishHelpBannerRef : null,
+    fishHelpBannerUrlNeedsRehost: imageNeedsRehost(source, "fishHelpBannerUrl"),
     sellFishBannerBase64: String(source.sellFishBannerBase64 || ""),
     sellFishBannerUrl,
     sellFishBannerRef: source.sellFishBannerRef && typeof source.sellFishBannerRef === "object" ? source.sellFishBannerRef : null,
+    sellFishBannerUrlNeedsRehost: imageNeedsRehost(source, "sellFishBannerUrl"),
     fishCompEvents: cleanFishCompEvents(source.fishCompEvents),
     fishRaidEvents: cleanFishCompEvents(source.fishRaidEvents),
     fishDuelEvents: cleanFishCompEvents(source.fishDuelEvents),
@@ -573,14 +544,24 @@ function cleanFishRaidBosses(bosses) {
       description: String(source.description || "").trim(),
       registrationBannerBase64: String(source.registrationBannerBase64 || ""),
       registrationBannerUrl: String(source.registrationBannerUrl || "").trim(),
+      registrationBannerRef: source.registrationBannerRef && typeof source.registrationBannerRef === "object" ? source.registrationBannerRef : null,
+      registrationBannerUrlNeedsRehost: imageNeedsRehost(source, "registrationBannerUrl"),
       runningBannerBase64: String(source.runningBannerBase64 || ""),
       runningBannerUrl: String(source.runningBannerUrl || "").trim(),
+      runningBannerRef: source.runningBannerRef && typeof source.runningBannerRef === "object" ? source.runningBannerRef : null,
+      runningBannerUrlNeedsRehost: imageNeedsRehost(source, "runningBannerUrl"),
       resultBannerBase64: String(source.resultBannerBase64 || ""),
       resultBannerUrl: String(source.resultBannerUrl || "").trim(),
+      resultBannerRef: source.resultBannerRef && typeof source.resultBannerRef === "object" ? source.resultBannerRef : null,
+      resultBannerUrlNeedsRehost: imageNeedsRehost(source, "resultBannerUrl"),
       fulfilledBannerBase64: String(source.fulfilledBannerBase64 || ""),
       fulfilledBannerUrl: String(source.fulfilledBannerUrl || "").trim(),
+      fulfilledBannerRef: source.fulfilledBannerRef && typeof source.fulfilledBannerRef === "object" ? source.fulfilledBannerRef : null,
+      fulfilledBannerUrlNeedsRehost: imageNeedsRehost(source, "fulfilledBannerUrl"),
       failedBannerBase64: String(source.failedBannerBase64 || ""),
-      failedBannerUrl: String(source.failedBannerUrl || "").trim()
+      failedBannerUrl: String(source.failedBannerUrl || "").trim(),
+      failedBannerRef: source.failedBannerRef && typeof source.failedBannerRef === "object" ? source.failedBannerRef : null,
+      failedBannerUrlNeedsRehost: imageNeedsRehost(source, "failedBannerUrl")
     };
   }).filter((boss) => boss.id && boss.name);
 }
@@ -612,6 +593,9 @@ function cleanEvent(event) {
     description: String(event.description || "").trim(),
     bannerBase64: String(event.bannerBase64 || ""),
     bannerUrl,
+    bannerContentKey: String(event.bannerContentKey || "").trim(),
+    bannerRef: event.bannerRef && typeof event.bannerRef === "object" ? event.bannerRef : null,
+    bannerUrlNeedsRehost: imageNeedsRehost(event, "bannerUrl"),
     startAt,
     durationMinutes,
     endsAt,
@@ -679,6 +663,8 @@ function cleanRoutineMessage(routine) {
     bannerBase64: String(routine.bannerBase64 || ""),
     bannerUrl: String(routine.bannerUrl || "").trim(),
     bannerRef: routine.bannerRef && typeof routine.bannerRef === "object" ? routine.bannerRef : null,
+    bannerContentKey: String(routine.bannerContentKey || "").trim(),
+    bannerUrlNeedsRehost: imageNeedsRehost(routine, "bannerUrl"),
     enabled: routine.enabled !== false,
     deleteAfterButtonClick: routine.deleteAfterButtonClick === true,
     guildId: String(routine.guildId || "").trim(),
@@ -1821,20 +1807,30 @@ const html = `<!doctype html>
       });
     }
 
-    function cachedImageSource(source) {
+    function cachedImageSource(source, messageUrl = "", imageName = "image.png") {
       const value = String(source || "").trim();
-      if (!value || value.startsWith("data:") || value.startsWith("blob:")) {
+      const reference = String(messageUrl || "").trim();
+      if ((!value && !reference) || value.startsWith("data:") || value.startsWith("blob:")) {
         return value;
       }
       const lowerValue = value.toLowerCase();
-      if (!lowerValue.startsWith("http://") && !lowerValue.startsWith("https://")) {
+      if (value && !lowerValue.startsWith("http://") && !lowerValue.startsWith("https://")) {
         return value;
       }
-      return "/api/image-cache?url=" + encodeURIComponent(value);
+      return "/api/image-cache?url=" + encodeURIComponent(value)
+        + "&messageUrl=" + encodeURIComponent(reference)
+        + "&name=" + encodeURIComponent(String(imageName || "image.png"));
     }
 
-    function lazyImageTemplate(source, className = "", alt = "") {
-      const cachedSource = cachedImageSource(source);
+    function imageMessageUrl(owner, baseKey) {
+      if (owner?.[baseKey + "Base64"] || owner?.[baseKey + "UrlNeedsRehost"] === true || owner?.iconNeedsRehost === true) {
+        return "";
+      }
+      return String(owner?.[baseKey + "MessageUrl"] || owner?.[baseKey + "Ref"]?.messageUrl || "").trim();
+    }
+
+    function lazyImageTemplate(source, className = "", alt = "", messageUrl = "", imageName = "image.png") {
+      const cachedSource = cachedImageSource(source, messageUrl, imageName);
       if (!cachedSource) {
         return "";
       }
@@ -1842,8 +1838,8 @@ const html = `<!doctype html>
       return '<img' + classAttribute + ' alt="' + escapeHtml(alt) + '" loading="lazy" decoding="async" data-lazy-src="' + escapeHtml(cachedSource) + '">';
     }
 
-    function imageOrEmptyTemplate(source, className = "", alt = "", emptyText = "No image") {
-      return lazyImageTemplate(source, className, alt) || '<div class="empty-preview">' + escapeHtml(emptyText) + '</div>';
+    function imageOrEmptyTemplate(source, className = "", alt = "", emptyText = "No image", messageUrl = "", imageName = "image.png") {
+      return lazyImageTemplate(source, className, alt, messageUrl, imageName) || '<div class="empty-preview">' + escapeHtml(emptyText) + '</div>';
     }
 
     function hydrateVisibleImages() {
@@ -2213,7 +2209,7 @@ const html = `<!doctype html>
       return \`
         <div class="wide image-panel">
           <strong>Icon</strong>
-          \${imageOrEmptyTemplate(source, "image-preview", "Icon preview", "No preview")}
+          \${imageOrEmptyTemplate(source, "image-preview", "Icon preview", "No preview", imageMessageUrl(item, "icon"), item.name || item.id || "icon")}
           <label class="file-picker"><span>Choose Image</span><input type="file" accept="image/png,image/jpeg,image/gif,image/webp" data-create-item-icon></label>
           <div class="small">\${source ? \`Preview ready\${size ? \` · \${size} KB\` : ""}.\` : "No image selected."}</div>
         </div>\`;
@@ -2429,7 +2425,7 @@ const html = `<!doctype html>
       const active = String(boss.id || "") === state.selectedRaidBossId;
       return \`
         <button class="fish-card \${active ? "active" : ""}" data-select-raid-boss="\${escapeHtml(String(boss.id || ""))}" data-index="\${index}">
-          \${imageOrEmptyTemplate(source)}
+          \${imageOrEmptyTemplate(source, "", "", "No image", imageMessageUrl(boss, "registrationBanner"), boss.name || boss.id || "raid-boss")}
           <span>\${escapeHtml(boss.name || boss.id || "Raid Boss")}</span>
         </button>\`;
     }
@@ -2492,7 +2488,7 @@ const html = `<!doctype html>
       return \`
           <section class="image-panel">
             <strong>\${label}</strong>
-            \${imageOrEmptyTemplate(source, "image-preview", \`\${label} preview\`, "No preview")}
+            \${imageOrEmptyTemplate(source, "image-preview", \`\${label} preview\`, "No preview", imageMessageUrl(boss, baseKey), boss.name || boss.id || baseKey)}
             \${raidBossField(\`\${label} URL Import\`, urlKey, boss[urlKey] || "", index, "url")}
             <label class="file-picker"><span>Choose Image</span><input type="file" accept="image/png,image/jpeg,image/gif,image/webp" data-raid-boss-image="\${base64Key}" data-raid-boss-index="\${index}"></label>
             <div class="small">\${escapeHtml(status)} File uploads are moved to the Discord storage channel when saved.</div>
@@ -2510,7 +2506,7 @@ const html = `<!doctype html>
       return \`
           <section class="image-panel">
             <strong>\${label}</strong>
-            \${imageOrEmptyTemplate(source, "image-preview", \`\${label} preview\`, "No preview")}
+            \${imageOrEmptyTemplate(source, "image-preview", \`\${label} preview\`, "No preview", imageMessageUrl(state.settings, baseKey), baseKey)}
             \${field(\`\${label} URL Import\`, urlKey, state.settings[urlKey] || "", 0, "url")}
             <label class="file-picker"><span>Choose Image</span><input type="file" accept="image/png,image/jpeg,image/gif,image/webp" data-settings-image="\${base64Key}"></label>
             <div class="small">\${escapeHtml(status)} File uploads are moved to the Discord storage channel when saved.</div>
@@ -2633,7 +2629,7 @@ const html = `<!doctype html>
           <div class="image-grid">
             <section class="image-panel">
               <strong>Event Banner</strong>
-              \${imageOrEmptyTemplate(bannerSource, "image-preview", "Event banner preview", "No preview")}
+              \${imageOrEmptyTemplate(bannerSource, "image-preview", "Event banner preview", "No preview", imageMessageUrl(event, "banner"), event.title || event.id || "event-banner")}
               \${field("Banner Image URL Import", "bannerUrl", event.bannerUrl || "", 0, "url")}
               <label class="file-picker"><span>Choose Image</span><input type="file" accept="image/png,image/jpeg,image/gif,image/webp" data-event-banner></label>
               <div class="small">\${escapeHtml(bannerStatus)} File uploads are moved to the Discord storage channel when saved.</div>
@@ -2784,7 +2780,7 @@ const html = `<!doctype html>
           <div class="image-grid">
             <section class="image-panel">
               <strong>Routine Banner</strong>
-              \${imageOrEmptyTemplate(bannerSource, "image-preview", "Routine banner preview", "No preview")}
+              \${imageOrEmptyTemplate(bannerSource, "image-preview", "Routine banner preview", "No preview", imageMessageUrl(routine, "banner"), routine.name || routine.id || "routine-banner")}
               \${routineField("Banner Image URL Import", "bannerUrl", routine.bannerUrl || "", "url")}
               <label class="file-picker"><span>Choose Image</span><input type="file" accept="image/png,image/jpeg,image/gif,image/webp" data-routine-banner></label>
               <div class="small">\${escapeHtml(bannerStatus)} File uploads are moved to the Discord storage channel when saved.</div>
@@ -2948,7 +2944,7 @@ const html = `<!doctype html>
       const active = String(item.id || "") === state.selectedFishId;
       return \`
         <button class="fish-card \${active ? "active" : ""}" data-select-fish="\${escapeHtml(String(item.id || ""))}" data-index="\${index}">
-          \${imageOrEmptyTemplate(source)}
+          \${imageOrEmptyTemplate(source, "", "", "No image", imageMessageUrl(item, "icon"), item.name || item.id || "fish")}
           <span>\${escapeHtml(item.name || item.id || "Unnamed Fish")}</span>
         </button>\`;
     }
@@ -2956,7 +2952,7 @@ const html = `<!doctype html>
     function fishTemplate(item, index, size) {
       return \`
         <div class="topline">
-          \${imageOrEmptyTemplate(item.iconBase64 || item.iconUrl || "", "preview")}
+          \${imageOrEmptyTemplate(item.iconBase64 || item.iconUrl || "", "preview", "", "No image", imageMessageUrl(item, "icon"), item.name || item.id || "fish")}
           <button class="danger" data-remove="\${index}">Remove</button>
         </div>
         <div class="fields">
@@ -2981,7 +2977,7 @@ const html = `<!doctype html>
     function rodTemplate(item, index, size) {
       return \`
         <div class="topline">
-          \${imageOrEmptyTemplate(item.iconBase64 || item.iconUrl || "", "preview")}
+          \${imageOrEmptyTemplate(item.iconBase64 || item.iconUrl || "", "preview", "", "No image", imageMessageUrl(item, "icon"), item.name || item.id || "rod")}
           <button class="danger" data-remove="\${index}">Remove</button>
         </div>
         <div class="fields">
@@ -3069,7 +3065,7 @@ const html = `<!doctype html>
       const active = String(item.id || "") === state.selectedRodId;
       return \`
         <button class="fish-card \${active ? "active" : ""}" data-select-rod="\${escapeHtml(String(item.id || ""))}" data-index="\${index}">
-          \${imageOrEmptyTemplate(source)}
+          \${imageOrEmptyTemplate(source, "", "", "No image", imageMessageUrl(item, "icon"), item.name || item.id || "rod")}
           <span>\${escapeHtml(item.name || item.id || "Unnamed Rod")}</span>
         </button>\`;
     }
@@ -3135,7 +3131,7 @@ const html = `<!doctype html>
       const active = String(item.id || "") === state.selectedFishBagId;
       return \`
         <button class="fish-card \${active ? "active" : ""}" data-select-fish-bag="\${escapeHtml(String(item.id || ""))}" data-index="\${index}">
-          \${imageOrEmptyTemplate(source)}
+          \${imageOrEmptyTemplate(source, "", "", "No image", imageMessageUrl(item, "icon"), item.name || item.id || "fish-bag")}
           <span>\${escapeHtml(item.name || item.id || "Unnamed Fish Bag")}</span>
         </button>\`;
     }
@@ -3143,7 +3139,7 @@ const html = `<!doctype html>
     function fishBagTemplate(item, index, size) {
       return \`
         <div class="topline">
-          \${imageOrEmptyTemplate(item.iconBase64 || item.iconUrl || "", "preview")}
+          \${imageOrEmptyTemplate(item.iconBase64 || item.iconUrl || "", "preview", "", "No image", imageMessageUrl(item, "icon"), item.name || item.id || "fish-bag")}
           <button class="danger" data-remove="\${index}">Remove</button>
         </div>
         <div class="fields">
@@ -3906,6 +3902,7 @@ const html = `<!doctype html>
         if (key === "iconUrl") {
           item.iconBase64 = "";
           item.iconRef = null;
+          item.iconNeedsRehost = true;
           delete state.uploadNames.createItemIcon;
         }
         return;
@@ -3977,6 +3974,7 @@ const html = `<!doctype html>
           if (target.dataset.raidBossKey.endsWith("Url")) {
             boss[target.dataset.raidBossKey.replace(/Url$/, "Base64")] = "";
             boss[target.dataset.raidBossKey.replace(/Url$/, "Ref")] = null;
+            boss[target.dataset.raidBossKey + "NeedsRehost"] = true;
             delete state.uploadNames[\`raidBoss:\${target.dataset.raidBossIndex}:\${target.dataset.raidBossKey.replace(/Url$/, "Base64")}\`];
           }
           return;
@@ -3995,16 +3993,19 @@ const html = `<!doctype html>
         if (target.dataset.key === "rodStoreImageUrl") {
           state.settings.rodStoreImageBase64 = "";
           state.settings.rodStoreImageRef = null;
+          state.settings.rodStoreImageUrlNeedsRehost = true;
           delete state.uploadNames.rodStoreImageBase64;
         }
         if (target.dataset.key === "fishCompBannerUrl") {
           state.settings.fishCompBannerBase64 = "";
           state.settings.fishCompBannerRef = null;
+          state.settings.fishCompBannerUrlNeedsRehost = true;
           delete state.uploadNames.fishCompBannerBase64;
         }
         if (target.dataset.key.endsWith("BannerUrl")) {
           state.settings[target.dataset.key.replace(/Url$/, "Base64")] = "";
           state.settings[target.dataset.key.replace(/Url$/, "Ref")] = null;
+          state.settings[target.dataset.key + "NeedsRehost"] = true;
           delete state.uploadNames[target.dataset.key.replace(/Url$/, "Base64")];
         }
         return;
@@ -4027,6 +4028,8 @@ const html = `<!doctype html>
         eventState[key] = target.type === "number" ? Number(target.value) : target.value;
         if (key === "bannerUrl") {
           eventState.bannerBase64 = "";
+          eventState.bannerRef = null;
+          eventState.bannerUrlNeedsRehost = true;
           delete state.uploadNames.eventBanner;
         }
         return;
@@ -4060,6 +4063,7 @@ const html = `<!doctype html>
         if (key === "bannerUrl") {
           routine.bannerBase64 = "";
           routine.bannerRef = null;
+          routine.bannerUrlNeedsRehost = true;
           delete state.uploadNames.routineBanner;
         }
         return;
@@ -4118,6 +4122,7 @@ const html = `<!doctype html>
         const item = state[state.tab][Number(target.dataset.index)];
         item.iconBase64 = "";
         item.iconRef = null;
+        item.iconNeedsRehost = true;
       }
     });
     grid.addEventListener("change", (event) => {
@@ -4130,6 +4135,7 @@ const html = `<!doctype html>
           state.createItemDraft.iconBase64 = reader.result;
           state.createItemDraft.iconUrl = "";
           state.createItemDraft.iconRef = null;
+          state.createItemDraft.iconNeedsRehost = false;
           state.uploadNames.createItemIcon = file.name;
           render();
         };
@@ -4261,6 +4267,7 @@ const html = `<!doctype html>
         item.iconBase64 = reader.result;
         item.iconUrl = "";
         item.iconRef = null;
+        item.iconNeedsRehost = false;
         render();
       };
       reader.readAsDataURL(file);

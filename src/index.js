@@ -48,13 +48,15 @@ const defaultFishingChannelsPath = path.join(runtimeDirectory, "default-fishing-
 const fishRaidStatePath = path.join(runtimeDirectory, "fish-raid-state.json");
 const fishRaidSignalPath = path.join(runtimeDirectory, "fish-raid-signal.json");
 const fishDuelPendingPath = path.join(runtimeDirectory, "fish-duel-pending.json");
+const pendingMessageDeletesPath = path.join(runtimeDirectory, "pending-message-deletes.json");
 const competitionHistoryPath = path.join(runtimeDirectory, "competition-history-logs.json");
 const announcementStatePath = path.join(runtimeDirectory, "announcement-state.json");
 const processStartedAt = Date.now();
 const voiceTickMs = 60_000;
 const fishDuelPendingTtlMs = 5 * 60_000;
 const publicShowoffTtlMs = 30 * 60_000;
-const fishDailyCooldownMs = 24 * 60 * 60 * 1000;
+const fishDailyResetHour = 12;
+const fishDailyWindowMs = 24 * 60 * 60 * 1000;
 
 const rarityColors = {
   Common: 0x95a5a6,
@@ -155,6 +157,8 @@ const fishRaids = new Map();
 const fishDuels = new Map();
 const pendingFishDuels = new Map();
 const pendingFishDuelTimers = new Map();
+const pendingMessageDeletes = new Map();
+const pendingMessageDeleteTimers = new Map();
 const dailyFishRaids = new Map();
 const finishedCompetitionLogs = new Map();
 let announcementState = {
@@ -776,13 +780,105 @@ async function resolveParentTextChannel(channel) {
   return null;
 }
 
-function scheduleMessageDelete(message, delayMs = publicShowoffTtlMs) {
-  if (!message?.delete) {
+function pendingMessageDeleteKey(channelId, messageId) {
+  return `${channelId}:${messageId}`;
+}
+
+function savePendingMessageDeletes() {
+  try {
+    fs.mkdirSync(runtimeDirectory, { recursive: true });
+    fs.writeFileSync(pendingMessageDeletesPath, JSON.stringify({ messages: [...pendingMessageDeletes.values()] }, null, 2));
+  } catch (error) {
+    console.error("Could not save pending message deletes:", error);
+  }
+}
+
+async function deleteTrackedMessage(entry) {
+  if (!entry?.channelId || !entry?.messageId) {
     return;
   }
-  setTimeout(() => {
-    message.delete().catch(() => {});
-  }, Math.max(0, delayMs));
+  const channel = await client.channels.fetch(entry.channelId).catch(() => null);
+  if (!channel?.messages?.fetch) {
+    return;
+  }
+  const message = await channel.messages.fetch(entry.messageId).catch(() => null);
+  await message?.delete?.().catch(() => {});
+}
+
+function removePendingMessageDelete(key) {
+  const timer = pendingMessageDeleteTimers.get(key);
+  if (timer) {
+    clearTimeout(timer);
+    pendingMessageDeleteTimers.delete(key);
+  }
+  pendingMessageDeletes.delete(key);
+  savePendingMessageDeletes();
+}
+
+function scheduleTrackedMessageDelete(entry) {
+  const normalized = {
+    channelId: String(entry?.channelId || "").trim(),
+    messageId: String(entry?.messageId || "").trim(),
+    deleteAt: Math.max(0, Number(entry?.deleteAt || 0)),
+    reason: String(entry?.reason || "scheduled message cleanup")
+  };
+  if (!normalized.channelId || !normalized.messageId || !normalized.deleteAt) {
+    return;
+  }
+
+  const key = pendingMessageDeleteKey(normalized.channelId, normalized.messageId);
+  const existingTimer = pendingMessageDeleteTimers.get(key);
+  if (existingTimer) {
+    clearTimeout(existingTimer);
+  }
+  pendingMessageDeletes.set(key, normalized);
+  savePendingMessageDeletes();
+
+  const runDelete = () => {
+    deleteTrackedMessage(normalized)
+      .catch((error) => console.error("Could not delete scheduled message:", error))
+      .finally(() => removePendingMessageDelete(key));
+  };
+  const remainingMs = normalized.deleteAt - Date.now();
+  if (remainingMs <= 0) {
+    runDelete();
+    return;
+  }
+  pendingMessageDeleteTimers.set(key, setTimeout(runDelete, Math.min(remainingMs, 2_147_000_000)));
+}
+
+function scheduleMessageDelete(message, delayMs = publicShowoffTtlMs, reason = "public showoff cleanup") {
+  if (!message?.id || !message?.channelId) {
+    if (message?.delete) {
+      setTimeout(() => {
+        message.delete().catch(() => {});
+      }, Math.max(0, delayMs));
+    }
+    return;
+  }
+  scheduleTrackedMessageDelete({
+    channelId: message.channelId,
+    messageId: message.id,
+    deleteAt: Date.now() + Math.max(0, delayMs),
+    reason
+  });
+}
+
+function loadPendingMessageDeletes() {
+  fs.mkdirSync(runtimeDirectory, { recursive: true });
+  if (!fs.existsSync(pendingMessageDeletesPath)) {
+    return;
+  }
+  try {
+    const saved = JSON.parse(fs.readFileSync(pendingMessageDeletesPath, "utf8"));
+    const messages = Array.isArray(saved?.messages) ? saved.messages : Array.isArray(saved) ? saved : [];
+    pendingMessageDeletes.clear();
+    for (const entry of messages) {
+      scheduleTrackedMessageDelete(entry);
+    }
+  } catch (error) {
+    console.error("Could not load pending message deletes:", error);
+  }
 }
 
 async function fetchMainTextChannel(player = null, guildId = "", fallbackChannel = null) {
@@ -1828,9 +1924,11 @@ async function makeFishShowoffMessage(user, player, member = null, guildId = "")
     || player.discordAvatarUrl
     || "";
   const selectedFishLuckScore = selectedFish ? formatFishLuckScore(selectedFish) : "";
+  const imageTrace = {};
   const banner = await makeFishShowoffBanner({
     avatarUrl,
     fish: selectedFish,
+    imageTrace,
     stats: {
       displayName,
       level,
@@ -1848,6 +1946,7 @@ async function makeFishShowoffMessage(user, player, member = null, guildId = "")
       rodName: rod?.name || ""
     }
   });
+  console.info(`${displayName} is showing off ${selectedFish?.name || "no fish"}, image used is <${imageTrace.name || "placeholder fish icon"}><${imageTrace.url || "no image URL"}>${imageTrace.error ? `, error is <${imageTrace.error}>` : ""}`);
   const fileName = `fishshowoff-${user.id}.png`;
   return {
     content: `## ${formatDiscordMention(user.id)} Ingin Pamer!`,
@@ -1946,25 +2045,44 @@ function makeLevelUpEmbed(user, level, member = null) {
   return embed;
 }
 
-function getFishDailyNextAvailableAt(player) {
+function getFishDailyWindowStartAt(timestamp = Date.now()) {
+  const date = new Date(timestamp);
+  date.setHours(fishDailyResetHour, 0, 0, 0);
+  const noonToday = date.getTime();
+  return timestamp >= noonToday ? noonToday : noonToday - fishDailyWindowMs;
+}
+
+function getFishDailyWindowIndex(timestamp = Date.now()) {
+  return Math.floor(getFishDailyWindowStartAt(timestamp) / fishDailyWindowMs);
+}
+
+function getFishDailyNextAvailableAt(player, now = Date.now()) {
   const lastClaimedAt = Math.max(0, Number(player?.dailyLastClaimedAt || 0));
-  return lastClaimedAt > 0 ? lastClaimedAt + fishDailyCooldownMs : 0;
+  if (lastClaimedAt <= 0) return 0;
+
+  const lastClaimedWindow = getFishDailyWindowIndex(lastClaimedAt);
+  const currentWindow = getFishDailyWindowIndex(now);
+  if (lastClaimedWindow < currentWindow) return 0;
+
+  return getFishDailyWindowStartAt(now) + fishDailyWindowMs;
 }
 
 function isFishDailyAvailable(player, now = Date.now()) {
-  const nextAvailableAt = getFishDailyNextAvailableAt(player);
+  const nextAvailableAt = getFishDailyNextAvailableAt(player, now);
   return nextAvailableAt <= 0 || now >= nextAvailableAt;
 }
 
 function claimFishDailyReward(player, now = Date.now()) {
-  const nextAvailableAt = getFishDailyNextAvailableAt(player);
+  const nextAvailableAt = getFishDailyNextAvailableAt(player, now);
   if (nextAvailableAt > 0 && now < nextAvailableAt) {
     return { ok: false, remainingMs: nextAvailableAt - now, nextAvailableAt };
   }
 
   const lastClaimedAt = Math.max(0, Number(player.dailyLastClaimedAt || 0));
   const oldStreak = Math.max(0, Math.floor(Number(player.dailyStreak || 0)));
-  const nextStreak = lastClaimedAt > 0 && now - lastClaimedAt < fishDailyCooldownMs * 2
+  const currentWindow = getFishDailyWindowIndex(now);
+  const lastClaimedWindow = lastClaimedAt > 0 ? getFishDailyWindowIndex(lastClaimedAt) : null;
+  const nextStreak = lastClaimedWindow === currentWindow - 1
     ? oldStreak + 1
     : 1;
   const rewardGold = 35 * nextStreak;
@@ -1980,7 +2098,7 @@ function claimFishDailyReward(player, now = Date.now()) {
     streak: nextStreak,
     goldBefore,
     goldAfter: player.gold,
-    nextAvailableAt: now + fishDailyCooldownMs
+    nextAvailableAt: getFishDailyWindowStartAt(now) + fishDailyWindowMs
   };
 }
 
@@ -2000,7 +2118,7 @@ function makeFishDailyResultMessage(result) {
       `Daily streak: **${result.streak}**`,
       `Gold: **${result.goldBefore} -> ${result.goldAfter}**`,
       "",
-      "Hadiah berikutnya tersedia 24 jam lagi."
+      "Hadiah berikutnya tersedia setelah reset jam **12:00**."
     ].join("\n"),
     0x2ecc71
   );
@@ -3054,7 +3172,10 @@ function makeRodStoreImageAttachment(player) {
 }
 
 function makeRodSelectOptions(player) {
-  return gameData.rods.slice(0, 25).map((rod) => {
+  return [...gameData.rods]
+    .sort((left, right) => Number(left.price || 0) - Number(right.price || 0) || left.name.localeCompare(right.name))
+    .slice(0, 25)
+    .map((rod) => {
     const owned = player.ownedRods.includes(rod.id);
     const equipped = player.rodId === rod.id;
     const status = equipped ? "[Equipped]" : owned ? "[Owned]" : "";
@@ -3064,11 +3185,14 @@ function makeRodSelectOptions(player) {
       description: truncateText(`${rod.rarity || "Common"} · Speed ${rod.speed} · Luck ${rod.luck} · Max ${rod.maxWeight || "?"} kg · Acc ${rod.accuracy ?? 50}% · Price ${price}`, 100),
       value: rod.id
     };
-  });
+    });
 }
 
 function makeFishBagSelectOptions(player) {
-  return gameData.fishBags.slice(0, 25).map((bag) => {
+  return [...gameData.fishBags]
+    .sort((left, right) => Number(left.price || 0) - Number(right.price || 0) || left.name.localeCompare(right.name))
+    .slice(0, 25)
+    .map((bag) => {
     const owned = (player.ownedFishBags || []).includes(bag.id);
     const equipped = player.fishBagId === bag.id;
     const status = equipped ? "[Equipped]" : owned ? "[Owned]" : "";
@@ -3078,7 +3202,7 @@ function makeFishBagSelectOptions(player) {
       description: truncateText(`${bag.rarity || "Common"} · Capacity ${bag.spaceKg || 0} kg · Price ${price}`, 100),
       value: bag.id
     };
-  });
+    });
 }
 
 function makeStoreComponents(player, selectedRodId = null, selectedFishBagId = null) {
@@ -3211,12 +3335,11 @@ function makeFishDexOptions(player, guildId = "", page = 0, selectedFishId = "")
 }
 
 function makeFishDexShowcaseButton(player, userId, page = 0, selectedFish = null, caught = false) {
-  const isShowcased = Boolean(selectedFish?.id && String(player.showcasedFishId || "") === selectedFish.id);
   return new ButtonBuilder()
     .setCustomId(`fishdex_showcase:${userId}:${page}:${selectedFish?.id || "none"}`)
     .setLabel("Showcase This Fish")
     .setStyle(ButtonStyle.Primary)
-    .setDisabled(!selectedFish?.id || !caught || isShowcased);
+    .setDisabled(!selectedFish?.id || !caught);
 }
 
 function makeFishDexComponents(player, userId, guildId = "", page = 0, selectedFishId = "") {
@@ -5942,6 +6065,9 @@ client.on("interactionCreate", async (interaction) => {
       }
 
       await interaction.deferUpdate();
+      const member = interaction.guild?.members?.fetch
+        ? await interaction.guild.members.fetch(interaction.user.id).catch(() => null)
+        : null;
       await withPlayer(interaction.user, async (player) => {
         const selectedFish = getAvailableFish(interaction.guildId).find((fishEntry) => fishEntry.id === selectedFishId);
         if (!selectedFish || !getFishDexEntry(player, selectedFish).caught) {
@@ -5950,6 +6076,11 @@ client.on("interactionCreate", async (interaction) => {
         }
         player.showcasedFishId = selectedFish.id;
         await interaction.editReply(makeFishDexMessage(interaction.user, player, selectedFish.id, interaction.guildId, Number(pageValue || 0)));
+        const showoffMessage = await interaction.channel?.send(await makeFishShowoffMessage(interaction.user, player, member, interaction.guildId)).catch((error) => {
+          console.error("Could not send fishdex showcase showoff message:", error);
+          return null;
+        });
+        scheduleMessageDelete(showoffMessage);
         return undefined;
       });
       return;
@@ -6253,6 +6384,7 @@ client.on("interactionCreate", async (interaction) => {
         ? await interaction.guild.members.fetch(interaction.user.id).catch(() => null)
         : null;
       await withPlayerReadOnly(interaction.user, async (player) => {
+        const selectedFish = getFishShowoffFish(player, interaction.guildId);
         const showoffMessage = await interaction.editReply(await makeFishShowoffMessage(interaction.user, player, member, interaction.guildId));
         scheduleMessageDelete(showoffMessage);
       });
@@ -6705,6 +6837,7 @@ async function start() {
   }, configRefreshMs);
 
   await client.login(token);
+  loadPendingMessageDeletes();
   loadPendingFishDuels();
   await processFishRaidMidnightReset().catch((error) => console.error("Could not process fish raid midnight catch-up:", error));
   await announceEventUpdates().catch((error) => console.error("Could not announce event updates:", error));

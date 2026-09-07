@@ -2,6 +2,12 @@ require("dotenv").config();
 
 const fs = require("node:fs");
 const pathModule = require("node:path");
+const {
+  getCachedImageForRef,
+  getCachedImageForUrl,
+  rememberCachedImageForRef,
+  rememberCachedImageForUrl
+} = require("./imageUtils");
 
 const discordApiBaseUrl = "https://discord.com/api/v10";
 const token = process.env.DISCORD_TOKEN;
@@ -224,6 +230,34 @@ function sanitizeFileName(fileName) {
     .slice(0, 96) || "image.png";
 }
 
+function parseDiscordMessageUrl(messageUrl) {
+  const match = String(messageUrl || "").trim().match(/^https?:\/\/(?:www\.)?discord(?:app)?\.com\/channels\/([^/]+)\/(\d+)\/(\d+)/i);
+  if (!match) {
+    return null;
+  }
+  return {
+    guildId: match[1],
+    channelId: match[2],
+    messageId: match[3],
+    messageUrl: `https://discord.com/channels/${match[1]}/${match[2]}/${match[3]}`
+  };
+}
+
+function normalizeDiscordImageRef(ref, messageUrl = "") {
+  const source = ref && typeof ref === "object" ? ref : {};
+  const parsed = parseDiscordMessageUrl(source.messageUrl || messageUrl);
+  if (!parsed && (!source.channelId || !source.messageId)) {
+    return null;
+  }
+  return {
+    ...source,
+    storage: "discord_attachment",
+    channelId: String(source.channelId || parsed?.channelId || ""),
+    messageId: String(source.messageId || parsed?.messageId || ""),
+    messageUrl: String(source.messageUrl || parsed?.messageUrl || messageUrl || "")
+  };
+}
+
 async function uploadDiscordImage({ buffer, contentType, fileName }) {
   const uploaded = await uploadDiscordImageWithRef({ buffer, contentType, fileName });
   return uploaded.url;
@@ -249,17 +283,187 @@ async function uploadDiscordImageWithRef({ buffer, contentType, fileName }) {
     throw new Error("Discord upload succeeded but did not return an attachment URL.");
   }
 
-  return {
+  const uploaded = {
     url: attachmentUrl,
     ref: {
       storage: "discord_attachment",
       channelId,
       messageId: message.id || "",
+      messageUrl: message.guild_id && channelId && message.id
+        ? `https://discord.com/channels/${message.guild_id}/${channelId}/${message.id}`
+        : "",
       attachmentId: message.attachments?.[0]?.id || "",
       fileName: safeFileName,
       contentType
     }
   };
+  const image = {
+    buffer: Buffer.from(buffer),
+    contentType,
+    extension: extensionFromContentType(contentType)
+  };
+  rememberCachedImageForRef(uploaded.ref, image, { source: "discord_upload", fileName: safeFileName });
+  rememberCachedImageForUrl(attachmentUrl, image, { source: "discord_upload", fileName: safeFileName });
+  return uploaded;
+}
+
+function extensionFromContentType(contentType) {
+  return {
+    "image/png": "png",
+    "image/jpeg": "jpg",
+    "image/jpg": "jpg",
+    "image/gif": "gif",
+    "image/webp": "webp"
+  }[String(contentType || "").split(";")[0].toLowerCase()] || "png";
+}
+
+async function fetchImageBuffer(url) {
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), discordRequestTimeoutMs);
+  let response;
+  try {
+    response = await fetch(url, {
+      headers: {
+        "User-Agent": "TRFishingBot/1.0",
+        Accept: "image/avif,image/webp,image/apng,image/*,*/*;q=0.8"
+      },
+      signal: controller.signal
+    });
+  } catch (error) {
+    if (error.name === "AbortError") {
+      throw new Error("Image download timed out.");
+    }
+    throw error;
+  } finally {
+    clearTimeout(timeout);
+  }
+
+  if (!response.ok) {
+    throw new Error(`Image download failed: ${response.status} ${response.statusText}`);
+  }
+
+  const contentType = String(response.headers.get("content-type") || "").split(";")[0].trim().toLowerCase();
+  if (!["image/png", "image/jpeg", "image/jpg", "image/gif", "image/webp"].includes(contentType)) {
+    throw new Error("URL did not return a supported image.");
+  }
+
+  return {
+    buffer: Buffer.from(await response.arrayBuffer()),
+    contentType,
+    extension: extensionFromContentType(contentType)
+  };
+}
+
+function findImageUrlInMessage(message) {
+  const attachment = (message.attachments || []).find((entry) => String(entry.content_type || "").startsWith("image/"))
+    || message.attachments?.[0];
+  if (attachment?.url) {
+    return attachment.url;
+  }
+
+  for (const embed of message.embeds || []) {
+    const url = embed.image?.proxy_url || embed.image?.url
+      || embed.thumbnail?.proxy_url || embed.thumbnail?.url
+      || embed.video?.proxy_url || embed.video?.url;
+    if (url) {
+      return url;
+    }
+  }
+
+  return "";
+}
+
+async function uploadDiscordImageFromUrl(sourceUrl, fileName = "image.png") {
+  const selectedUrl = String(sourceUrl || "").trim();
+  if (!/^https?:\/\//i.test(selectedUrl)) {
+    throw new Error("Image URL must use HTTP or HTTPS.");
+  }
+
+  try {
+    const image = await fetchImageBuffer(selectedUrl);
+    return uploadDiscordImageWithRef({
+      buffer: image.buffer,
+      contentType: image.contentType,
+      fileName: fileName || `image.${image.extension}`
+    });
+  } catch (directError) {
+    const channelId = await findStorageChannelId();
+    const message = await callDiscordApi(`/channels/${channelId}/messages`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        content: selectedUrl,
+        allowed_mentions: { parse: [] }
+      })
+    });
+
+    let refreshedUrl = "";
+    for (let attempt = 0; attempt < 5 && !refreshedUrl; attempt += 1) {
+      await sleep(1000);
+      const refreshedMessage = await callDiscordApi(`/channels/${channelId}/messages/${message.id}`);
+      refreshedUrl = findImageUrlInMessage(refreshedMessage);
+    }
+    if (!refreshedUrl) {
+      throw directError;
+    }
+
+    const image = await fetchImageBuffer(refreshedUrl);
+    return uploadDiscordImageWithRef({
+      buffer: image.buffer,
+      contentType: image.contentType,
+      fileName: fileName || `image.${image.extension}`
+    });
+  }
+}
+
+async function resolveDiscordStoredImage({ ref = null, messageUrl = "", fallbackUrl = "", fileName = "image.png" } = {}) {
+  const normalizedRef = normalizeDiscordImageRef(ref, messageUrl);
+  const selectedFallbackUrl = String(fallbackUrl || "").trim();
+  const cachedRef = getCachedImageForRef(normalizedRef);
+  if (cachedRef?.buffer?.length) {
+    return { ...cachedRef, ref: normalizedRef, url: normalizedRef?.messageUrl || selectedFallbackUrl, source: "local_cache" };
+  }
+
+  const cachedUrl = getCachedImageForUrl(selectedFallbackUrl);
+  if (cachedUrl?.buffer?.length) {
+    if (normalizedRef) {
+      rememberCachedImageForRef(normalizedRef, cachedUrl, { source: "local_url_cache", fileName });
+    }
+    return { ...cachedUrl, ref: normalizedRef, url: selectedFallbackUrl, source: "local_cache" };
+  }
+
+  if (normalizedRef) {
+    try {
+      const refreshedUrl = await refreshDiscordImageUrl(normalizedRef);
+      const image = await fetchImageBuffer(refreshedUrl);
+      rememberCachedImageForRef(normalizedRef, image, { source: "discord_message", fileName });
+      rememberCachedImageForUrl(refreshedUrl, image, { source: "discord_message", fileName });
+      return { ...image, ref: normalizedRef, url: refreshedUrl, source: "discord_message" };
+    } catch {
+      // Continue to the old-URL recovery below.
+    }
+  }
+
+  if (selectedFallbackUrl) {
+    try {
+      const image = await fetchImageBuffer(selectedFallbackUrl);
+      rememberCachedImageForUrl(selectedFallbackUrl, image, { source: "saved_url", fileName });
+      if (normalizedRef) {
+        rememberCachedImageForRef(normalizedRef, image, { source: "saved_url", fileName });
+      }
+      return { ...image, ref: normalizedRef, url: selectedFallbackUrl, source: "saved_url" };
+    } catch {
+      const uploaded = await uploadDiscordImageFromUrl(selectedFallbackUrl, fileName);
+      const image = getCachedImageForRef(uploaded.ref) || await fetchImageBuffer(uploaded.url);
+      rememberCachedImageForUrl(selectedFallbackUrl, image, { source: "discord_repost", fileName });
+      if (normalizedRef) {
+        rememberCachedImageForRef(normalizedRef, image, { source: "discord_repost", fileName });
+      }
+      return { ...image, ref: uploaded.ref, url: uploaded.url, source: "discord_repost" };
+    }
+  }
+
+  return null;
 }
 
 async function fetchDiscordImageUrl(ref) {
@@ -271,10 +475,24 @@ async function fetchDiscordImageUrl(ref) {
   return attachment?.url || "";
 }
 
-async function getDiscordImageUrl(ref) {
-  if (!ref || ref.storage !== "discord_attachment" || !ref.channelId || !ref.messageId) {
+async function refreshDiscordImageUrl(ref) {
+  const normalizedRef = normalizeDiscordImageRef(ref, ref?.messageUrl);
+  if (!normalizedRef?.channelId || !normalizedRef?.messageId) {
     return "";
   }
+  const url = await fetchDiscordImageUrl(normalizedRef);
+  if (url) {
+    rememberDiscordImageUrl(discordImageRefCacheKey(normalizedRef), normalizedRef, url);
+  }
+  return url;
+}
+
+async function getDiscordImageUrl(ref) {
+  const normalizedRef = normalizeDiscordImageRef(ref, ref?.messageUrl);
+  if (!normalizedRef?.channelId || !normalizedRef?.messageId) {
+    return "";
+  }
+  ref = normalizedRef;
   loadPersistentDiscordImageCache();
 
   const cacheKey = discordImageRefCacheKey(ref);
@@ -318,6 +536,11 @@ async function getDiscordImageUrl(ref) {
 
 module.exports = {
   getDiscordImageUrl,
+  normalizeDiscordImageRef,
+  parseDiscordMessageUrl,
+  refreshDiscordImageUrl,
+  resolveDiscordStoredImage,
   uploadDiscordImage,
+  uploadDiscordImageFromUrl,
   uploadDiscordImageWithRef
 };

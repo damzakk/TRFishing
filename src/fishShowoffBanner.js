@@ -1,5 +1,14 @@
 const path = require("node:path");
 const { Jimp, JimpMime, intToRGBA, loadFont, rgbaToInt } = require("jimp");
+const { resolveDiscordStoredImage } = require("./discordStorage");
+const {
+  extensionFromContentType,
+  getCachedImageForItem,
+  getCachedImageForUrl,
+  rememberCachedImageForItem,
+  rememberCachedImageForUrl,
+  parseDataImage
+} = require("./imageUtils");
 
 const templatePath = path.join(__dirname, "..", "assets", "fishshowoff-template.png");
 const fontRoot = path.join(__dirname, "..", "node_modules", "@jimp", "plugin-print", "fonts", "open-sans");
@@ -82,30 +91,80 @@ function compositeCentered(base, overlay, centerX, centerY) {
   base.composite(overlay, x, y);
 }
 
-async function readImageFromUrl(url) {
+async function fetchImageBufferFromUrl(url) {
   const selectedUrl = String(url || "").trim();
   if (!selectedUrl) {
     return null;
   }
-  const response = await fetch(selectedUrl);
+  const response = await fetch(selectedUrl, {
+    headers: {
+      "User-Agent": "TRFishingBot/1.0",
+      Accept: "image/avif,image/webp,image/apng,image/svg+xml,image/*,*/*;q=0.8"
+    }
+  });
   if (!response.ok) {
     throw new Error(`Could not fetch image: ${response.status} ${response.statusText}`);
   }
-  const arrayBuffer = await response.arrayBuffer();
-  return Jimp.read(Buffer.from(arrayBuffer));
+  const contentType = String(response.headers.get("content-type") || "").split(";")[0].trim().toLowerCase();
+  return {
+    buffer: Buffer.from(await response.arrayBuffer()),
+    contentType,
+    extension: extensionFromContentType(contentType)
+  };
 }
 
-async function readImageFromItem(item) {
-  if (item?.iconUrl) {
-    return readImageFromUrl(item.iconUrl);
+async function readImageFromUrl(url) {
+  const cached = getCachedImageForUrl(url);
+  if (cached?.buffer?.length) {
+    return Jimp.read(cached.buffer);
+  }
+  const image = await fetchImageBufferFromUrl(url);
+  if (image?.buffer?.length) {
+    rememberCachedImageForUrl(url, image, { source: "fishshowoff_avatar", fileName: "fishshowoff-avatar.png" });
+  }
+  return image ? Jimp.read(image.buffer) : null;
+}
+
+async function readImageFromItem(item, imageTrace = {}) {
+  const cached = getCachedImageForItem(item);
+  if (cached) {
+    imageTrace.name = cached.fileName || item?.iconRef?.fileName || `${item?.id || "fish"}.png`;
+    imageTrace.url = cached.discordMessageUrl || cached.iconUrl || item?.iconRef?.messageUrl || item?.iconUrl || "local cache";
+    imageTrace.source = "local cache";
+    return Jimp.read(cached.buffer);
   }
 
-  const base64 = String(item?.iconBase64 || "");
-  const match = base64.match(/^data:image\/(?:png|jpe?g|gif|webp);base64,([A-Za-z0-9+/=]+)$/);
-  if (!match) {
-    return null;
+  const base64Image = parseDataImage(item?.iconBase64);
+  if (base64Image?.buffer?.length) {
+    rememberCachedImageForItem(item, base64Image, { namePrefix: "fish", source: "base64" });
+    imageTrace.name = `fish-${item?.id || "icon"}.${base64Image.extension || "png"}`;
+    imageTrace.url = "manager upload";
+    imageTrace.source = "manager upload";
+    return Jimp.read(base64Image.buffer);
   }
-  return Jimp.read(Buffer.from(match[1], "base64"));
+
+  const storedImage = await resolveDiscordStoredImage({
+    ref: item?.iconRef,
+    messageUrl: item?.iconMessageUrl,
+    fallbackUrl: item?.iconUrl,
+    fileName: item?.iconRef?.fileName || `fish-${item?.id || "icon"}.png`
+  }).catch((error) => {
+    imageTrace.error = error.message;
+    return null;
+  });
+  if (storedImage?.buffer?.length) {
+    const resolvedItem = { ...item, iconRef: storedImage.ref || item?.iconRef };
+    rememberCachedImageForItem(resolvedItem, storedImage, { namePrefix: "fish", source: storedImage.source });
+    imageTrace.name = storedImage.ref?.fileName || item?.iconRef?.fileName || `fish-${item?.id || "icon"}.${storedImage.extension || "png"}`;
+    imageTrace.url = storedImage.url || storedImage.ref?.messageUrl || item?.iconMessageUrl || item?.iconUrl || "local cache";
+    imageTrace.source = storedImage.source || "stored image";
+    return Jimp.read(storedImage.buffer);
+  }
+
+  imageTrace.name = "placeholder fish icon";
+  imageTrace.url = item?.iconMessageUrl || item?.iconRef?.messageUrl || item?.iconUrl || "no image URL";
+  imageTrace.source = "placeholder";
+  return null;
 }
 
 function makeFishFallbackTile(fish) {
@@ -160,7 +219,7 @@ async function drawStats(base, fonts, stats) {
   base.print({ font: fonts.body, x: panelX + 30, y: panelY + 174, text: `Max weight: ${stats.fishMaxWeight || "-"}  |  Luck Score: ${stats.fishLuckScore || "-"}` });
 }
 
-async function makeFishShowoffBanner({ avatarUrl, fish, stats }) {
+async function makeFishShowoffBanner({ avatarUrl, fish, stats, imageTrace = {} }) {
   const [base, fonts, avatar, fishImage] = await Promise.all([
     Jimp.read(templatePath),
     Promise.all([
@@ -169,7 +228,13 @@ async function makeFishShowoffBanner({ avatarUrl, fish, stats }) {
       loadFont(fontPaths.small)
     ]).then(([title, body, small]) => ({ title, body, small })),
     readImageFromUrl(avatarUrl).catch(() => null),
-    readImageFromItem(fish).catch(() => null)
+    readImageFromItem(fish, imageTrace).catch((error) => {
+      imageTrace.name = "placeholder fish icon";
+      imageTrace.url = fish?.iconMessageUrl || fish?.iconRef?.messageUrl || fish?.iconUrl || "no image URL";
+      imageTrace.source = "placeholder";
+      imageTrace.error = error.message;
+      return null;
+    })
   ]);
 
   const avatarOverlay = await makeOverlayImage(avatar, avatarSlot);

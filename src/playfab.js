@@ -6,7 +6,7 @@ const { defaultFish, defaultRods, defaultFishBags } = require("./defaultData");
 const defaultFishCompEvents = require("../fishCompEvents.json");
 const defaultFishRaidEvents = require("../fishRaidEvents.json");
 const defaultFishDuelEvents = require("../fishDuelEvents.json");
-const { getDiscordImageUrl, uploadDiscordImageWithRef } = require("./discordStorage");
+const { getDiscordImageUrl, uploadDiscordImageFromUrl, uploadDiscordImageWithRef } = require("./discordStorage");
 
 const titleId = process.env.PLAYFAB_TITLE_ID;
 const secretKey = process.env.PLAYFAB_SECRET_KEY;
@@ -678,6 +678,10 @@ function cleanNumber(value, fallback = 0) {
   return Number.isFinite(number) ? number : fallback;
 }
 
+function imageNeedsRehost(source, key) {
+  return source?.[`${key}NeedsRehost`] === true;
+}
+
 function cleanSettings(settings) {
   const source = settings && typeof settings === "object" ? settings : {};
   const rodStoreImageUrl = String(source.rodStoreImageUrl || "").trim();
@@ -700,49 +704,64 @@ function cleanSettings(settings) {
     rodStoreImageUrl,
     rodStoreImageContentKey: String(source.rodStoreImageContentKey || "").trim(),
     rodStoreImageRef: source.rodStoreImageRef && typeof source.rodStoreImageRef === "object" ? source.rodStoreImageRef : null,
+    rodStoreImageUrlNeedsRehost: imageNeedsRehost(source, "rodStoreImageUrl"),
     fishCompBannerBase64: String(source.fishCompBannerBase64 || ""),
     fishCompBannerUrl,
     fishCompBannerContentKey: String(source.fishCompBannerContentKey || "").trim(),
     fishCompBannerRef: source.fishCompBannerRef && typeof source.fishCompBannerRef === "object" ? source.fishCompBannerRef : null,
+    fishCompBannerUrlNeedsRehost: imageNeedsRehost(source, "fishCompBannerUrl"),
     fishCompRegistrationBannerBase64: String(source.fishCompRegistrationBannerBase64 || ""),
     fishCompRegistrationBannerUrl,
     fishCompRegistrationBannerRef: source.fishCompRegistrationBannerRef && typeof source.fishCompRegistrationBannerRef === "object" ? source.fishCompRegistrationBannerRef : null,
+    fishCompRegistrationBannerUrlNeedsRehost: imageNeedsRehost(source, "fishCompRegistrationBannerUrl"),
     fishCompRunningBannerBase64: String(source.fishCompRunningBannerBase64 || ""),
     fishCompRunningBannerUrl,
     fishCompRunningBannerRef: source.fishCompRunningBannerRef && typeof source.fishCompRunningBannerRef === "object" ? source.fishCompRunningBannerRef : null,
+    fishCompRunningBannerUrlNeedsRehost: imageNeedsRehost(source, "fishCompRunningBannerUrl"),
     fishCompResultBannerBase64: String(source.fishCompResultBannerBase64 || ""),
     fishCompResultBannerUrl,
     fishCompResultBannerRef: source.fishCompResultBannerRef && typeof source.fishCompResultBannerRef === "object" ? source.fishCompResultBannerRef : null,
+    fishCompResultBannerUrlNeedsRehost: imageNeedsRehost(source, "fishCompResultBannerUrl"),
     fishRaidBannerBase64: String(source.fishRaidBannerBase64 || ""),
     fishRaidBannerUrl,
     fishRaidBannerRef: source.fishRaidBannerRef && typeof source.fishRaidBannerRef === "object" ? source.fishRaidBannerRef : null,
+    fishRaidBannerUrlNeedsRehost: imageNeedsRehost(source, "fishRaidBannerUrl"),
     fishRaidRegistrationBannerBase64: String(source.fishRaidRegistrationBannerBase64 || ""),
     fishRaidRegistrationBannerUrl,
     fishRaidRegistrationBannerRef: source.fishRaidRegistrationBannerRef && typeof source.fishRaidRegistrationBannerRef === "object" ? source.fishRaidRegistrationBannerRef : null,
+    fishRaidRegistrationBannerUrlNeedsRehost: imageNeedsRehost(source, "fishRaidRegistrationBannerUrl"),
     fishRaidRunningBannerBase64: String(source.fishRaidRunningBannerBase64 || ""),
     fishRaidRunningBannerUrl,
     fishRaidRunningBannerRef: source.fishRaidRunningBannerRef && typeof source.fishRaidRunningBannerRef === "object" ? source.fishRaidRunningBannerRef : null,
+    fishRaidRunningBannerUrlNeedsRehost: imageNeedsRehost(source, "fishRaidRunningBannerUrl"),
     fishRaidResultBannerBase64: String(source.fishRaidResultBannerBase64 || ""),
     fishRaidResultBannerUrl,
     fishRaidResultBannerRef: source.fishRaidResultBannerRef && typeof source.fishRaidResultBannerRef === "object" ? source.fishRaidResultBannerRef : null,
+    fishRaidResultBannerUrlNeedsRehost: imageNeedsRehost(source, "fishRaidResultBannerUrl"),
     fishDuelRegistrationBannerBase64: String(source.fishDuelRegistrationBannerBase64 || ""),
     fishDuelRegistrationBannerUrl,
     fishDuelRegistrationBannerRef: source.fishDuelRegistrationBannerRef && typeof source.fishDuelRegistrationBannerRef === "object" ? source.fishDuelRegistrationBannerRef : null,
+    fishDuelRegistrationBannerUrlNeedsRehost: imageNeedsRehost(source, "fishDuelRegistrationBannerUrl"),
     fishDuelRunningBannerBase64: String(source.fishDuelRunningBannerBase64 || ""),
     fishDuelRunningBannerUrl,
     fishDuelRunningBannerRef: source.fishDuelRunningBannerRef && typeof source.fishDuelRunningBannerRef === "object" ? source.fishDuelRunningBannerRef : null,
+    fishDuelRunningBannerUrlNeedsRehost: imageNeedsRehost(source, "fishDuelRunningBannerUrl"),
     fishDuelResultBannerBase64: String(source.fishDuelResultBannerBase64 || ""),
     fishDuelResultBannerUrl,
     fishDuelResultBannerRef: source.fishDuelResultBannerRef && typeof source.fishDuelResultBannerRef === "object" ? source.fishDuelResultBannerRef : null,
+    fishDuelResultBannerUrlNeedsRehost: imageNeedsRehost(source, "fishDuelResultBannerUrl"),
     fishGuideBannerBase64: String(source.fishGuideBannerBase64 || ""),
     fishGuideBannerUrl,
     fishGuideBannerRef: source.fishGuideBannerRef && typeof source.fishGuideBannerRef === "object" ? source.fishGuideBannerRef : null,
+    fishGuideBannerUrlNeedsRehost: imageNeedsRehost(source, "fishGuideBannerUrl"),
     fishHelpBannerBase64: String(source.fishHelpBannerBase64 || ""),
     fishHelpBannerUrl,
     fishHelpBannerRef: source.fishHelpBannerRef && typeof source.fishHelpBannerRef === "object" ? source.fishHelpBannerRef : null,
+    fishHelpBannerUrlNeedsRehost: imageNeedsRehost(source, "fishHelpBannerUrl"),
     sellFishBannerBase64: String(source.sellFishBannerBase64 || ""),
     sellFishBannerUrl,
     sellFishBannerRef: source.sellFishBannerRef && typeof source.sellFishBannerRef === "object" ? source.sellFishBannerRef : null,
+    sellFishBannerUrlNeedsRehost: imageNeedsRehost(source, "sellFishBannerUrl"),
     fishCompEvents: cleanFishCompEvents(source.fishCompEvents),
     fishRaidEvents: cleanFishCompEvents(source.fishRaidEvents, defaultSettings.fishRaidEvents),
     fishDuelEvents: cleanFishCompEvents(source.fishDuelEvents, defaultSettings.fishDuelEvents),
@@ -812,18 +831,23 @@ function cleanFishRaidBosses(bosses) {
       registrationBannerBase64: String(source.registrationBannerBase64 || ""),
       registrationBannerUrl: String(source.registrationBannerUrl || "").trim(),
       registrationBannerRef: source.registrationBannerRef && typeof source.registrationBannerRef === "object" ? source.registrationBannerRef : null,
+      registrationBannerUrlNeedsRehost: imageNeedsRehost(source, "registrationBannerUrl"),
       runningBannerBase64: String(source.runningBannerBase64 || ""),
       runningBannerUrl: String(source.runningBannerUrl || "").trim(),
       runningBannerRef: source.runningBannerRef && typeof source.runningBannerRef === "object" ? source.runningBannerRef : null,
+      runningBannerUrlNeedsRehost: imageNeedsRehost(source, "runningBannerUrl"),
       resultBannerBase64: String(source.resultBannerBase64 || ""),
       resultBannerUrl: String(source.resultBannerUrl || "").trim(),
       resultBannerRef: source.resultBannerRef && typeof source.resultBannerRef === "object" ? source.resultBannerRef : null,
+      resultBannerUrlNeedsRehost: imageNeedsRehost(source, "resultBannerUrl"),
       fulfilledBannerBase64: String(source.fulfilledBannerBase64 || ""),
       fulfilledBannerUrl: String(source.fulfilledBannerUrl || "").trim(),
       fulfilledBannerRef: source.fulfilledBannerRef && typeof source.fulfilledBannerRef === "object" ? source.fulfilledBannerRef : null,
+      fulfilledBannerUrlNeedsRehost: imageNeedsRehost(source, "fulfilledBannerUrl"),
       failedBannerBase64: String(source.failedBannerBase64 || ""),
       failedBannerUrl: String(source.failedBannerUrl || "").trim(),
-      failedBannerRef: source.failedBannerRef && typeof source.failedBannerRef === "object" ? source.failedBannerRef : null
+      failedBannerRef: source.failedBannerRef && typeof source.failedBannerRef === "object" ? source.failedBannerRef : null,
+      failedBannerUrlNeedsRehost: imageNeedsRehost(source, "failedBannerUrl")
     };
   }).filter((boss) => boss.id && boss.name);
 }
@@ -857,6 +881,7 @@ function cleanEvent(event) {
     bannerUrl,
     bannerContentKey: String(event.bannerContentKey || "").trim(),
     bannerRef: event.bannerRef && typeof event.bannerRef === "object" ? event.bannerRef : null,
+    bannerUrlNeedsRehost: imageNeedsRehost(event, "bannerUrl"),
     startAt,
     durationMinutes,
     endsAt,
@@ -926,6 +951,7 @@ function cleanRoutineMessage(routine) {
     bannerUrl: String(routine.bannerUrl || "").trim(),
     bannerContentKey: String(routine.bannerContentKey || "").trim(),
     bannerRef: routine.bannerRef && typeof routine.bannerRef === "object" ? routine.bannerRef : null,
+    bannerUrlNeedsRehost: imageNeedsRehost(routine, "bannerUrl"),
     enabled: routine.enabled !== false,
     deleteAfterButtonClick: routine.deleteAfterButtonClick === true,
     guildId: String(routine.guildId || "").trim(),
@@ -1079,6 +1105,18 @@ function extensionFromContentType(contentType) {
   }[String(contentType || "").split(";")[0].toLowerCase()] || "png";
 }
 
+function isDiscordHostedImageUrl(url) {
+  let parsed;
+  try {
+    parsed = new URL(String(url || "").trim());
+  } catch {
+    return false;
+  }
+  return /(^|\.)discord(?:app)?\.(?:com|net)$/i.test(parsed.hostname)
+    || /(^|\.)discordapp\.(?:com|net)$/i.test(parsed.hostname)
+    || /(^|\.)discordapp\.net$/i.test(parsed.hostname);
+}
+
 async function imageSourceToBuffer({ dataUrl, sourceUrl }) {
   const dataImage = parseDataImageSource(dataUrl);
   if (dataImage) {
@@ -1184,9 +1222,20 @@ async function getContentDownloadUrl(contentKey) {
   return result.URL || "";
 }
 
-async function saveContentImage({ currentUrl, currentRef, legacyContentKey, dataUrl, sourceUrl, keyForExtension }) {
+async function saveContentImage({ currentUrl, currentRef, legacyContentKey, dataUrl, sourceUrl, keyForExtension, forceRehost = false }) {
   const url = String(sourceUrl || currentUrl || "").trim();
   if (!dataUrl && /^https?:\/\//i.test(url)) {
+    if (forceRehost || (!currentRef && isDiscordHostedImageUrl(url))) {
+      const contentKey = keyForExtension(extensionFromContentType(""));
+      const fileName = contentKey.split("/").pop() || "image.png";
+      const uploaded = await uploadDiscordImageFromUrl(url, fileName).catch((error) => {
+        console.warn(`Could not rehost image URL; keeping existing URL. | time=${new Date().toISOString()} | image=${fileName} | message=${error.message}`);
+        return null;
+      });
+      if (uploaded?.url) {
+        return uploaded;
+      }
+    }
     return { url, ref: currentRef || null };
   }
   if (!dataUrl && legacyContentKey) {
@@ -1214,7 +1263,8 @@ async function saveFishRaidBossImages(bosses) {
         currentRef: boss[`${baseKey}Ref`],
         dataUrl: boss[`${baseKey}Base64`],
         sourceUrl: boss[`${baseKey}Url`],
-        keyForExtension: (extension) => fishRaidBossContentKeyFor(boss.id, baseKey, extension)
+        keyForExtension: (extension) => fishRaidBossContentKeyFor(boss.id, baseKey, extension),
+        forceRehost: boss[`${baseKey}UrlNeedsRehost`] === true
       });
       savedBoss[`${baseKey}Url`] = banner.url;
       savedBoss[`${baseKey}Ref`] = banner.ref;
@@ -1249,13 +1299,49 @@ async function loadAssetRef(ref, fallbackKey, useSecretKey = false) {
   return fallbackKey ? loadTitleAsset(fallbackKey, useSecretKey) : "";
 }
 
+function stripImageRehostFlags(value) {
+  if (Array.isArray(value)) {
+    return value.map(stripImageRehostFlags);
+  }
+  if (!value || typeof value !== "object") {
+    return value;
+  }
+  return Object.fromEntries(Object.entries(value)
+    .filter(([key]) => key !== "iconNeedsRehost" && !key.endsWith("NeedsRehost"))
+    .map(([key, entry]) => [key, stripImageRehostFlags(entry)]));
+}
+
+function preferDiscordMessageReferences(value) {
+  if (Array.isArray(value)) {
+    return value.map(preferDiscordMessageReferences);
+  }
+  if (!value || typeof value !== "object") {
+    return value;
+  }
+  const result = {};
+  for (const [key, child] of Object.entries(value)) {
+    result[key] = preferDiscordMessageReferences(child);
+  }
+  for (const [key, child] of Object.entries(result)) {
+    if (!key.endsWith("Ref") || !child?.messageUrl) {
+      continue;
+    }
+    const baseKey = key.slice(0, -3);
+    result[`${baseKey}MessageUrl`] = String(child.messageUrl);
+    if (`${baseKey}Url` in result) {
+      result[`${baseKey}Url`] = "";
+    }
+  }
+  return result;
+}
+
 function withoutConfigAssets(config) {
   const settings = cleanSettings(config.settings);
   const activeEvent = cleanEvent(config.activeEvent);
   const events = cleanEvents(config.events, activeEvent);
   const routineMessages = cleanRoutineMessages(config.routineMessages);
 
-  return {
+  return stripImageRehostFlags({
     adminDiscordIds: cleanAdminDiscordIds(config.adminDiscordIds),
     settings: {
       ...settings,
@@ -1302,7 +1388,7 @@ function withoutConfigAssets(config) {
       bannerBase64: "",
       bannerContentKey: ""
     }))
-  };
+  });
 }
 
 function withImageCaller(context, caller) {
@@ -1386,8 +1472,8 @@ async function attachConfigAssets(config, useSecretKey = false, caller = "") {
 
 function withoutIcons(items, type) {
   return items.map((item) => {
-    const { iconBase64, iconContentKey, iconKey, ...rest } = item;
-    return rest;
+    const { iconBase64, iconContentKey, iconKey, iconNeedsRehost, ...rest } = item;
+    return stripImageRehostFlags(rest);
   });
 }
 
@@ -1480,7 +1566,8 @@ async function adminSaveGameData({ fish, rods, fishBags, adminDiscordIds, settin
     legacyContentKey: cleanSettingsValue.rodStoreImageContentKey,
     dataUrl: cleanSettingsValue.rodStoreImageBase64,
     sourceUrl: cleanSettingsValue.rodStoreImageUrl,
-    keyForExtension: storeContentKeyFor
+    keyForExtension: storeContentKeyFor,
+    forceRehost: cleanSettingsValue.rodStoreImageUrlNeedsRehost
   });
   const fishCompBanner = await saveContentImage({
     currentUrl: cleanSettingsValue.fishCompBannerUrl,
@@ -1488,98 +1575,112 @@ async function adminSaveGameData({ fish, rods, fishBags, adminDiscordIds, settin
     legacyContentKey: cleanSettingsValue.fishCompBannerContentKey,
     dataUrl: cleanSettingsValue.fishCompBannerBase64,
     sourceUrl: cleanSettingsValue.fishCompBannerUrl,
-    keyForExtension: fishCompBannerContentKeyFor
+    keyForExtension: fishCompBannerContentKeyFor,
+    forceRehost: cleanSettingsValue.fishCompBannerUrlNeedsRehost
   });
   const fishCompRegistrationBanner = await saveContentImage({
     currentUrl: cleanSettingsValue.fishCompRegistrationBannerUrl,
     currentRef: cleanSettingsValue.fishCompRegistrationBannerRef,
     dataUrl: cleanSettingsValue.fishCompRegistrationBannerBase64,
     sourceUrl: cleanSettingsValue.fishCompRegistrationBannerUrl,
-    keyForExtension: (extension) => settingsImageContentKeyFor("fish-comp-registration-banner", extension)
+    keyForExtension: (extension) => settingsImageContentKeyFor("fish-comp-registration-banner", extension),
+    forceRehost: cleanSettingsValue.fishCompRegistrationBannerUrlNeedsRehost
   });
   const fishCompRunningBanner = await saveContentImage({
     currentUrl: cleanSettingsValue.fishCompRunningBannerUrl,
     currentRef: cleanSettingsValue.fishCompRunningBannerRef,
     dataUrl: cleanSettingsValue.fishCompRunningBannerBase64,
     sourceUrl: cleanSettingsValue.fishCompRunningBannerUrl,
-    keyForExtension: (extension) => settingsImageContentKeyFor("fish-comp-running-banner", extension)
+    keyForExtension: (extension) => settingsImageContentKeyFor("fish-comp-running-banner", extension),
+    forceRehost: cleanSettingsValue.fishCompRunningBannerUrlNeedsRehost
   });
   const fishCompResultBanner = await saveContentImage({
     currentUrl: cleanSettingsValue.fishCompResultBannerUrl,
     currentRef: cleanSettingsValue.fishCompResultBannerRef,
     dataUrl: cleanSettingsValue.fishCompResultBannerBase64,
     sourceUrl: cleanSettingsValue.fishCompResultBannerUrl,
-    keyForExtension: (extension) => settingsImageContentKeyFor("fish-comp-result-banner", extension)
+    keyForExtension: (extension) => settingsImageContentKeyFor("fish-comp-result-banner", extension),
+    forceRehost: cleanSettingsValue.fishCompResultBannerUrlNeedsRehost
   });
   const fishRaidBanner = await saveContentImage({
     currentUrl: cleanSettingsValue.fishRaidBannerUrl,
     currentRef: cleanSettingsValue.fishRaidBannerRef,
     dataUrl: cleanSettingsValue.fishRaidBannerBase64,
     sourceUrl: cleanSettingsValue.fishRaidBannerUrl,
-    keyForExtension: (extension) => settingsImageContentKeyFor("fish-raid-banner", extension)
+    keyForExtension: (extension) => settingsImageContentKeyFor("fish-raid-banner", extension),
+    forceRehost: cleanSettingsValue.fishRaidBannerUrlNeedsRehost
   });
   const fishRaidRegistrationBanner = await saveContentImage({
     currentUrl: cleanSettingsValue.fishRaidRegistrationBannerUrl,
     currentRef: cleanSettingsValue.fishRaidRegistrationBannerRef,
     dataUrl: cleanSettingsValue.fishRaidRegistrationBannerBase64,
     sourceUrl: cleanSettingsValue.fishRaidRegistrationBannerUrl,
-    keyForExtension: (extension) => settingsImageContentKeyFor("fish-raid-registration-banner", extension)
+    keyForExtension: (extension) => settingsImageContentKeyFor("fish-raid-registration-banner", extension),
+    forceRehost: cleanSettingsValue.fishRaidRegistrationBannerUrlNeedsRehost
   });
   const fishRaidRunningBanner = await saveContentImage({
     currentUrl: cleanSettingsValue.fishRaidRunningBannerUrl,
     currentRef: cleanSettingsValue.fishRaidRunningBannerRef,
     dataUrl: cleanSettingsValue.fishRaidRunningBannerBase64,
     sourceUrl: cleanSettingsValue.fishRaidRunningBannerUrl,
-    keyForExtension: (extension) => settingsImageContentKeyFor("fish-raid-running-banner", extension)
+    keyForExtension: (extension) => settingsImageContentKeyFor("fish-raid-running-banner", extension),
+    forceRehost: cleanSettingsValue.fishRaidRunningBannerUrlNeedsRehost
   });
   const fishRaidResultBanner = await saveContentImage({
     currentUrl: cleanSettingsValue.fishRaidResultBannerUrl,
     currentRef: cleanSettingsValue.fishRaidResultBannerRef,
     dataUrl: cleanSettingsValue.fishRaidResultBannerBase64,
     sourceUrl: cleanSettingsValue.fishRaidResultBannerUrl,
-    keyForExtension: (extension) => settingsImageContentKeyFor("fish-raid-result-banner", extension)
+    keyForExtension: (extension) => settingsImageContentKeyFor("fish-raid-result-banner", extension),
+    forceRehost: cleanSettingsValue.fishRaidResultBannerUrlNeedsRehost
   });
   const fishDuelRegistrationBanner = await saveContentImage({
     currentUrl: cleanSettingsValue.fishDuelRegistrationBannerUrl,
     currentRef: cleanSettingsValue.fishDuelRegistrationBannerRef,
     dataUrl: cleanSettingsValue.fishDuelRegistrationBannerBase64,
     sourceUrl: cleanSettingsValue.fishDuelRegistrationBannerUrl,
-    keyForExtension: (extension) => settingsImageContentKeyFor("fish-duel-registration-banner", extension)
+    keyForExtension: (extension) => settingsImageContentKeyFor("fish-duel-registration-banner", extension),
+    forceRehost: cleanSettingsValue.fishDuelRegistrationBannerUrlNeedsRehost
   });
   const fishDuelRunningBanner = await saveContentImage({
     currentUrl: cleanSettingsValue.fishDuelRunningBannerUrl,
     currentRef: cleanSettingsValue.fishDuelRunningBannerRef,
     dataUrl: cleanSettingsValue.fishDuelRunningBannerBase64,
     sourceUrl: cleanSettingsValue.fishDuelRunningBannerUrl,
-    keyForExtension: (extension) => settingsImageContentKeyFor("fish-duel-running-banner", extension)
+    keyForExtension: (extension) => settingsImageContentKeyFor("fish-duel-running-banner", extension),
+    forceRehost: cleanSettingsValue.fishDuelRunningBannerUrlNeedsRehost
   });
   const fishDuelResultBanner = await saveContentImage({
     currentUrl: cleanSettingsValue.fishDuelResultBannerUrl,
     currentRef: cleanSettingsValue.fishDuelResultBannerRef,
     dataUrl: cleanSettingsValue.fishDuelResultBannerBase64,
     sourceUrl: cleanSettingsValue.fishDuelResultBannerUrl,
-    keyForExtension: (extension) => settingsImageContentKeyFor("fish-duel-result-banner", extension)
+    keyForExtension: (extension) => settingsImageContentKeyFor("fish-duel-result-banner", extension),
+    forceRehost: cleanSettingsValue.fishDuelResultBannerUrlNeedsRehost
   });
   const fishGuideBanner = await saveContentImage({
     currentUrl: cleanSettingsValue.fishGuideBannerUrl,
     currentRef: cleanSettingsValue.fishGuideBannerRef,
     dataUrl: cleanSettingsValue.fishGuideBannerBase64,
     sourceUrl: cleanSettingsValue.fishGuideBannerUrl,
-    keyForExtension: (extension) => settingsImageContentKeyFor("fish-guide-banner", extension)
+    keyForExtension: (extension) => settingsImageContentKeyFor("fish-guide-banner", extension),
+    forceRehost: cleanSettingsValue.fishGuideBannerUrlNeedsRehost
   });
   const fishHelpBanner = await saveContentImage({
     currentUrl: cleanSettingsValue.fishHelpBannerUrl,
     currentRef: cleanSettingsValue.fishHelpBannerRef,
     dataUrl: cleanSettingsValue.fishHelpBannerBase64,
     sourceUrl: cleanSettingsValue.fishHelpBannerUrl,
-    keyForExtension: (extension) => settingsImageContentKeyFor("fish-help-banner", extension)
+    keyForExtension: (extension) => settingsImageContentKeyFor("fish-help-banner", extension),
+    forceRehost: cleanSettingsValue.fishHelpBannerUrlNeedsRehost
   });
   const sellFishBanner = await saveContentImage({
     currentUrl: cleanSettingsValue.sellFishBannerUrl,
     currentRef: cleanSettingsValue.sellFishBannerRef,
     dataUrl: cleanSettingsValue.sellFishBannerBase64,
     sourceUrl: cleanSettingsValue.sellFishBannerUrl,
-    keyForExtension: (extension) => settingsImageContentKeyFor("sell-fish-banner", extension)
+    keyForExtension: (extension) => settingsImageContentKeyFor("sell-fish-banner", extension),
+    forceRehost: cleanSettingsValue.sellFishBannerUrlNeedsRehost
   });
   const eventBannerCache = new Map();
   async function saveEventBanner(event) {
@@ -1596,7 +1697,8 @@ async function adminSaveGameData({ fish, rods, fishBags, adminDiscordIds, settin
       legacyContentKey: event.bannerContentKey,
       dataUrl: event.bannerBase64,
       sourceUrl: event.bannerUrl,
-      keyForExtension: (extension) => eventContentKeyFor(event.id, extension)
+      keyForExtension: (extension) => eventContentKeyFor(event.id, extension),
+      forceRehost: event.bannerUrlNeedsRehost
     });
     if (cacheKey) {
       eventBannerCache.set(cacheKey, savedBanner);
@@ -1622,7 +1724,8 @@ async function adminSaveGameData({ fish, rods, fishBags, adminDiscordIds, settin
       legacyContentKey: routine.bannerContentKey,
       dataUrl: routine.bannerBase64,
       sourceUrl: routine.bannerUrl,
-      keyForExtension: (extension) => settingsImageContentKeyFor(`routine-message-${routine.id}-banner`, extension)
+      keyForExtension: (extension) => settingsImageContentKeyFor(`routine-message-${routine.id}-banner`, extension),
+      forceRehost: routine.bannerUrlNeedsRehost
     });
     cleanRoutineMessagesWithUrls.push({
       ...routine,
@@ -1638,7 +1741,8 @@ async function adminSaveGameData({ fish, rods, fishBags, adminDiscordIds, settin
       legacyContentKey: item.iconContentKey,
       dataUrl: item.iconBase64,
       sourceUrl: item.iconUrl,
-      keyForExtension: (extension) => iconContentKeyFor("fish", item.id, extension)
+      keyForExtension: (extension) => iconContentKeyFor("fish", item.id, extension),
+      forceRehost: item.iconNeedsRehost
     });
     cleanFishWithUrls.push({
       ...item,
@@ -1654,7 +1758,8 @@ async function adminSaveGameData({ fish, rods, fishBags, adminDiscordIds, settin
       legacyContentKey: item.iconContentKey,
       dataUrl: item.iconBase64,
       sourceUrl: item.iconUrl,
-      keyForExtension: (extension) => iconContentKeyFor("rod", item.id, extension)
+      keyForExtension: (extension) => iconContentKeyFor("rod", item.id, extension),
+      forceRehost: item.iconNeedsRehost
     });
     cleanRodsWithUrls.push({
       ...item,
@@ -1670,7 +1775,8 @@ async function adminSaveGameData({ fish, rods, fishBags, adminDiscordIds, settin
       legacyContentKey: item.iconContentKey,
       dataUrl: item.iconBase64,
       sourceUrl: item.iconUrl,
-      keyForExtension: (extension) => iconContentKeyFor("fish-bag", item.id, extension)
+      keyForExtension: (extension) => iconContentKeyFor("fish-bag", item.id, extension),
+      forceRehost: item.iconNeedsRehost
     });
     cleanFishBagsWithUrls.push({
       ...item,
@@ -1726,20 +1832,25 @@ async function adminSaveGameData({ fish, rods, fishBags, adminDiscordIds, settin
     routineMessages: cleanRoutineMessagesWithUrls
   });
 
-  await saveTitleAsset(titleDataKeys.fish, JSON.stringify(withoutIcons(cleanFishWithUrls, "fish")));
-  await saveTitleAsset(titleDataKeys.rods, JSON.stringify(withoutIcons(cleanRodsWithUrls, "rod")));
-  await saveTitleAsset(titleDataKeys.fishBags, JSON.stringify(withoutIcons(cleanFishBagsWithUrls, "fish-bag")));
-  await saveTitleAsset(titleDataKeys.config, JSON.stringify(cleanConfig));
+  const storedFish = preferDiscordMessageReferences(withoutIcons(cleanFishWithUrls, "fish"));
+  const storedRods = preferDiscordMessageReferences(withoutIcons(cleanRodsWithUrls, "rod"));
+  const storedFishBags = preferDiscordMessageReferences(withoutIcons(cleanFishBagsWithUrls, "fish-bag"));
+  const storedConfig = preferDiscordMessageReferences(cleanConfig);
+
+  await saveTitleAsset(titleDataKeys.fish, JSON.stringify(storedFish));
+  await saveTitleAsset(titleDataKeys.rods, JSON.stringify(storedRods));
+  await saveTitleAsset(titleDataKeys.fishBags, JSON.stringify(storedFishBags));
+  await saveTitleAsset(titleDataKeys.config, JSON.stringify(storedConfig));
 
   return {
-    fish: withoutIcons(cleanFishWithUrls, "fish"),
-    rods: withoutIcons(cleanRodsWithUrls, "rod"),
-    fishBags: withoutIcons(cleanFishBagsWithUrls, "fish-bag"),
-    adminDiscordIds: cleanConfig.adminDiscordIds,
-    settings: cleanConfig.settings,
-    activeEvent: cleanConfig.activeEvent,
-    events: cleanConfig.events,
-    routineMessages: cleanConfig.routineMessages
+    fish: storedFish,
+    rods: storedRods,
+    fishBags: storedFishBags,
+    adminDiscordIds: storedConfig.adminDiscordIds,
+    settings: storedConfig.settings,
+    activeEvent: storedConfig.activeEvent,
+    events: storedConfig.events,
+    routineMessages: storedConfig.routineMessages
   };
 }
 
