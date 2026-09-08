@@ -1,5 +1,5 @@
 {
-  "savedAt": "2026-09-08T03:38:05.409Z",
+  "savedAt": "2026-09-08T08:23:31.604Z",
   "activeEvents": {
     "1788584488170:start:2026-09-05T05:02:11.359Z": {
       "eventId": "1788584488170",
@@ -35,6 +35,13 @@
       "guildId": "891474628122394634",
       "channelId": "891474628122394637",
       "markedAt": "2026-09-07T09:35:10.325Z"
+    },
+    "1788855731742:start:2026-09-08T08:23:14.234Z": {
+      "eventId": "1788855731742",
+      "title": "Listrik gw mati bjir tadi",
+      "guildId": "891474628122394634",
+      "channelId": "891474628122394637",
+      "markedAt": "2026-09-08T08:23:31.604Z"
     }
   },
   "endedEvents": {
@@ -221,6 +228,13 @@
       "triggerKey": "891474628122394634:29813978",
       "channelId": "891474628122394637",
       "markedAt": "2026-09-08T03:38:05.409Z"
+    },
+    "fishraid_cooldown_ready_reminder:891474628122394634:891474628122394634:fishraid_cooldown_ready:1788842368307": {
+      "routineId": "fishraid_cooldown_ready_reminder",
+      "guildId": "891474628122394634",
+      "triggerKey": "891474628122394634:fishraid_cooldown_ready:1788842368307",
+      "channelId": "891474628122394637",
+      "markedAt": "2026-09-08T05:50:06.893Z"
     }
   }
 }

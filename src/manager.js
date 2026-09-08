@@ -5,11 +5,12 @@ const fs = require("node:fs");
 const path = require("node:path");
 const {
   adminDeletePlayer,
+  adminGetManagerTabData,
   adminGetGameData,
   adminGetPlayerRecord,
   adminListPlayers,
   adminResetPlayerData,
-  adminSaveGameData,
+  adminSaveManagerTabData,
   adminSavePlayerData,
   makeDefaultPlayer
 } = require("./playfab");
@@ -712,6 +713,34 @@ function cleanData(data) {
   };
 }
 
+function cleanTabData(tab, data) {
+  if (tab === "fish") {
+    const fish = (Array.isArray(data.fish) ? data.fish : []).map((item) => cleanItem(item, "fish"));
+    assertUniqueItemIds(fish, "fish");
+    return { fish };
+  }
+  if (tab === "rods") {
+    const rods = (Array.isArray(data.rods) ? data.rods : []).map((item) => cleanItem(item, "rod"));
+    assertUniqueItemIds(rods, "rod");
+    return { rods };
+  }
+  if (tab === "fishBags") {
+    const fishBags = (Array.isArray(data.fishBags) ? data.fishBags : []).map((item) => cleanItem(item, "fishBag"));
+    assertUniqueItemIds(fishBags, "fish bag");
+    return { fishBags };
+  }
+  if (tab === "admin") {
+    return { adminDiscordIds: [...new Set((Array.isArray(data.adminDiscordIds) ? data.adminDiscordIds : []).map((id) => String(id || "").trim()).filter(Boolean))] };
+  }
+  if (tab === "settings") return { settings: cleanSettings(data.settings) };
+  if (tab === "event") {
+    const activeEvent = cleanEvent(data.activeEvent);
+    return { activeEvent, events: cleanEvents(data.events, activeEvent) };
+  }
+  if (tab === "routine") return { routineMessages: cleanRoutineMessages(data.routineMessages) };
+  throw new Error(`The ${tab} tab does not have editable data.`);
+}
+
 function assertUniqueItemIds(items, type) {
   const seen = new Set();
   for (const item of items) {
@@ -847,8 +876,13 @@ async function handleApi(request, response) {
       return;
     }
 
-    if (request.method === "GET" && request.url === "/api/data") {
-      sendJson(response, 200, await adminGetGameData({ caller: "manager /api/data load" }));
+    if (request.method === "GET" && requestUrl.pathname === "/api/data") {
+      const tab = String(requestUrl.searchParams.get("tab") || "").trim();
+      if (!tab) {
+        sendJson(response, 200, await adminGetGameData({ caller: "legacy manager /api/data load" }));
+        return;
+      }
+      sendJson(response, 200, await adminGetManagerTabData(tab, { caller: `manager ${tab} tab load` }));
       return;
     }
 
@@ -1110,16 +1144,21 @@ async function handleApi(request, response) {
       return;
     }
 
-    if (request.method === "POST" && request.url === "/api/data") {
-      const data = cleanData(JSON.parse(await readBody(request)));
-      const savedData = await adminSaveGameData(data);
+    if (request.method === "POST" && requestUrl.pathname === "/api/data") {
+      const tab = String(requestUrl.searchParams.get("tab") || "").trim();
+      const body = JSON.parse(await readBody(request));
+      if (!tab) {
+        sendJson(response, 409, { error: "This manager page is outdated. Reload it before saving; whole-manager saves are disabled to protect unrelated tabs." });
+        return;
+      }
+      const savedData = await adminSaveManagerTabData(tab, cleanTabData(tab, body));
       signalBotConfigRefresh();
       sendJson(response, 200, { ok: true, ...savedData });
       return;
     }
 
     if (request.method === "POST" && request.url === "/api/event/deploy") {
-      const data = cleanData(JSON.parse(await readBody(request)));
+      const data = cleanTabData("event", JSON.parse(await readBody(request)));
       const deployedEvent = {
         ...(data.activeEvent || cleanEvent({})),
         id: data.activeEvent?.id || String(Date.now()),
@@ -1133,41 +1172,41 @@ async function handleApi(request, response) {
         ...(data.events || []).filter((event) => event.id !== deployedEvent.id)
       ];
       data.activeEvent = deployedEvent;
-      await adminSaveGameData(data);
+      const saved = await adminSaveManagerTabData("event", data);
       signalBotConfigRefresh();
-      sendJson(response, 200, { ok: true, activeEvent: data.activeEvent, events: data.events });
+      sendJson(response, 200, { ok: true, activeEvent: saved.activeEvent, events: saved.events });
       return;
     }
 
     if (request.method === "POST" && request.url === "/api/event/stop") {
       const body = JSON.parse(await readBody(request));
-      const current = await adminGetGameData({ caller: "manager event deploy" });
+      const current = await adminGetManagerTabData("event", { caller: "manager event stop" });
       const now = new Date().toISOString();
       const events = cleanEvents(current.events, current.activeEvent).map((event) => (
         event.id === String(body.id || "") ? { ...event, endsAt: now, stoppedAt: now } : event
       ));
       const activeEvent = events.find((event) => event.id === current.activeEvent?.id) || current.activeEvent || null;
-      await adminSaveGameData({ ...current, events, activeEvent });
+      const saved = await adminSaveManagerTabData("event", { events, activeEvent });
       signalBotConfigRefresh();
-      sendJson(response, 200, { ok: true, activeEvent, events });
+      sendJson(response, 200, { ok: true, activeEvent: saved.activeEvent, events: saved.events });
       return;
     }
 
     if (request.method === "POST" && request.url === "/api/event/remove") {
       const body = JSON.parse(await readBody(request));
-      const current = await adminGetGameData({ caller: "manager event stop" });
+      const current = await adminGetManagerTabData("event", { caller: "manager event remove" });
       const eventId = String(body.id || "");
       const events = cleanEvents(current.events, current.activeEvent).filter((event) => event.id !== eventId);
       const activeEvent = current.activeEvent?.id === eventId ? null : current.activeEvent || null;
-      await adminSaveGameData({ ...current, events, activeEvent });
+      const saved = await adminSaveManagerTabData("event", { events, activeEvent });
       signalBotConfigRefresh();
-      sendJson(response, 200, { ok: true, activeEvent, events });
+      sendJson(response, 200, { ok: true, activeEvent: saved.activeEvent, events: saved.events });
       return;
     }
 
     if (request.method === "POST" && request.url === "/api/routine/deploy") {
       const body = JSON.parse(await readBody(request));
-      const data = cleanData(body);
+      const data = cleanTabData("routine", body);
       const routine = cleanRoutineMessage(body.routineDraft);
       if (!routine) {
         sendJson(response, 400, { error: "Routine message is not valid." });
@@ -1177,7 +1216,7 @@ async function handleApi(request, response) {
         { ...routine, id: routine.id || String(Date.now()) },
         ...(data.routineMessages || []).filter((entry) => entry.id !== routine.id)
       ];
-      const savedData = await adminSaveGameData({ ...data, routineMessages });
+      const savedData = await adminSaveManagerTabData("routine", { routineMessages });
       signalBotConfigRefresh();
       sendJson(response, 200, { ok: true, routineMessages: savedData.routineMessages || routineMessages });
       return;
@@ -1185,25 +1224,25 @@ async function handleApi(request, response) {
 
     if (request.method === "POST" && request.url === "/api/routine/remove") {
       const body = JSON.parse(await readBody(request));
-      const current = await adminGetGameData({ caller: "manager routine deploy" });
+      const current = await adminGetManagerTabData("routine", { caller: "manager routine remove" });
       const routineId = String(body.id || "");
       const routineMessages = cleanRoutineMessages(current.routineMessages).filter((routine) => routine.id !== routineId);
-      await adminSaveGameData({ ...current, routineMessages });
+      await adminSaveManagerTabData("routine", { routineMessages });
       signalBotConfigRefresh();
       sendJson(response, 200, { ok: true, routineMessages });
       return;
     }
 
-    if (request.method === "POST" && request.url === "/api/seed") {
-      const current = await adminGetGameData({ caller: "manager routine remove" });
-      const adminDiscordIds = current.adminDiscordIds || [];
-      const settings = current.settings || {};
-      const activeEvent = current.activeEvent || null;
-      const events = current.events || [];
-      const routineMessages = current.routineMessages || [];
-      await adminSaveGameData({ fish: defaultFish, rods: defaultRods, fishBags: defaultFishBags, adminDiscordIds, settings, activeEvent, events, routineMessages });
+    if (request.method === "POST" && requestUrl.pathname === "/api/seed") {
+      const tab = String(requestUrl.searchParams.get("tab") || "").trim();
+      const defaults = tab === "fish" ? { fish: defaultFish }
+        : tab === "rods" ? { rods: defaultRods }
+          : tab === "fishBags" ? { fishBags: defaultFishBags }
+            : null;
+      if (!defaults) throw new Error("Defaults are available only for Fish, Rods, and Fish Bags.");
+      const saved = await adminSaveManagerTabData(tab, defaults);
       signalBotConfigRefresh();
-      sendJson(response, 200, { ok: true, fish: defaultFish, rods: defaultRods, fishBags: defaultFishBags, adminDiscordIds, settings, activeEvent, events, routineMessages });
+      sendJson(response, 200, { ok: true, ...saved });
       return;
     }
 
@@ -1267,6 +1306,42 @@ const html = `<!doctype html>
       flex-wrap: wrap;
       align-items: center;
     }
+    .tab-toolbar {
+      margin-top: 10px;
+      padding: 10px;
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      background: var(--panel);
+    }
+    .loading-screen {
+      position: fixed;
+      inset: 0;
+      z-index: 100;
+      display: none;
+      place-items: center;
+      background: rgba(5, 8, 12, 0.86);
+      backdrop-filter: blur(3px);
+    }
+    .loading-screen.active { display: grid; }
+    .loading-card {
+      min-width: min(360px, calc(100vw - 40px));
+      padding: 24px;
+      border: 1px solid var(--line);
+      border-radius: 10px;
+      background: var(--panel);
+      text-align: center;
+      box-shadow: 0 24px 80px rgba(0, 0, 0, 0.5);
+    }
+    .spinner {
+      width: 34px;
+      height: 34px;
+      margin: 0 auto 14px;
+      border: 4px solid var(--line);
+      border-top-color: var(--accent);
+      border-radius: 50%;
+      animation: spin 0.8s linear infinite;
+    }
+    @keyframes spin { to { transform: rotate(360deg); } }
     button {
       border: 1px solid var(--line);
       background: var(--panel-2);
@@ -1677,11 +1752,6 @@ const html = `<!doctype html>
 <body>
   <header>
     <h1>TR Fishing Manager</h1>
-    <div class="toolbar">
-      <button id="load">Load</button>
-      <button id="seed">Seed Defaults</button>
-      <button class="primary" id="save">Save</button>
-    </div>
   </header>
   <main>
     <p class="notice">Manage fish, rods, and fish bags here. Images are uploaded to the Discord storage channel on save. PlayFab stores game data and the saved image URLs.</p>
@@ -1696,9 +1766,18 @@ const html = `<!doctype html>
       <button data-tab="routine">Routine Message</button>
       <button data-tab="players">Player Management</button>
     </div>
+    <div class="toolbar tab-toolbar">
+      <button id="load">Reload This Tab</button>
+      <button id="seed">Seed This Tab’s Defaults</button>
+      <button class="primary" id="save">Save This Tab</button>
+      <span class="small" id="tab-save-note">Only this tab’s data will be changed.</span>
+    </div>
     <p class="status" id="status"></p>
     <section class="grid" id="grid"></section>
   </main>
+  <div class="loading-screen" id="loading-screen" role="status" aria-live="polite" aria-busy="true">
+    <div class="loading-card"><div class="spinner"></div><strong id="loading-message">Loading data…</strong></div>
+  </div>
   <script>
     const state = {
       tab: "fish",
@@ -1711,6 +1790,8 @@ const html = `<!doctype html>
       activeEvent: null,
       events: [],
       routineMessages: [],
+      loadedTabs: {},
+      processing: false,
       eventDraft: null,
       routineDraft: null,
       selectedFishId: "",
@@ -1754,6 +1835,47 @@ const html = `<!doctype html>
     function setStatus(message, isError = false) {
       statusEl.textContent = message;
       statusEl.style.color = isError ? "var(--danger)" : "var(--muted)";
+    }
+
+    const editableTabs = new Set(["fish", "rods", "fishBags", "admin", "settings", "event", "routine"]);
+    const seedableTabs = new Set(["fish", "rods", "fishBags"]);
+
+    function setProcessing(processing, message = "Processing data…") {
+      state.processing = processing;
+      document.querySelector("#loading-message").textContent = message;
+      document.querySelector("#loading-screen").classList.toggle("active", processing);
+      document.querySelectorAll("button, input, textarea, select").forEach((element) => {
+        if (processing) element.setAttribute("data-processing-disabled", element.disabled ? "already" : "temporary");
+        if (processing) element.disabled = true;
+        else if (element.dataset.processingDisabled === "temporary") element.disabled = false;
+        if (!processing) delete element.dataset.processingDisabled;
+      });
+    }
+
+    async function runWithLoading(message, work) {
+      if (state.processing) return;
+      setProcessing(true, message);
+      try {
+        return await work();
+      } finally {
+        setProcessing(false);
+        updateTabToolbar();
+      }
+    }
+
+    function updateTabToolbar() {
+      const editable = editableTabs.has(state.tab);
+      const loaded = Boolean(state.loadedTabs[state.tab]);
+      const saveButton = document.querySelector("#save");
+      const seedButton = document.querySelector("#seed");
+      if (!saveButton || !seedButton) return;
+      saveButton.hidden = !editable;
+      saveButton.disabled = state.processing || !loaded;
+      seedButton.hidden = !seedableTabs.has(state.tab);
+      seedButton.disabled = state.processing || !loaded;
+      document.querySelector("#tab-save-note").textContent = editable
+        ? loaded ? "Only this tab’s data will be changed." : "Load must finish before this tab can be saved."
+        : "This tab is read-only and loads its required data independently.";
     }
 
     function iconSize(item) {
@@ -1910,6 +2032,7 @@ const html = `<!doctype html>
       document.querySelectorAll("[data-tab]").forEach((button) => {
         button.classList.toggle("active", button.dataset.tab === state.tab);
       });
+      updateTabToolbar();
       grid.innerHTML = "";
 
       if (state.tab === "players") {
@@ -3502,52 +3625,81 @@ const html = `<!doctype html>
       reader.readAsText(file);
     }
 
-    async function loadData() {
-      setStatus("Loading from PlayFab...");
-      const response = await fetch("/api/data");
-      const payload = await response.json();
-      if (!response.ok) throw new Error(payload.error || "Could not load data.");
-      state.fish = payload.fish || [];
-      state.rods = payload.rods || [];
-      state.fishBags = payload.fishBags || [];
-      state.adminDiscordIds = payload.adminDiscordIds || [];
-      state.settings = payload.settings || state.settings;
-      state.activeEvent = payload.activeEvent || null;
-      state.events = payload.events || (payload.activeEvent ? [payload.activeEvent] : []);
-      state.routineMessages = payload.routineMessages || [];
-      state.eventDraft = null;
-      state.routineDraft = null;
-      state.fishPage = 1;
-      state.selectedFishId = state.fish[0]?.id || "";
-      state.selectedRodId = state.rods[0]?.id || "";
-      state.selectedFishBagId = state.fishBags[0]?.id || "";
-      state.selectedRaidBossId = state.settings.fishRaidBosses?.[0]?.id || "";
-      state.calcRodId = state.rods[0]?.id || "";
+    function applyTabPayload(tab, payload) {
+      if (Array.isArray(payload.fish)) state.fish = payload.fish;
+      if (Array.isArray(payload.rods)) state.rods = payload.rods;
+      if (Array.isArray(payload.fishBags)) state.fishBags = payload.fishBags;
+      if (Array.isArray(payload.adminDiscordIds)) state.adminDiscordIds = payload.adminDiscordIds;
+      if (payload.settings) state.settings = payload.settings;
+      if (tab === "event") {
+        state.activeEvent = payload.activeEvent || null;
+        state.events = Array.isArray(payload.events) ? payload.events : [];
+        state.eventDraft = null;
+      }
+      if (tab === "routine") {
+        state.routineMessages = Array.isArray(payload.routineMessages) ? payload.routineMessages : [];
+        state.routineDraft = null;
+      }
+      state.selectedFishId = state.fish.some((item) => item.id === state.selectedFishId) ? state.selectedFishId : state.fish[0]?.id || "";
+      state.selectedRodId = state.rods.some((item) => item.id === state.selectedRodId) ? state.selectedRodId : state.rods[0]?.id || "";
+      state.selectedFishBagId = state.fishBags.some((item) => item.id === state.selectedFishBagId) ? state.selectedFishBagId : state.fishBags[0]?.id || "";
+      state.selectedRaidBossId = state.settings.fishRaidBosses?.some((boss) => boss.id === state.selectedRaidBossId) ? state.selectedRaidBossId : state.settings.fishRaidBosses?.[0]?.id || "";
+      state.calcRodId = state.rods.some((rod) => rod.id === state.calcRodId) ? state.calcRodId : state.rods[0]?.id || "";
       state.lastAnnouncementChannelId = state.activeEvent?.announcementChannelId || state.events[0]?.announcementChannelId || state.lastAnnouncementChannelId;
       if (state.lastAnnouncementChannelId) localStorage.setItem("trfishing:lastAnnouncementChannelId", state.lastAnnouncementChannelId);
-      setStatus("Loaded from PlayFab.");
-      render();
     }
 
-    async function saveData() {
-      setStatus("Saving to PlayFab...");
-      const response = await fetch("/api/data", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ fish: state.fish, rods: state.rods, fishBags: state.fishBags, adminDiscordIds: state.adminDiscordIds, settings: state.settings, activeEvent: state.activeEvent, events: state.events, routineMessages: state.routineMessages })
+    async function loadData(tab = state.tab, force = true) {
+      if (!force && state.loadedTabs[tab]) return;
+      state.loadedTabs[tab] = false;
+      updateTabToolbar();
+      await runWithLoading("Loading " + tab + " data…", async () => {
+        setStatus("Loading " + tab + " from PlayFab...");
+        const response = await fetch("/api/data?tab=" + encodeURIComponent(tab));
+        const payload = await response.json();
+        if (!response.ok) throw new Error(payload.error || "Could not load this tab.");
+        applyTabPayload(tab, payload);
+        state.loadedTabs[tab] = true;
+        if (tab === "players") await loadPlayers();
+        setStatus("Loaded " + tab + " from PlayFab.");
+        render();
       });
-      const payload = await response.json();
-      if (!response.ok) throw new Error(payload.error || "Could not save data.");
-      state.fish = payload.fish || state.fish;
-      state.rods = payload.rods || state.rods;
-      state.fishBags = payload.fishBags || state.fishBags;
-      state.adminDiscordIds = payload.adminDiscordIds || state.adminDiscordIds;
-      state.settings = payload.settings || state.settings;
-      state.activeEvent = payload.activeEvent || null;
-      state.events = payload.events || (state.activeEvent ? [state.activeEvent] : state.events);
-      state.routineMessages = payload.routineMessages || state.routineMessages;
-      setStatus("Saved. The bot will refresh automatically, or restart the bot to apply immediately.");
-      render();
+    }
+
+    function currentTabPayload(tab) {
+      if (tab === "fish") return { fish: state.fish };
+      if (tab === "rods") return { rods: state.rods };
+      if (tab === "fishBags") return { fishBags: state.fishBags };
+      if (tab === "admin") return { adminDiscordIds: state.adminDiscordIds };
+      if (tab === "settings") return { settings: state.settings };
+      if (tab === "event") return { activeEvent: state.activeEvent, events: state.events };
+      if (tab === "routine") return { routineMessages: state.routineMessages };
+      throw new Error("This tab has no editable data.");
+    }
+
+    async function saveData(tab = state.tab) {
+      if (!state.loadedTabs[tab]) throw new Error("This tab has not finished loading, so it cannot be saved.");
+      const collection = tab === "fish" ? state.fish
+        : tab === "rods" ? state.rods
+          : tab === "fishBags" ? state.fishBags
+            : tab === "admin" ? state.adminDiscordIds
+              : tab === "event" ? state.events
+                : tab === "routine" ? state.routineMessages
+                  : null;
+      if (Array.isArray(collection) && collection.length === 0 && !confirm("This will save an empty " + tab + " tab. Continue?")) return;
+      await runWithLoading("Saving " + tab + " data…", async () => {
+        setStatus("Saving only " + tab + " to PlayFab...");
+        const response = await fetch("/api/data?tab=" + encodeURIComponent(tab), {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(currentTabPayload(tab))
+        });
+        const payload = await response.json();
+        if (!response.ok) throw new Error(payload.error || "Could not save this tab.");
+        applyTabPayload(tab, payload);
+        setStatus("Saved " + tab + ". No other tab was changed.");
+        render();
+      });
     }
 
     async function loadPlayers() {
@@ -3819,7 +3971,7 @@ const html = `<!doctype html>
       const response = await fetch("/api/event/deploy", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ fish: state.fish, rods: state.rods, adminDiscordIds: state.adminDiscordIds, settings: state.settings, activeEvent: eventState, events: state.events })
+        body: JSON.stringify({ activeEvent: eventState, events: state.events })
       });
       const payload = await response.json();
       if (!response.ok) throw new Error(payload.error || "Could not deploy event.");
@@ -3868,7 +4020,7 @@ const html = `<!doctype html>
       const response = await fetch("/api/routine/deploy", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ fish: state.fish, rods: state.rods, adminDiscordIds: state.adminDiscordIds, settings: state.settings, activeEvent: state.activeEvent, events: state.events, routineMessages: state.routineMessages, routineDraft: routine })
+        body: JSON.stringify({ routineMessages: state.routineMessages, routineDraft: routine })
       });
       const payload = await response.json();
       if (!response.ok) throw new Error(payload.error || "Could not deploy routine message.");
@@ -3876,7 +4028,7 @@ const html = `<!doctype html>
       state.routineDraft = null;
       state.createModal = null;
       delete state.uploadNames.routineBanner;
-      setStatus("Routine message deployed. The bot is being refreshed now.");
+      setStatus("Routine message deployed. Fish bags and other tabs were not changed.");
       render();
     }
 
@@ -3895,35 +4047,30 @@ const html = `<!doctype html>
     }
 
     async function seedData() {
-      if (!confirm("Replace PlayFab item data with the default fish and rods?")) return;
-      setStatus("Saving defaults to PlayFab...");
-      const response = await fetch("/api/seed", { method: "POST" });
-      const payload = await response.json();
-      if (!response.ok) throw new Error(payload.error || "Could not seed data.");
-      state.fish = payload.fish || [];
-      state.rods = payload.rods || [];
-      state.adminDiscordIds = payload.adminDiscordIds || [];
-      state.settings = payload.settings || state.settings;
-      state.activeEvent = payload.activeEvent || null;
-      state.events = payload.events || (payload.activeEvent ? [payload.activeEvent] : []);
-      state.routineMessages = payload.routineMessages || state.routineMessages;
-      state.eventDraft = null;
-      state.routineDraft = null;
-      state.fishPage = 1;
-      setStatus("Defaults saved to PlayFab.");
-      render();
+      const tab = state.tab;
+      if (!seedableTabs.has(tab)) throw new Error("This tab does not have seed defaults.");
+      if (!confirm("Replace only the " + tab + " data with defaults?")) return;
+      await runWithLoading("Saving " + tab + " defaults…", async () => {
+        setStatus("Saving " + tab + " defaults to PlayFab...");
+        const response = await fetch("/api/seed?tab=" + encodeURIComponent(tab), { method: "POST" });
+        const payload = await response.json();
+        if (!response.ok) throw new Error(payload.error || "Could not seed this tab.");
+        applyTabPayload(tab, payload);
+        state.loadedTabs[tab] = true;
+        state.fishPage = 1;
+        setStatus("Defaults saved for " + tab + ". No other tab was changed.");
+        render();
+      });
     }
 
-    document.querySelector("#load").addEventListener("click", () => loadData().catch((error) => setStatus(error.message, true)));
+    document.querySelector("#load").addEventListener("click", () => loadData(state.tab, true).catch((error) => setStatus(error.message, true)));
     document.querySelector("#save").addEventListener("click", () => saveData().catch((error) => setStatus(error.message, true)));
     document.querySelector("#seed").addEventListener("click", () => seedData().catch((error) => setStatus(error.message, true)));
     document.querySelectorAll("[data-tab]").forEach((button) => {
       button.addEventListener("click", () => {
         state.tab = button.dataset.tab;
         render();
-        if (state.tab === "players" && state.players.length === 0) {
-          loadPlayers().catch((error) => setStatus(error.message, true));
-        }
+        loadData(state.tab, false).catch((error) => setStatus(error.message, true));
       });
     });
     grid.addEventListener("input", (event) => {
@@ -4647,13 +4794,13 @@ const html = `<!doctype html>
       }
       const stopEventButton = event.target.closest("[data-stop-event]");
       if (stopEventButton) {
-        stopEvent(stopEventButton.dataset.stopEvent).catch((error) => setStatus(error.message, true));
+        runWithLoading("Stopping event…", () => stopEvent(stopEventButton.dataset.stopEvent)).catch((error) => setStatus(error.message, true));
         return;
       }
       const removeEventButton = event.target.closest("[data-remove-event]");
       if (removeEventButton) {
         if (!confirm("Remove this event from the manager?")) return;
-        removeEvent(removeEventButton.dataset.removeEvent).catch((error) => setStatus(error.message, true));
+        runWithLoading("Removing event…", () => removeEvent(removeEventButton.dataset.removeEvent)).catch((error) => setStatus(error.message, true));
         return;
       }
       if (event.target.closest("[data-add-bonus]")) {
@@ -4670,7 +4817,7 @@ const html = `<!doctype html>
         return;
       }
       if (event.target.closest("[data-deploy-event]")) {
-        deployEventData().catch((error) => setStatus(error.message, true));
+        runWithLoading("Deploying event…", deployEventData).catch((error) => setStatus(error.message, true));
         return;
       }
       if (event.target.closest("[data-add-routine-button]")) {
@@ -4685,13 +4832,13 @@ const html = `<!doctype html>
         return;
       }
       if (event.target.closest("[data-deploy-routine]")) {
-        deployRoutineData().catch((error) => setStatus(error.message, true));
+        runWithLoading("Saving routine message…", deployRoutineData).catch((error) => setStatus(error.message, true));
         return;
       }
       const removeRoutineButton = event.target.closest("[data-remove-routine]");
       if (removeRoutineButton) {
         if (!confirm("Remove this routine message from the manager?")) return;
-        removeRoutine(removeRoutineButton.dataset.removeRoutine).catch((error) => setStatus(error.message, true));
+        runWithLoading("Removing routine message…", () => removeRoutine(removeRoutineButton.dataset.removeRoutine)).catch((error) => setStatus(error.message, true));
         return;
       }
       const button = event.target.closest("[data-remove]");
@@ -4714,7 +4861,8 @@ const html = `<!doctype html>
       render();
     });
 
-    loadData().catch((error) => setStatus(error.message, true));
+    render();
+    loadData("fish", false).catch((error) => setStatus(error.message, true));
   </script>
 </body>
 </html>`;

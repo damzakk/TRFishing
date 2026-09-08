@@ -49,7 +49,7 @@ Open this in your browser:
 http://localhost:3000
 ```
 
-From there you can add, edit, remove fish and rods, upload icons, save item data to PlayFab, and seed the default fish and rods.
+From there you can add, edit, remove fish and rods, upload icons, save item data to PlayFab, and seed defaults for the currently selected item tab. Each tab loads only when it is opened and saves to its own PlayFab record, so saving one tab cannot replace another tab's data. The first split-config save also preserves the previous combined manager configuration in `admin_config_backup_before_split`.
 
 Icons, event banners, and the custom rod store image are uploaded to the Discord storage channel when you save. PlayFab Title Data only stores the image URL plus the rest of the fish, rod, settings, admin, and event data. Existing older PlayFab CDN image keys can still be read, but new manager uploads use Discord storage.
 

@@ -64,7 +64,7 @@
         }
       },
       "quotaKg": 500,
-      "filledKg": 405.8084364408766,
+      "filledKg": 500,
       "participants": {
         "367669792993181697": {
           "id": "367669792993181697",
@@ -94,10 +94,10 @@
           "globalName": "venomenom",
           "displayName": "<@281139082380312576>",
           "logName": "TR | Mereun",
-          "count": 9,
-          "totalWeight": 22.501760214544795,
-          "heaviestWeight": 5.307888824450066,
-          "heaviestName": "Lobster"
+          "count": 13,
+          "totalWeight": 39.46008686458488,
+          "heaviestWeight": 10.422401472879386,
+          "heaviestName": "Ikan Dikala Senja"
         },
         "337858521771278338": {
           "id": "337858521771278338",
@@ -105,10 +105,10 @@
           "globalName": "KakGeri",
           "displayName": "<@337858521771278338>",
           "logName": "TR | Klepon (KakGeri)",
-          "count": 11,
-          "totalWeight": 27.984172699008496,
-          "heaviestWeight": 4.377502561029288,
-          "heaviestName": "Vario 160"
+          "count": 23,
+          "totalWeight": 73.74259858356382,
+          "heaviestWeight": 6.787256648312432,
+          "heaviestName": "Kerang"
         },
         "451776326723174401": {
           "id": "451776326723174401",
@@ -116,8 +116,8 @@
           "globalName": "Azara",
           "displayName": "<@451776326723174401>",
           "logName": "TR | Aktor (Adam) (Awiwir)",
-          "count": 16,
-          "totalWeight": 90.87192205906248,
+          "count": 25,
+          "totalWeight": 140.3113874328855,
           "heaviestWeight": 42.4703995118882,
           "heaviestName": "Ikan Andry Tepat Waktu"
         },
@@ -131,10 +131,32 @@
           "totalWeight": 39.467488484033986,
           "heaviestWeight": 6.6544511660736685,
           "heaviestName": "Lobster"
+        },
+        "309140773176082452": {
+          "id": "309140773176082452",
+          "username": "dikaleo.",
+          "globalName": "Dikaleo",
+          "displayName": "<@309140773176082452>",
+          "logName": "TR | Pleset",
+          "count": 10,
+          "totalWeight": 41.21572575161332,
+          "heaviestWeight": 7.434473891830843,
+          "heaviestName": "Gurita"
+        },
+        "275237881323454465": {
+          "id": "275237881323454465",
+          "username": "shera",
+          "globalName": "Delta",
+          "displayName": "<@275237881323454465>",
+          "logName": "᲼",
+          "count": 8,
+          "totalWeight": 27.714147156978722,
+          "heaviestWeight": 6.922820308566621,
+          "heaviestName": "Adhiet"
         }
       },
-      "fulfilledAt": "",
-      "lastRaidEndedAt": 1788838768307,
+      "fulfilledAt": "2026-09-08T07:07:47.586Z",
+      "lastRaidEndedAt": 1788851267586,
       "channelId": "891474628122394637"
     }
   }

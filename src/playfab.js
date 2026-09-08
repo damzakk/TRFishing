@@ -17,6 +17,12 @@ const titleDataKeys = {
   rods: "rod_config",
   fishBags: "fish_bag_config",
   config: "admin_config",
+  admins: "admin_access_config",
+  settings: "game_settings_config",
+  events: "event_config",
+  routines: "routine_config",
+  routineState: "routine_runtime_state",
+  legacyConfigBackup: "admin_config_backup_before_split",
   playerIndex: "player_index"
 };
 
@@ -1046,22 +1052,33 @@ async function saveTitleAsset(key, value) {
     throw new Error(`Image for ${key} is too large for PlayFab Title Data. Use an image URL instead, or upload an image under ${Math.round(maxStoredImageLength / 1024)} KB.`);
   }
 
+  const previousResult = await callPlayFab("Server", "GetTitleData", { Keys: [key] }, true).catch(() => ({ Data: {} }));
+  const previousManifest = parseAssetManifest(previousResult.Data?.[key] || "");
+  const revisionKey = `${key}_rev_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
   const chunks = [];
   for (let index = 0; index < assetValue.length; index += titleDataChunkSize) {
     chunks.push(assetValue.slice(index, index + titleDataChunkSize));
   }
 
   for (const [index, chunk] of chunks.entries()) {
-    await setTitleData(chunkKeyFor(key, index), chunk);
+    await setTitleData(chunkKeyFor(revisionKey, index), chunk);
   }
 
   const manifest = {
     storage: "title_data_chunks",
-    key,
+    key: revisionKey,
     chunks: chunks.length
   };
 
   await setTitleData(key, JSON.stringify(manifest));
+
+  // The manifest is switched only after every new chunk exists, so readers can
+  // never observe a half-written JSON document. Old chunks are best-effort cleanup.
+  if (previousManifest?.storage === "title_data_chunks" && previousManifest.key !== revisionKey) {
+    for (let index = 0; index < previousManifest.chunks; index += 1) {
+      await setTitleData(chunkKeyFor(previousManifest.key, index), "").catch(() => {});
+    }
+  }
 
   return manifest;
 }
@@ -1491,22 +1508,99 @@ async function attachIcons(items, type, useSecretKey = false, caller = "") {
   }));
 }
 
+async function loadJsonAsset(key, fallback, useSecretKey = true) {
+  const value = await loadTitleAsset(key, useSecretKey);
+  if (!value) {
+    return { exists: false, value: fallback };
+  }
+  try {
+    return { exists: true, value: JSON.parse(value) };
+  } catch (error) {
+    throw new Error(`PlayFab data ${key} is not valid JSON; refusing to replace it: ${error.message}`);
+  }
+}
+
+async function loadLegacyConfig(useSecretKey = true) {
+  const loaded = await loadJsonAsset(titleDataKeys.config, {}, useSecretKey);
+  return loaded.value && typeof loaded.value === "object" && !Array.isArray(loaded.value) ? loaded.value : {};
+}
+
+async function loadConfigSections(useSecretKey = true, requestedSections = ["admins", "settings", "events", "routines", "routineState"]) {
+  const legacy = await loadLegacyConfig(useSecretKey);
+  const requested = new Set(requestedSections);
+  const result = {
+    adminDiscordIds: legacy.adminDiscordIds || [],
+    settings: legacy.settings || {},
+    activeEvent: legacy.activeEvent || null,
+    events: legacy.events || [],
+    routineMessages: legacy.routineMessages || [],
+    routineState: {}
+  };
+
+  if (requested.has("admins")) {
+    const loaded = await loadJsonAsset(titleDataKeys.admins, result.adminDiscordIds, useSecretKey);
+    if (loaded.exists) result.adminDiscordIds = Array.isArray(loaded.value) ? loaded.value : [];
+  }
+  if (requested.has("settings")) {
+    const loaded = await loadJsonAsset(titleDataKeys.settings, result.settings, useSecretKey);
+    if (loaded.exists) result.settings = loaded.value && typeof loaded.value === "object" && !Array.isArray(loaded.value) ? loaded.value : {};
+  }
+  if (requested.has("events")) {
+    const loaded = await loadJsonAsset(titleDataKeys.events, null, useSecretKey);
+    if (loaded.exists) {
+      result.activeEvent = loaded.value?.activeEvent || null;
+      result.events = Array.isArray(loaded.value?.events) ? loaded.value.events : [];
+    }
+  }
+  if (requested.has("routines")) {
+    const loaded = await loadJsonAsset(titleDataKeys.routines, null, useSecretKey);
+    if (loaded.exists) {
+      result.routineMessages = Array.isArray(loaded.value?.routineMessages)
+        ? loaded.value.routineMessages
+        : Array.isArray(loaded.value) ? loaded.value : [];
+    }
+  }
+  if (requested.has("routineState")) {
+    const loaded = await loadJsonAsset(titleDataKeys.routineState, {}, useSecretKey);
+    if (loaded.exists && loaded.value && typeof loaded.value === "object" && !Array.isArray(loaded.value)) {
+      result.routineState = loaded.value;
+    }
+  }
+  return result;
+}
+
+function applyRoutineRuntimeState(routines, runtimeState) {
+  return cleanRoutineMessages(routines).map((routine) => {
+    const saved = runtimeState?.[routine.id];
+    return saved && typeof saved === "object" ? {
+      ...routine,
+      lastSentAt: String(saved.lastSentAt || routine.lastSentAt || ""),
+      lastTriggerKey: String(saved.lastTriggerKey || routine.lastTriggerKey || ""),
+      lastSentByGuild: saved.lastSentByGuild && typeof saved.lastSentByGuild === "object"
+        ? saved.lastSentByGuild
+        : routine.lastSentByGuild
+    } : routine;
+  });
+}
+
+async function ensureLegacyConfigBackup() {
+  const existing = await loadTitleAsset(titleDataKeys.legacyConfigBackup, true);
+  if (existing) return;
+  const legacy = await loadTitleAsset(titleDataKeys.config, true);
+  if (legacy) await saveTitleAsset(titleDataKeys.legacyConfigBackup, legacy);
+}
+
 function logGameDataLoad(caller, result) {
   const source = String(caller || "unknown process").trim();
   console.log(`Loaded ${result.fish.length} fish, ${result.rods.length} rods, ${result.fishBags.length} fish bags, and ${result.adminDiscordIds.length} admin IDs from PlayFab. | time=${new Date().toISOString()} | requestedBy=${source}`);
 }
 
 async function getGameData(options = {}) {
-  const result = await callPlayFab("Server", "GetTitleData", {
-    Keys: [titleDataKeys.config]
-  }, true);
-
   const fish = parseList(await loadTitleAsset(titleDataKeys.fish, true), defaultFish);
   const rods = parseList(await loadTitleAsset(titleDataKeys.rods, true), defaultRods);
   const fishBags = parseList(await loadTitleAsset(titleDataKeys.fishBags, true), defaultFishBags, { fallbackWhenEmpty: true });
-  const config = parseConfig(parseAssetManifest(result.Data?.[titleDataKeys.config] || "")?.type === "inline"
-    ? result.Data?.[titleDataKeys.config]
-    : await loadTitleAsset(titleDataKeys.config, true), {});
+  const config = await loadConfigSections(true);
+  config.routineMessages = applyRoutineRuntimeState(config.routineMessages, config.routineState);
   const caller = options.caller || "bot runtime";
   const configWithAssets = await attachConfigAssets(config, true, caller);
 
@@ -1525,16 +1619,10 @@ async function getGameData(options = {}) {
 }
 
 async function adminGetGameData(options = {}) {
-  const result = await callPlayFab("Server", "GetTitleData", {
-    Keys: [titleDataKeys.config]
-  }, true);
-
   const fish = parseList(await loadTitleAsset(titleDataKeys.fish, true), defaultFish);
   const rods = parseList(await loadTitleAsset(titleDataKeys.rods, true), defaultRods);
   const fishBags = parseList(await loadTitleAsset(titleDataKeys.fishBags, true), defaultFishBags, { fallbackWhenEmpty: true });
-  const config = parseConfig(parseAssetManifest(result.Data?.[titleDataKeys.config] || "")?.type === "inline"
-    ? result.Data?.[titleDataKeys.config]
-    : await loadTitleAsset(titleDataKeys.config, true), {});
+  const config = await loadConfigSections(true);
   const caller = options.caller || "manager api";
   const configWithAssets = await attachConfigAssets(config, true, caller);
   const gameData = {
@@ -1856,7 +1944,190 @@ async function adminSaveGameData({ fish, rods, fishBags, adminDiscordIds, settin
   };
 }
 
+async function saveItemSection(items, type, key) {
+  const cleanItems = Array.isArray(items) ? items : [];
+  assertUniqueItemIds(cleanItems, type);
+  const withUrls = [];
+  for (const item of cleanItems) {
+    const icon = await saveContentImage({
+      currentUrl: item.iconUrl,
+      currentRef: item.iconRef,
+      legacyContentKey: item.iconContentKey,
+      dataUrl: item.iconBase64,
+      sourceUrl: item.iconUrl,
+      keyForExtension: (extension) => iconContentKeyFor(type, item.id, extension),
+      forceRehost: item.iconNeedsRehost
+    });
+    withUrls.push({ ...item, iconUrl: icon.url, iconRef: icon.ref });
+  }
+  const stored = preferDiscordMessageReferences(withoutIcons(withUrls, type));
+  await saveTitleAsset(key, JSON.stringify(stored));
+  return stored;
+}
+
+async function saveSettingsSection(settings) {
+  const clean = cleanSettings(settings);
+  const imageDefinitions = [
+    ["rodStoreImage", storeContentKeyFor, "rodStoreImageContentKey"],
+    ["fishCompBanner", fishCompBannerContentKeyFor, "fishCompBannerContentKey"],
+    ["fishCompRegistrationBanner", (extension) => settingsImageContentKeyFor("fish-comp-registration-banner", extension)],
+    ["fishCompRunningBanner", (extension) => settingsImageContentKeyFor("fish-comp-running-banner", extension)],
+    ["fishCompResultBanner", (extension) => settingsImageContentKeyFor("fish-comp-result-banner", extension)],
+    ["fishRaidBanner", (extension) => settingsImageContentKeyFor("fish-raid-banner", extension)],
+    ["fishRaidRegistrationBanner", (extension) => settingsImageContentKeyFor("fish-raid-registration-banner", extension)],
+    ["fishRaidRunningBanner", (extension) => settingsImageContentKeyFor("fish-raid-running-banner", extension)],
+    ["fishRaidResultBanner", (extension) => settingsImageContentKeyFor("fish-raid-result-banner", extension)],
+    ["fishDuelRegistrationBanner", (extension) => settingsImageContentKeyFor("fish-duel-registration-banner", extension)],
+    ["fishDuelRunningBanner", (extension) => settingsImageContentKeyFor("fish-duel-running-banner", extension)],
+    ["fishDuelResultBanner", (extension) => settingsImageContentKeyFor("fish-duel-result-banner", extension)],
+    ["fishGuideBanner", (extension) => settingsImageContentKeyFor("fish-guide-banner", extension)],
+    ["fishHelpBanner", (extension) => settingsImageContentKeyFor("fish-help-banner", extension)],
+    ["sellFishBanner", (extension) => settingsImageContentKeyFor("sell-fish-banner", extension)]
+  ];
+  const savedImages = {};
+  for (const [baseKey, keyForExtension, legacyKey] of imageDefinitions) {
+    savedImages[baseKey] = await saveContentImage({
+      currentUrl: clean[`${baseKey}Url`],
+      currentRef: clean[`${baseKey}Ref`],
+      legacyContentKey: legacyKey ? clean[legacyKey] : "",
+      dataUrl: clean[`${baseKey}Base64`],
+      sourceUrl: clean[`${baseKey}Url`],
+      keyForExtension,
+      forceRehost: clean[`${baseKey}UrlNeedsRehost`]
+    });
+  }
+  const settingsWithUrls = { ...clean, fishRaidBosses: await saveFishRaidBossImages(clean.fishRaidBosses) };
+  for (const [baseKey] of imageDefinitions) {
+    settingsWithUrls[`${baseKey}Url`] = savedImages[baseKey].url;
+    settingsWithUrls[`${baseKey}Ref`] = savedImages[baseKey].ref;
+  }
+  const stored = preferDiscordMessageReferences(withoutConfigAssets({ settings: settingsWithUrls }).settings);
+  await ensureLegacyConfigBackup();
+  await saveTitleAsset(titleDataKeys.settings, JSON.stringify(stored));
+  return stored;
+}
+
+async function saveEventSection(activeEvent, events) {
+  const cleanActive = cleanEvent(activeEvent);
+  const cleanList = cleanEvents(events, cleanActive);
+  const cache = new Map();
+  const saveBanner = async (event) => {
+    if (!event) return { url: "", ref: null };
+    const cacheKey = String(event.id || "");
+    if (cacheKey && cache.has(cacheKey)) return cache.get(cacheKey);
+    const saved = await saveContentImage({
+      currentUrl: event.bannerUrl,
+      currentRef: event.bannerRef,
+      legacyContentKey: event.bannerContentKey,
+      dataUrl: event.bannerBase64,
+      sourceUrl: event.bannerUrl,
+      keyForExtension: (extension) => eventContentKeyFor(event.id, extension),
+      forceRehost: event.bannerUrlNeedsRehost
+    });
+    if (cacheKey) cache.set(cacheKey, saved);
+    return saved;
+  };
+  const activeBanner = await saveBanner(cleanActive);
+  const storedEvents = [];
+  for (const event of cleanList) {
+    const banner = await saveBanner(event);
+    storedEvents.push({ ...event, bannerBase64: "", bannerContentKey: "", bannerUrl: banner.url, bannerRef: banner.ref });
+  }
+  const storedActive = cleanActive
+    ? { ...cleanActive, bannerBase64: "", bannerContentKey: "", bannerUrl: activeBanner.url, bannerRef: activeBanner.ref }
+    : null;
+  const stored = preferDiscordMessageReferences({ activeEvent: storedActive, events: storedEvents });
+  await ensureLegacyConfigBackup();
+  await saveTitleAsset(titleDataKeys.events, JSON.stringify(stored));
+  return stored;
+}
+
+async function saveRoutineSection(routineMessages) {
+  const storedRoutines = [];
+  for (const routine of cleanRoutineMessages(routineMessages)) {
+    const banner = await saveContentImage({
+      currentUrl: routine.bannerUrl,
+      currentRef: routine.bannerRef,
+      legacyContentKey: routine.bannerContentKey,
+      dataUrl: routine.bannerBase64,
+      sourceUrl: routine.bannerUrl,
+      keyForExtension: (extension) => settingsImageContentKeyFor(`routine-message-${routine.id}-banner`, extension),
+      forceRehost: routine.bannerUrlNeedsRehost
+    });
+    storedRoutines.push({ ...routine, bannerBase64: "", bannerContentKey: "", bannerUrl: banner.url, bannerRef: banner.ref });
+  }
+  const stored = preferDiscordMessageReferences({ routineMessages: storedRoutines });
+  await ensureLegacyConfigBackup();
+  await saveTitleAsset(titleDataKeys.routines, JSON.stringify(stored));
+  return stored.routineMessages;
+}
+
+async function adminSaveRoutineState(routineMessages) {
+  const state = Object.fromEntries(cleanRoutineMessages(routineMessages).map((routine) => [routine.id, {
+    lastSentAt: routine.lastSentAt || "",
+    lastTriggerKey: routine.lastTriggerKey || "",
+    lastSentByGuild: routine.lastSentByGuild || {}
+  }]));
+  await saveTitleAsset(titleDataKeys.routineState, JSON.stringify(state));
+  return state;
+}
+
+async function adminSaveEventData(activeEvent, events) {
+  return saveEventSection(activeEvent, events);
+}
+
+async function adminGetManagerTabData(tab, options = {}) {
+  const caller = options.caller || `manager ${tab} tab`;
+  if (tab === "fish") return { fish: await attachIcons(parseList(await loadTitleAsset(titleDataKeys.fish, true), defaultFish), "fish", true, caller) };
+  if (tab === "rods") return { rods: await attachIcons(parseList(await loadTitleAsset(titleDataKeys.rods, true), defaultRods), "rod", true, caller) };
+  if (tab === "fishBags") return { fishBags: await attachIcons(parseList(await loadTitleAsset(titleDataKeys.fishBags, true), defaultFishBags, { fallbackWhenEmpty: true }), "fish-bag", true, caller) };
+  if (tab === "calc" || tab === "players") {
+    const [fish, rods] = await Promise.all([
+      attachIcons(parseList(await loadTitleAsset(titleDataKeys.fish, true), defaultFish), "fish", true, caller),
+      tab === "calc" ? attachIcons(parseList(await loadTitleAsset(titleDataKeys.rods, true), defaultRods), "rod", true, caller) : Promise.resolve([])
+    ]);
+    return { fish, rods };
+  }
+  if (tab === "admin") {
+    const config = await loadConfigSections(true, ["admins"]);
+    return { adminDiscordIds: cleanAdminDiscordIds(config.adminDiscordIds) };
+  }
+  if (tab === "settings") {
+    const config = await loadConfigSections(true, ["settings"]);
+    return { settings: (await attachConfigAssets({ settings: config.settings }, true, caller)).settings };
+  }
+  if (tab === "event") {
+    const config = await loadConfigSections(true, ["events"]);
+    const attached = await attachConfigAssets({ activeEvent: config.activeEvent, events: config.events }, true, caller);
+    return { activeEvent: attached.activeEvent, events: attached.events };
+  }
+  if (tab === "routine") {
+    const config = await loadConfigSections(true, ["routines", "routineState"]);
+    config.routineMessages = applyRoutineRuntimeState(config.routineMessages, config.routineState);
+    const attached = await attachConfigAssets({ routineMessages: config.routineMessages }, true, caller);
+    return { routineMessages: attached.routineMessages };
+  }
+  throw new Error(`Unknown manager tab: ${tab}`);
+}
+
+async function adminSaveManagerTabData(tab, data) {
+  if (tab === "fish") return { fish: await saveItemSection(data.fish, "fish", titleDataKeys.fish) };
+  if (tab === "rods") return { rods: await saveItemSection(data.rods, "rod", titleDataKeys.rods) };
+  if (tab === "fishBags") return { fishBags: await saveItemSection(data.fishBags, "fish-bag", titleDataKeys.fishBags) };
+  if (tab === "admin") {
+    const adminDiscordIds = cleanAdminDiscordIds(data.adminDiscordIds);
+    await ensureLegacyConfigBackup();
+    await saveTitleAsset(titleDataKeys.admins, JSON.stringify(adminDiscordIds));
+    return { adminDiscordIds };
+  }
+  if (tab === "settings") return { settings: await saveSettingsSection(data.settings) };
+  if (tab === "event") return saveEventSection(data.activeEvent, data.events);
+  if (tab === "routine") return { routineMessages: await saveRoutineSection(data.routineMessages) };
+  throw new Error(`The ${tab} tab does not have editable data.`);
+}
+
 module.exports = {
+  adminGetManagerTabData,
   adminGetGameData,
   adminDeletePlayer,
   adminGetPlayerRecord,
@@ -1864,6 +2135,9 @@ module.exports = {
   adminResetPlayerData,
   adminSavePlayerData,
   adminSaveGameData,
+  adminSaveManagerTabData,
+  adminSaveEventData,
+  adminSaveRoutineState,
   defaultSettings,
   getGameData,
   getPlayer,

@@ -30,7 +30,7 @@ const {
   joinVoiceChannel,
   VoiceConnectionStatus
 } = require("@discordjs/voice");
-const { adminListPlayers, adminSaveGameData, getGameData, getPlayer, savePlayer } = require("./playfab");
+const { adminListPlayers, adminSaveEventData, adminSaveRoutineState, getGameData, getPlayer, savePlayer } = require("./playfab");
 const { makeFishShowoffBanner } = require("./fishShowoffBanner");
 const { makeIconAttachment, parseDataImage } = require("./imageUtils");
 
@@ -2575,7 +2575,7 @@ async function markEventGuild(eventId, guildId = "") {
     events: getEvents().map(applyGuildMark)
   };
 
-  await adminSaveGameData(gameData);
+  await adminSaveEventData(gameData.activeEvent, gameData.events);
 }
 
 async function markEventAnnounced(eventId, guildId = "") {
@@ -2592,7 +2592,7 @@ async function markEventAnnounced(eventId, guildId = "") {
     events: getEvents().map(applyAnnouncementMark)
   };
 
-  await adminSaveGameData(gameData);
+  await adminSaveEventData(gameData.activeEvent, gameData.events);
 }
 
 async function announceEndedEvents() {
@@ -2724,7 +2724,7 @@ async function markRoutineSent(routineId, guildId, triggerKey) {
     ...gameData,
     routineMessages: getRoutineMessages().map(applyMark)
   };
-  await adminSaveGameData(gameData);
+  await adminSaveRoutineState(gameData.routineMessages);
 }
 
 async function processRoutineMessages() {

@@ -2683,5 +2683,52 @@
     "extension": "png",
     "savedAt": "2026-09-07T21:01:08.578Z",
     "size": 52452
+  },
+  "99a6dea839746d0e6cba02601370de55c524c2fdf5a04431a0eeaba5b22b00c3": {
+    "itemId": "ikan_hiu",
+    "itemName": "Ikan Hiu",
+    "iconUrl": "https://cdn.discordapp.com/attachments/1543874293258260550/1545040055838580827/ikan_hiu.png?ex=6a9cac6e&is=6a9b5aee&hm=566a1a0b8855e32ff846aa1bbf181c8a0900743f883fd8a5cd8cbd0c6736a716&",
+    "iconRef": {
+      "storage": "discord_attachment",
+      "channelId": "1543874293258260550",
+      "messageId": "1545040055981182988",
+      "attachmentId": "1545040055838580827",
+      "fileName": "ikan_hiu.png",
+      "contentType": "image/png"
+    },
+    "fileName": "fish-ikan_hiu.png",
+    "namePrefix": "fish",
+    "source": "url_cache",
+    "contentType": "image/png",
+    "extension": "png",
+    "savedAt": "2026-09-08T07:30:26.165Z",
+    "size": 45851
+  },
+  "92a40388009c9728d04be9f786f9037efe9876067ca548466b1f0fef3a26767b": {
+    "discordMessageUrl": "",
+    "discordRef": {
+      "storage": "discord_attachment",
+      "channelId": "1543874293258260550",
+      "messageId": "1546798076839067736",
+      "messageUrl": "",
+      "attachmentId": "1546798076524761098",
+      "fileName": "1788855731742.png",
+      "contentType": "image/png"
+    },
+    "fileName": "1788855731742.png",
+    "source": "discord_upload",
+    "contentType": "image/png",
+    "extension": "png",
+    "savedAt": "2026-09-08T08:23:17.137Z",
+    "size": 1137057
+  },
+  "4cd2a019bf938c1a44780d7165e514997c45cb0ef1a37c6b02d98b533526f550": {
+    "url": "https://cdn.discordapp.com/attachments/1543874293258260550/1546798076524761098/1788855731742.png?ex=6aa11777&is=6a9fc5f7&hm=1f728b1f19ae46d218f81b7a7f63380113ae730c883a9f11aa5677941e184ebf&",
+    "source": "discord_upload",
+    "fileName": "1788855731742.png",
+    "contentType": "image/png",
+    "extension": "png",
+    "savedAt": "2026-09-08T08:23:17.150Z",
+    "size": 1137057
   }
 }
