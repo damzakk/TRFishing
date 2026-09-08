@@ -1,70 +1,70 @@
 {
   "guilds": {
     "891474628122394634": {
-      "dateKey": "2026-09-07",
+      "dateKey": "2026-09-08",
       "boss": {
-        "id": "mbg_hendrik",
-        "name": "MBG HENDRIK",
-        "description": "Pikirkan anak anak yang kelaparan!\n\nSelesaikan pesanan ikan untuk dapur MBG Pak Hendrik sebelum hari esok, agar beliau bisa joget lalu membuat anak-anak Indonesia tumbuh sehat dan kuat!",
+        "id": "mbg_tedi",
+        "name": "MBG TEDDY",
+        "description": "Pikirkan anak anak yang kelaparan!\n\nSelesaikan pesanan ikan untuk dapur MBG Pak Tedi sebelum hari esok, agar beliau bisa membuat anak-anak Indonesia tumbuh sehat dan kuat!",
         "quotaKg": 500,
         "registrationBannerBase64": "",
-        "registrationBannerUrl": "https://cdn.discordapp.com/attachments/1543874293258260550/1546321525840551956/mbg_hendrik-registrationbanner.png?ex=6a9f5ba5&is=6a9e0a25&hm=01c2933e8fb177cc3828598a53fec7b47ed24a1b48b6d253e097eb2b9e3b45a9&",
+        "registrationBannerUrl": "https://cdn.discordapp.com/attachments/1543874293258260550/1546321277030109194/mbg_tedi-registrationbanner.png?ex=6a9f5b69&is=6a9e09e9&hm=6e3123ae8b86de0204836b3344a52b99156eaf23254ed8751fefe1ccd1aad17e&",
         "registrationBannerRef": {
           "storage": "discord_attachment",
           "channelId": "1543874293258260550",
-          "messageId": "1546321526012387361",
+          "messageId": "1546321276891701379",
           "messageUrl": "",
-          "attachmentId": "1546321525840551956",
-          "fileName": "mbg_hendrik-registrationbanner.png",
+          "attachmentId": "1546321277030109194",
+          "fileName": "mbg_tedi-registrationbanner.png",
           "contentType": "image/png"
         },
         "runningBannerBase64": "",
-        "runningBannerUrl": "https://cdn.discordapp.com/attachments/1543874293258260550/1546321546732372019/mbg_hendrik-runningbanner.png?ex=6a9f5baa&is=6a9e0a2a&hm=73e4b911167ac29726911c974dcc76a45ca19a111deca69ca77af99e6df466e6&",
+        "runningBannerUrl": "https://cdn.discordapp.com/attachments/1543874293258260550/1546321297322151996/mbg_tedi-runningbanner.png?ex=6a9f5b6e&is=6a9e09ee&hm=e1ae9014d43a0a1929d448e10b7395246d1043c801453784c8e29651d0dad06b&",
         "runningBannerRef": {
           "storage": "discord_attachment",
           "channelId": "1543874293258260550",
-          "messageId": "1546321546975518760",
+          "messageId": "1546321297166827672",
           "messageUrl": "",
-          "attachmentId": "1546321546732372019",
-          "fileName": "mbg_hendrik-runningbanner.png",
+          "attachmentId": "1546321297322151996",
+          "fileName": "mbg_tedi-runningbanner.png",
           "contentType": "image/png"
         },
         "resultBannerBase64": "",
-        "resultBannerUrl": "https://cdn.discordapp.com/attachments/1543874293258260550/1546321566332227624/mbg_hendrik-resultbanner.png?ex=6a9f5bae&is=6a9e0a2e&hm=879d305e3c6fa29eb74925d681134f8814059cb4395d437f1412f9da0f9b29d6&",
+        "resultBannerUrl": "https://cdn.discordapp.com/attachments/1543874293258260550/1546321323641413632/mbg_tedi-resultbanner.png?ex=6a9f5b74&is=6a9e09f4&hm=d4d617f4b3424f54d7de5ae51fe0833a3fa0978a0522e945ca87fc9b06eb8561&",
         "resultBannerRef": {
           "storage": "discord_attachment",
           "channelId": "1543874293258260550",
-          "messageId": "1546321566181097514",
+          "messageId": "1546321323498934324",
           "messageUrl": "",
-          "attachmentId": "1546321566332227624",
-          "fileName": "mbg_hendrik-resultbanner.png",
+          "attachmentId": "1546321323641413632",
+          "fileName": "mbg_tedi-resultbanner.png",
           "contentType": "image/png"
         },
         "fulfilledBannerBase64": "",
-        "fulfilledBannerUrl": "https://cdn.discordapp.com/attachments/1543874293258260550/1546321586993496074/mbg_hendrik-fulfilledbanner.png?ex=6a9f5bb3&is=6a9e0a33&hm=a123196944850595c274c463fc6cca2162cb4577753a38aa720ef20fa8972a96&",
+        "fulfilledBannerUrl": "https://cdn.discordapp.com/attachments/1543874293258260550/1546321349813997658/mbg_tedi-fulfilledbanner.png?ex=6a9f5b7b&is=6a9e09fb&hm=b4e786e1413b79775665235b96c086b0edc319dbf9caf0a5dd6ac7c81297643d&",
         "fulfilledBannerRef": {
           "storage": "discord_attachment",
           "channelId": "1543874293258260550",
-          "messageId": "1546321586829922378",
+          "messageId": "1546321350195552286",
           "messageUrl": "",
-          "attachmentId": "1546321586993496074",
-          "fileName": "mbg_hendrik-fulfilledbanner.png",
+          "attachmentId": "1546321349813997658",
+          "fileName": "mbg_tedi-fulfilledbanner.png",
           "contentType": "image/png"
         },
         "failedBannerBase64": "",
-        "failedBannerUrl": "https://cdn.discordapp.com/attachments/1543874293258260550/1546321748989976647/mbg_hendrik-failedbanner.png?ex=6a9f5bda&is=6a9e0a5a&hm=9a2d46c63d9b5285614188c8e8eec2ffa2b3d7e9903e2a9a8feeab1bc014f06c&",
+        "failedBannerUrl": "https://cdn.discordapp.com/attachments/1543874293258260550/1546321491631804446/mbg_tedi-failedbanner.png?ex=6a9f5b9c&is=6a9e0a1c&hm=d2c2830bb78d8baec71caa31be0e7425d4d6731a27e715a5aacc6453242f92c2&",
         "failedBannerRef": {
           "storage": "discord_attachment",
           "channelId": "1543874293258260550",
-          "messageId": "1546321749208076389",
+          "messageId": "1546321491845578812",
           "messageUrl": "",
-          "attachmentId": "1546321748989976647",
-          "fileName": "mbg_hendrik-failedbanner.png",
+          "attachmentId": "1546321491631804446",
+          "fileName": "mbg_tedi-failedbanner.png",
           "contentType": "image/png"
         }
       },
       "quotaKg": 500,
-      "filledKg": 500,
+      "filledKg": 405.8084364408766,
       "participants": {
         "367669792993181697": {
           "id": "367669792993181697",
@@ -72,32 +72,21 @@
           "globalName": "PakTuki",
           "displayName": "<@367669792993181697>",
           "logName": "TR | Ebol Ebol",
-          "count": 43,
-          "totalWeight": 177.813321765808,
-          "heaviestWeight": 28.65822703380349,
+          "count": 26,
+          "totalWeight": 132.62423552418068,
+          "heaviestWeight": 29.135364679374625,
           "heaviestName": "Ikan Melompat Menuju Kahyangan"
         },
-        "275237881323454465": {
-          "id": "275237881323454465",
-          "username": "shera",
-          "globalName": "Delta",
-          "displayName": "<@275237881323454465>",
-          "logName": "᲼",
-          "count": 31,
-          "totalWeight": 81.94811207549141,
-          "heaviestWeight": 7.865161999637914,
+        "363275626662330369": {
+          "id": "363275626662330369",
+          "username": "fnadh",
+          "globalName": "Miradh",
+          "displayName": "<@363275626662330369>",
+          "logName": "TR | Celup (Adhiet)",
+          "count": 13,
+          "totalWeight": 92.35885746004615,
+          "heaviestWeight": 43.937446249804786,
           "heaviestName": "Ikan Hiu"
-        },
-        "422036073812852737": {
-          "id": "422036073812852737",
-          "username": "oopsydaisy_",
-          "globalName": "Decii🤏🌼",
-          "displayName": "<@422036073812852737>",
-          "logName": "Decii🤏🌼",
-          "count": 9,
-          "totalWeight": 10.962666089428199,
-          "heaviestWeight": 2.0084409150085825,
-          "heaviestName": "Ikan Nila"
         },
         "281139082380312576": {
           "id": "281139082380312576",
@@ -105,10 +94,21 @@
           "globalName": "venomenom",
           "displayName": "<@281139082380312576>",
           "logName": "TR | Mereun",
-          "count": 13,
-          "totalWeight": 43.294712622755945,
-          "heaviestWeight": 15.768373015200364,
-          "heaviestName": "Ikan Crazy Killer"
+          "count": 9,
+          "totalWeight": 22.501760214544795,
+          "heaviestWeight": 5.307888824450066,
+          "heaviestName": "Lobster"
+        },
+        "337858521771278338": {
+          "id": "337858521771278338",
+          "username": "truekakgeri",
+          "globalName": "KakGeri",
+          "displayName": "<@337858521771278338>",
+          "logName": "TR | Klepon (KakGeri)",
+          "count": 11,
+          "totalWeight": 27.984172699008496,
+          "heaviestWeight": 4.377502561029288,
+          "heaviestName": "Vario 160"
         },
         "451776326723174401": {
           "id": "451776326723174401",
@@ -116,36 +116,25 @@
           "globalName": "Azara",
           "displayName": "<@451776326723174401>",
           "logName": "TR | Aktor (Adam) (Awiwir)",
-          "count": 10,
-          "totalWeight": 31.96248111481968,
-          "heaviestWeight": 6.278900190542988,
-          "heaviestName": "Kerang"
+          "count": 16,
+          "totalWeight": 90.87192205906248,
+          "heaviestWeight": 42.4703995118882,
+          "heaviestName": "Ikan Andry Tepat Waktu"
         },
-        "215382509851115520": {
-          "id": "215382509851115520",
-          "username": "zect52",
-          "globalName": "Zect",
-          "displayName": "<@215382509851115520>",
-          "logName": "Discord",
+        "297817270116417539": {
+          "id": "297817270116417539",
+          "username": "agui1ar.",
+          "globalName": "Agui1ar.-",
+          "displayName": "<@297817270116417539>",
+          "logName": "Agui1ar.-",
           "count": 13,
-          "totalWeight": 56.48982079001554,
-          "heaviestWeight": 14.558591663236832,
-          "heaviestName": "Ikan Venomenom"
-        },
-        "309140773176082452": {
-          "id": "309140773176082452",
-          "username": "dikaleo.",
-          "globalName": "Dikaleo",
-          "displayName": "<@309140773176082452>",
-          "logName": "TR | Pleset",
-          "count": 12,
-          "totalWeight": 138.42604777637467,
-          "heaviestWeight": 58.035212501856655,
-          "heaviestName": "Sapi"
+          "totalWeight": 39.467488484033986,
+          "heaviestWeight": 6.6544511660736685,
+          "heaviestName": "Lobster"
         }
       },
-      "fulfilledAt": "2026-09-07T07:42:05.540Z",
-      "lastRaidEndedAt": 1788766925540,
+      "fulfilledAt": "",
+      "lastRaidEndedAt": 1788838768307,
       "channelId": "891474628122394637"
     }
   }

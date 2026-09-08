@@ -43,6 +43,7 @@ const runtimeDirectory = path.join(__dirname, "..", ".runtime");
 const configSignalPath = path.join(runtimeDirectory, "config-refresh.json");
 const enforcedFishingSignalPath = path.join(runtimeDirectory, "enforced-fishing.json");
 const giveMoneySignalPath = path.join(runtimeDirectory, "give-money.json");
+const fishEntotRefreshSignalPath = path.join(runtimeDirectory, "fish-entot-refresh.json");
 const fishVoiceChannelsPath = path.join(runtimeDirectory, "fish-voice-channels.json");
 const defaultFishingChannelsPath = path.join(runtimeDirectory, "default-fishing-channels.json");
 const fishRaidStatePath = path.join(runtimeDirectory, "fish-raid-state.json");
@@ -54,6 +55,8 @@ const announcementStatePath = path.join(runtimeDirectory, "announcement-state.js
 const processStartedAt = Date.now();
 const voiceTickMs = 60_000;
 const fishDuelPendingTtlMs = 5 * 60_000;
+const fishEntotCooldownMs = 30 * 60_000;
+const fishEntotMessageTtlMs = 15 * 60_000;
 const publicShowoffTtlMs = 30 * 60_000;
 const fishDailyResetHour = 12;
 const fishDailyWindowMs = 24 * 60 * 60 * 1000;
@@ -173,12 +176,14 @@ const guildActivity = new Map();
 let voiceTickTimer = null;
 let enforcedFishingTimer = null;
 let giveMoneyTimer = null;
+let fishEntotRefreshTimer = null;
 let fishRaidSignalTimer = null;
 let fishRaidMidnightTimer = null;
 let eventAnnouncementTimer = null;
 let routineMessageTimer = null;
 const processedEnforcedFishingIds = new Set();
 const processedGiveMoneyIds = new Set();
+const processedFishEntotRefreshIds = new Set();
 const processedFishRaidSignalIds = new Set();
 let leaderboardCache = { records: [], loadedAt: 0 };
 const leaderboardCacheTtlMs = 2 * 60 * 1000;
@@ -2890,6 +2895,21 @@ async function processGiveMoneySignal() {
   fs.writeFileSync(giveMoneySignalPath, JSON.stringify({ id: "", processedAt: new Date().toISOString(), processedId: request.id }));
 }
 
+async function processFishEntotRefreshSignal() {
+  if (!fs.existsSync(fishEntotRefreshSignalPath)) {
+    return;
+  }
+
+  const request = JSON.parse(fs.readFileSync(fishEntotRefreshSignalPath, "utf8"));
+  if (!request?.id || processedFishEntotRefreshIds.has(request.id)) {
+    return;
+  }
+  processedFishEntotRefreshIds.add(request.id);
+  const user = String(request.user || request.discordUserId || request.playFabId || "Unknown User").trim();
+  logBotAction(`Fishentot cooldown is refresh for ${user}`);
+  fs.writeFileSync(fishEntotRefreshSignalPath, JSON.stringify({ id: "", processedAt: new Date().toISOString(), processedId: request.id }));
+}
+
 async function fetchRaidAnnouncementChannel(state, channelId = "") {
   const selectedChannelId = String(channelId || state?.channelId || "").trim();
   if (!selectedChannelId) {
@@ -3033,6 +3053,14 @@ function scheduleGiveMoneySignal() {
   }, 250);
 }
 
+function scheduleFishEntotRefreshSignal() {
+  clearTimeout(fishEntotRefreshTimer);
+  fishEntotRefreshTimer = setTimeout(() => {
+    processFishEntotRefreshSignal()
+      .catch((error) => console.error("Could not process Fishentot cooldown refresh signal:", error));
+  }, 250);
+}
+
 function scheduleFishRaidSignal() {
   clearTimeout(fishRaidSignalTimer);
   fishRaidSignalTimer = setTimeout(() => {
@@ -3072,6 +3100,17 @@ function watchGiveMoneySignal() {
 
   fs.watch(giveMoneySignalPath, scheduleGiveMoneySignal);
   console.log("Watching manager give money signal.");
+}
+
+function watchFishEntotRefreshSignal() {
+  fs.mkdirSync(runtimeDirectory, { recursive: true });
+  if (!fs.existsSync(fishEntotRefreshSignalPath)) {
+    fs.writeFileSync(fishEntotRefreshSignalPath, JSON.stringify({ id: "", createdAt: new Date().toISOString() }));
+  }
+
+  fs.watch(fishEntotRefreshSignalPath, scheduleFishEntotRefreshSignal);
+  scheduleFishEntotRefreshSignal();
+  console.log("Watching manager Fishentot cooldown refresh signal.");
 }
 
 function watchFishRaidSignal() {
@@ -3334,12 +3373,20 @@ function makeFishDexOptions(player, guildId = "", page = 0, selectedFishId = "")
   });
 }
 
-function makeFishDexShowcaseButton(player, userId, page = 0, selectedFish = null, caught = false) {
-  return new ButtonBuilder()
-    .setCustomId(`fishdex_showcase:${userId}:${page}:${selectedFish?.id || "none"}`)
-    .setLabel("Showcase This Fish")
-    .setStyle(ButtonStyle.Primary)
-    .setDisabled(!selectedFish?.id || !caught);
+function makeFishDexActionRow(player, userId, page = 0, selectedFish = null, caught = false) {
+  const selectedFishId = selectedFish?.id || "none";
+  return new ActionRowBuilder().addComponents(
+    new ButtonBuilder()
+      .setCustomId(`fishdex_choose:${userId}:${page}:${selectedFishId}`)
+      .setLabel("Pilih Ikan")
+      .setStyle(ButtonStyle.Secondary)
+      .setDisabled(!selectedFish?.id || !caught || player.showcasedFishId === selectedFish.id),
+    new ButtonBuilder()
+      .setCustomId(`fishdex_showcase:${userId}:${page}:${selectedFishId}`)
+      .setLabel("Pilih & Pamerkan")
+      .setStyle(ButtonStyle.Primary)
+      .setDisabled(!selectedFish?.id || !caught)
+  );
 }
 
 function makeFishDexComponents(player, userId, guildId = "", page = 0, selectedFishId = "") {
@@ -3394,11 +3441,8 @@ function makeFishDexMessage(user, player, selectedFishId = "", guildId = "", pag
     container.addTextDisplayComponents(makeTextDisplay(fieldText));
   }
 
-  container.addSectionComponents(
-    new SectionBuilder()
-      .addTextDisplayComponents(makeTextDisplay("Profile Showcase"))
-      .setButtonAccessory(makeFishDexShowcaseButton(player, user.id, fishDexEmbed.page, fishDexEmbed.selectedFish, fishDexEmbed.caught))
-  );
+  container.addTextDisplayComponents(makeTextDisplay("**Ikan Profil**"));
+  container.addActionRowComponents(makeFishDexActionRow(player, user.id, fishDexEmbed.page, fishDexEmbed.selectedFish, fishDexEmbed.caught));
 
   const controls = makeFishDexComponents(player, user.id, guildId, fishDexEmbed.page, fishDexEmbed.selectedFish?.id || "");
   if (controls.selectRow || controls.buttonRow) {
@@ -3784,6 +3828,30 @@ function makeOpenFishDuelMessage(pending, components = makeOpenFishDuelRow(pendi
   return makeEmbedPanelMessage(embed, {
     files: banner?.attachment ? [banner.attachment] : [],
     components
+  });
+}
+
+function makeTargetedFishDuelMessage(pending, components = makeFishDuelAcceptRow(pending.id)) {
+  const embed = new EmbedBuilder()
+    .setColor(0xf39c12)
+    .setTitle("Duel Adu Dermawan!")
+    .setDescription([
+      `${formatDiscordMention(pending.creator.id)} menantang ${formatDiscordMention(pending.target.id)} untuk duel adu dermawan! Akankah diterima atau ${formatDiscordMention(pending.target.id)} hanya pecundang yang tidak dermawan?`,
+      "",
+      `Apakah ${formatDiscordMention(pending.target.id)} ingin menerima duel dari ${formatDiscordMention(pending.creator.id)}?`,
+      "",
+      "Siapa yang bisa membuat tas lawannya penuh lebih dahulu ialah yang lebih dermawan!",
+      "",
+      pending.betAmount > 0 ? `Taruhan: **${formatGoldAmount(pending.betAmount)}** per pemain` : "Tanpa taruhan gold."
+    ].join("\n"));
+  const banner = makeFishDuelImage("registration");
+  if (banner?.url) {
+    embed.setImage(banner.url);
+  }
+  return makeEmbedPanelMessage(embed, {
+    files: banner?.attachment ? [banner.attachment] : [],
+    components,
+    allowedMentions: { users: [pending.creator.id, pending.target.id] }
   });
 }
 
@@ -4818,6 +4886,86 @@ function fishNow(player, guildId = "") {
   return { ok: true, caughtFish, catchWeight, expGain, expBase, expEventInfo };
 }
 
+function randomInteger(min, max) {
+  const safeMin = Math.ceil(Number(min || 0));
+  const safeMax = Math.floor(Number(max || 0));
+  return Math.floor(Math.random() * (safeMax - safeMin + 1)) + safeMin;
+}
+
+function removeRandomInventoryFish(player, maximumCount = 3) {
+  player.inventory = player.inventory && typeof player.inventory === "object" ? player.inventory : {};
+  const totalFish = Object.values(player.inventory)
+    .reduce((sum, quantity) => sum + Math.max(0, Math.floor(Number(quantity || 0))), 0);
+  const removeCount = Math.min(totalFish, randomInteger(1, maximumCount));
+
+  for (let removed = 0; removed < removeCount; removed += 1) {
+    const inventoryEntries = Object.entries(player.inventory)
+      .map(([fishId, quantity]) => [fishId, Math.max(0, Math.floor(Number(quantity || 0)))])
+      .filter(([, quantity]) => quantity > 0);
+    const remainingTotal = inventoryEntries.reduce((sum, [, quantity]) => sum + quantity, 0);
+    let selectedIndex = randomInteger(1, remainingTotal);
+    const selectedEntry = inventoryEntries.find(([, quantity]) => {
+      selectedIndex -= quantity;
+      return selectedIndex <= 0;
+    });
+    if (!selectedEntry) break;
+    const [fishId, quantity] = selectedEntry;
+    if (quantity <= 1) {
+      delete player.inventory[fishId];
+    } else {
+      player.inventory[fishId] = quantity - 1;
+    }
+  }
+
+  return removeCount;
+}
+
+function runFishEntotEvent(player, user, showcasedFish, guildId = "") {
+  const mention = formatDiscordMention(user.id);
+  const eventType = randomInteger(0, 5);
+
+  if (eventType === 0) {
+    const gold = Math.max(0, Math.ceil(Number(showcasedFish.gold || 0) * randomInteger(1, 40) / 100));
+    player.gold = Math.max(0, Number(player.gold || 0)) + gold;
+    return { message: `${mention} adalah pengentot yang handal, ${showcasedFish.name} senang dan membayar ${formatGoldAmount(gold)}.` };
+  }
+  if (eventType === 1) {
+    const requestedGold = Math.max(0, Math.ceil(Number(showcasedFish.gold || 0) * randomInteger(1, 30) / 100));
+    const gold = Math.min(Math.max(0, Math.floor(Number(player.gold || 0))), requestedGold);
+    player.gold = Math.max(0, Number(player.gold || 0) - gold);
+    return { message: `${mention} adalah pengentot yang payah, ${showcasedFish.name} meminta ${formatGoldAmount(gold)} ganti rugi.` };
+  }
+  if (eventType === 2) {
+    const gainedFishCount = 1;
+    player.inventory = player.inventory && typeof player.inventory === "object" ? player.inventory : {};
+    player.inventory[showcasedFish.id] = Math.max(0, Math.floor(Number(player.inventory[showcasedFish.id] || 0))) + gainedFishCount;
+    return { message: `${mention} menghamili ${showcasedFish.name}, ${mention} mendapatkan ${gainedFishCount} anak.` };
+  }
+  if (eventType === 3) {
+    const loseFishCount = removeRandomInventoryFish(player, 3);
+    return { message: `${mention} gagal menjadi seorang pengentot, ${loseFishCount} ikan pergi meninggalkan inventory.` };
+  }
+  if (eventType === 4) {
+    player.progress = 0;
+    return { message: `Pengentotan yang tidak nikmat ini membuat ${mention} kehilangan progres memancingnya.` };
+  }
+
+  const catchResult = fishNow(player, guildId);
+  return {
+    message: `Pengentotan yang nikmat memberi semangat untuk ${mention} memancing.`,
+    catchResult: catchResult.ok ? catchResult : null
+  };
+}
+
+function formatFishEntotCooldown(durationMs) {
+  const totalSeconds = Math.max(1, Math.ceil(Number(durationMs || 0) / 1000));
+  const minutes = Math.floor(totalSeconds / 60);
+  const seconds = totalSeconds % 60;
+  if (minutes && seconds) return `${minutes} menit ${seconds} detik`;
+  if (minutes) return `${minutes} menit`;
+  return `${seconds} detik`;
+}
+
 function makeHelpEmbed(showAdminCommands = false) {
   const embed = new EmbedBuilder()
     .setColor(0x2ecc71)
@@ -4897,6 +5045,11 @@ function makeHelpEmbed(showAdminCommands = false) {
       {
         name: "/fishduel target:<user> bet:<gold opsional>",
         value: "Menantang pemain lain dalam Duel Adu Dermawan. Kedua pemain harus memakai fish bag.",
+        inline: false
+      },
+      {
+        name: "/fishentot",
+        value: "Memicu satu event acak bersama ikan yang tampil di profil kamu. Cooldown 30 menit.",
         inline: false
       },
       {
@@ -5359,6 +5512,10 @@ function makeSlashCommands() {
           required: false
         }
       ]
+    },
+    {
+      name: "fishentot",
+      description: "Dapatkan event acak bersama ikan yang tampil di profil kamu."
     },
     {
       name: "fishraid",
@@ -5975,11 +6132,15 @@ client.on("interactionCreate", async (interaction) => {
         await interaction.reply({ content: "Permintaan duel ini bukan untuk kamu.", flags: MessageFlags.Ephemeral });
         return;
       }
-      deletePendingFishDuel(duelId);
       if (action === "fishduel_decline") {
-        await interaction.update({ content: `Duel dari ${pending.creator.username} ditolak.`, components: [] });
+        await interaction.update(makeSimplePanelMessage(
+          "Duel Ditolak",
+          `Duel dari ${pending.creator.username} ditolak.`
+        ));
+        deletePendingFishDuel(duelId);
         return;
       }
+      deletePendingFishDuel(duelId);
       await startFishDuelFromPending(interaction, pending);
       return;
     }
@@ -6053,6 +6214,27 @@ client.on("interactionCreate", async (interaction) => {
       await interaction.deferUpdate();
       await withPlayerReadOnly(interaction.user, async (player) => {
         await interaction.editReply(makeFishDexMessage(interaction.user, player, "", interaction.guildId, Number(pageValue || 0)));
+      });
+      return;
+    }
+
+    if (interaction.isButton() && interaction.customId.startsWith("fishdex_choose:")) {
+      const [, ownerId, pageValue, selectedFishId] = interaction.customId.split(":");
+      if (ownerId && ownerId !== interaction.user.id) {
+        await interaction.reply({ content: "Fishdex ini punya pemain lain.", flags: MessageFlags.Ephemeral });
+        return;
+      }
+
+      await interaction.deferUpdate();
+      await withPlayer(interaction.user, async (player) => {
+        const selectedFish = getAvailableFish(interaction.guildId).find((fishEntry) => fishEntry.id === selectedFishId);
+        if (!selectedFish || !getFishDexEntry(player, selectedFish).caught) {
+          await interaction.editReply(makeFishDexMessage(interaction.user, player, selectedFishId, interaction.guildId, Number(pageValue || 0)));
+          return { save: false };
+        }
+        player.showcasedFishId = selectedFish.id;
+        await interaction.editReply(makeFishDexMessage(interaction.user, player, selectedFish.id, interaction.guildId, Number(pageValue || 0)));
+        return undefined;
       });
       return;
     }
@@ -6362,7 +6544,7 @@ client.on("interactionCreate", async (interaction) => {
       return;
     }
 
-    if (["sellfish", "fishstore", "fishdex", "fishvoice", "fishshowoff", "fishdaily", "fishcomp", "fishduel", "fishraid"].includes(interaction.commandName) && !isActivityAllowed()) {
+    if (["sellfish", "fishstore", "fishdex", "fishvoice", "fishshowoff", "fishdaily", "fishentot", "fishcomp", "fishduel", "fishraid"].includes(interaction.commandName) && !isActivityAllowed()) {
       await interaction.reply({ content: activityBlockedMessage(), flags: MessageFlags.Ephemeral });
       return;
     }
@@ -6393,6 +6575,55 @@ client.on("interactionCreate", async (interaction) => {
 
     if (interaction.commandName === "fishdaily") {
       await replyWithFishDaily(interaction);
+      return;
+    }
+
+    if (interaction.commandName === "fishentot") {
+      await interaction.deferReply();
+      const now = Date.now();
+      const result = await withPlayer(interaction.user, async (player) => {
+        const cooldownRemainingMs = Math.max(0, Number(player.fishEntotLastUsedAt || 0) + fishEntotCooldownMs - now);
+        if (cooldownRemainingMs > 0) {
+          return { ok: false, cooldownRemainingMs, save: false };
+        }
+        const profileFish = getShowcasedFish(player, interaction.guildId) || getHeaviestFishEntry(player, interaction.guildId);
+        if (!profileFish) {
+          return { ok: false, noFish: true, save: false };
+        }
+        player.fishEntotLastUsedAt = now;
+        return {
+          ok: true,
+          showcasedFish: profileFish,
+          lastFishingChannelId: player.lastFishingChannelId,
+          event: runFishEntotEvent(player, interaction.user, profileFish, interaction.guildId)
+        };
+      });
+
+      if (!result.ok) {
+        const content = result.cooldownRemainingMs > 0
+          ? `Kamu kelelahan dan baru bisa entot lagi dalam ${formatFishEntotCooldown(result.cooldownRemainingMs)}.`
+          : "Kamu belum pernah mendapatkan ikan.";
+        await interaction.deleteReply().catch(() => {});
+        await interaction.followUp({ content, flags: MessageFlags.Ephemeral });
+        return;
+      }
+
+      recordGuildActivity(interaction.guildId);
+      const openingMessage = `${formatDiscordMention(interaction.user.id)} mengentot ${result.showcasedFish.name}.`;
+      const allowedMentions = { users: [interaction.user.id] };
+      await interaction.editReply({ content: openingMessage, allowedMentions });
+      await new Promise((resolve) => setTimeout(resolve, 3000));
+      const fishEntotMessage = await interaction.editReply({ content: `${openingMessage} ${result.event.message}`, allowedMentions });
+      scheduleMessageDelete(fishEntotMessage, fishEntotMessageTtlMs, "Fishentot message cleanup");
+      if (result.event.catchResult) {
+        const caught = result.event.catchResult;
+        const popupChannel = await fetchFishingMessageChannel({ lastFishingChannelId: result.lastFishingChannelId }, interaction.guildId)
+          || interaction.channel;
+        await popupChannel?.send(makeCatchMessage(interaction.user, caught.caughtFish, caught.catchWeight, caught.expGain, {
+          expBase: caught.expBase,
+          expEventInfo: caught.expEventInfo
+        })).catch((error) => console.error("Could not send Fishentot catch popup:", error));
+      }
       return;
     }
 
@@ -6654,20 +6885,7 @@ client.on("interactionCreate", async (interaction) => {
         }
         return;
       }
-      const prompt = [
-        `${formatDiscordMention(interaction.user.id)} menantang ${formatDiscordMention(targetUser.id)} untuk duel adu dermawan! Akankah diterima atau ${formatDiscordMention(targetUser.id)} hanya pecundang yang tidak dermawan?`,
-        "",
-        `Apakah ingin menerima duel dari ${interaction.user.username}?`,
-        "",
-        "**Duel Adu Dermawan!**",
-        "Siapa yang bisa membuat tas lawannya penuh lebih dahulu ialah yang lebih dermawan!",
-        betAmount > 0 ? `Taruhan: **${formatGoldAmount(betAmount)}** per pemain` : "Tanpa taruhan gold."
-      ].join("\n");
-      await interaction.reply({
-        content: prompt,
-        components: makeFishDuelAcceptRow(duelId),
-        allowedMentions: { users: [interaction.user.id, targetUser.id] }
-      });
+      await interaction.reply(makeTargetedFishDuelMessage(pending));
       const replyMessage = await interaction.fetchReply().catch(() => null);
       if (replyMessage?.id) {
         pending.messageId = replyMessage.id;
@@ -6827,6 +7045,7 @@ async function start() {
   watchManagerConfigSignal();
   watchEnforcedFishingSignal();
   watchGiveMoneySignal();
+  watchFishEntotRefreshSignal();
   watchFishRaidSignal();
   scheduleFishRaidMidnightReset();
   scheduleRoutineMessages();

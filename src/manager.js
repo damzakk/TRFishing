@@ -6,6 +6,7 @@ const path = require("node:path");
 const {
   adminDeletePlayer,
   adminGetGameData,
+  adminGetPlayerRecord,
   adminListPlayers,
   adminResetPlayerData,
   adminSaveGameData,
@@ -22,6 +23,7 @@ const runtimeDirectory = path.join(__dirname, "..", ".runtime");
 const configSignalPath = path.join(runtimeDirectory, "config-refresh.json");
 const enforcedFishingSignalPath = path.join(runtimeDirectory, "enforced-fishing.json");
 const giveMoneySignalPath = path.join(runtimeDirectory, "give-money.json");
+const fishEntotRefreshSignalPath = path.join(runtimeDirectory, "fish-entot-refresh.json");
 const defaultFishingChannelsPath = path.join(runtimeDirectory, "default-fishing-channels.json");
 const fishRaidStatePath = path.join(runtimeDirectory, "fish-raid-state.json");
 const fishRaidSignalPath = path.join(runtimeDirectory, "fish-raid-signal.json");
@@ -207,6 +209,7 @@ function cleanPlayer(player) {
     inventory,
     fishDex,
     showcasedFishId: String(source.showcasedFishId || "").trim(),
+    fishEntotLastUsedAt: Math.max(0, cleanNumber(source.fishEntotLastUsedAt, 0)),
     totalFishCaught: Math.max(0, Math.floor(cleanNumber(source.totalFishCaught, Object.values(inventory).reduce((sum, quantity) => sum + quantity, 0)))),
     fishCompWins: Math.max(0, Math.floor(cleanNumber(source.fishCompWins, 0))),
     heaviestFish: source.heaviestFish && typeof source.heaviestFish === "object" ? source.heaviestFish : null,
@@ -742,6 +745,15 @@ function signalGiveMoney(payload) {
   }));
 }
 
+function signalFishEntotRefresh(payload) {
+  fs.mkdirSync(runtimeDirectory, { recursive: true });
+  fs.writeFileSync(fishEntotRefreshSignalPath, JSON.stringify({
+    id: `${Date.now()}:${Math.random().toString(36).slice(2)}`,
+    createdAt: new Date().toISOString(),
+    ...payload
+  }));
+}
+
 function signalFishRaid(payload) {
   fs.mkdirSync(runtimeDirectory, { recursive: true });
   fs.writeFileSync(fishRaidSignalPath, JSON.stringify({
@@ -863,6 +875,22 @@ async function handleApi(request, response) {
       const playFabId = String(body.playFabId || "").trim();
       if (!playFabId) throw new Error("Missing PlayFab ID.");
       sendJson(response, 200, { ok: true, player: await adminResetPlayerData(playFabId) });
+      return;
+    }
+
+    if (request.method === "POST" && request.url === "/api/player/refresh-entot") {
+      const body = JSON.parse(await readBody(request));
+      const playFabId = String(body.playFabId || "").trim();
+      if (!playFabId) throw new Error("Missing PlayFab ID.");
+      const current = await adminGetPlayerRecord(playFabId);
+      const player = cleanPlayer(current.player);
+      player.fishEntotLastUsedAt = 0;
+      const saved = await adminSavePlayerData(playFabId, player);
+      const discordUserId = String(saved.player?.discordUserId || saved.discordUserId || "").trim();
+      const user = String(saved.displayName || saved.username || saved.player?.discordDisplayName || saved.player?.discordUsername || discordUserId || playFabId).trim();
+      signalFishEntotRefresh({ playFabId, discordUserId, user });
+      logManagerAction("Fishentot cooldown refreshed", { user, playFabId });
+      sendJson(response, 200, { ok: true, player: saved });
       return;
     }
 
@@ -2054,6 +2082,7 @@ const html = `<!doctype html>
           <div class="wide button-row">
             <button class="primary" data-save-player>Save Player</button>
             <button data-open-enforce-fishing>Enforce Fishing</button>
+            <button data-refresh-entot>Refresh Entot</button>
             <button data-make-admin>Make Admin</button>
             <button class="danger" data-reset-player>Reset Player Data</button>
             <button class="danger" data-delete-player>Delete Player</button>
@@ -3578,6 +3607,23 @@ const html = `<!doctype html>
       render();
     }
 
+    async function refreshEntotForSelectedPlayer() {
+      const selected = selectedPlayerRecord();
+      if (!selected) return;
+      setStatus("Refreshing Fishentot cooldown...");
+      const response = await fetch("/api/player/refresh-entot", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ playFabId: selected.playFabId })
+      });
+      const payload = await response.json();
+      if (!response.ok) throw new Error(payload.error || "Could not refresh Fishentot cooldown.");
+      updateSelectedPlayer(payload.player);
+      state.catchNotice = "Fishentot cooldown refreshed. The player can use /fishentot now.";
+      setStatus("Fishentot cooldown refreshed.");
+      render();
+    }
+
     async function deleteSelectedPlayer() {
       const selected = selectedPlayerRecord();
       if (!selected || !confirm("Delete this player account from the PlayFab title? This is queued by PlayFab and may take a few minutes.")) return;
@@ -4483,6 +4529,10 @@ const html = `<!doctype html>
       }
       if (event.target.closest("[data-reset-player]")) {
         resetSelectedPlayer().catch((error) => setStatus(error.message, true));
+        return;
+      }
+      if (event.target.closest("[data-refresh-entot]")) {
+        refreshEntotForSelectedPlayer().catch((error) => setStatus(error.message, true));
         return;
       }
       if (event.target.closest("[data-delete-player]")) {
