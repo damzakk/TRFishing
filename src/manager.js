@@ -34,6 +34,18 @@ function sendJson(response, statusCode, payload) {
   response.end(JSON.stringify(payload));
 }
 
+function startProgressResponse(response) {
+  response.writeHead(200, {
+    "Content-Type": "application/x-ndjson; charset=utf-8",
+    "Cache-Control": "no-cache, no-transform",
+    "X-Content-Type-Options": "nosniff"
+  });
+}
+
+function sendProgress(response, payload) {
+  response.write(`${JSON.stringify(payload)}\n`);
+}
+
 function sendBinary(response, statusCode, buffer, contentType, cacheSeconds = 86400) {
   response.writeHead(statusCode, {
     "Content-Type": contentType,
@@ -783,6 +795,18 @@ function signalFishEntotRefresh(payload) {
   }));
 }
 
+function mergeSavedPlayerRecord(record, saved) {
+  return {
+    ...record,
+    ...saved,
+    username: saved.username || record.username || "",
+    displayName: saved.displayName || record.displayName || "",
+    created: saved.created || record.created || "",
+    lastLogin: saved.lastLogin || record.lastLogin || "",
+    player: saved.player
+  };
+}
+
 function signalFishRaid(payload) {
   fs.mkdirSync(runtimeDirectory, { recursive: true });
   fs.writeFileSync(fishRaidSignalPath, JSON.stringify({
@@ -919,7 +943,7 @@ async function handleApi(request, response) {
       const current = await adminGetPlayerRecord(playFabId);
       const player = cleanPlayer(current.player);
       player.fishEntotLastUsedAt = 0;
-      const saved = await adminSavePlayerData(playFabId, player);
+      const saved = mergeSavedPlayerRecord(current, await adminSavePlayerData(playFabId, player, { refetch: false }));
       const discordUserId = String(saved.player?.discordUserId || saved.discordUserId || "").trim();
       const user = String(saved.displayName || saved.username || saved.player?.discordDisplayName || saved.player?.discordUsername || discordUserId || playFabId).trim();
       signalFishEntotRefresh({ playFabId, discordUserId, user });
@@ -1010,47 +1034,146 @@ async function handleApi(request, response) {
     }
 
     if (request.method === "POST" && request.url === "/api/players/enforce-fishing") {
-      const data = await adminGetGameData({ caller: "manager enforce fishing for all players" });
-      const players = await adminListPlayers();
-      const updatedPlayers = [];
-      const catches = [];
-      let queuedCount = 0;
-      let skippedCount = 0;
-
-      for (const record of players) {
-        const player = cleanPlayer(record.player);
-        try {
-          const catchResult = rollFishForManager(data, player);
-          const gain = addManagerCatch(data, player, catchResult.fish, catchResult.catchWeight);
-          const saved = await adminSavePlayerData(record.playFabId, player);
-          updatedPlayers.push(saved);
-          const discordUserId = String(saved.player?.discordUserId || player.discordUserId || record.discordUserId || "").trim();
-          const messageChannel = resolveFishingMessageChannel(player, saved.player);
-          if (discordUserId && messageChannel.channelId) {
-            catches.push({
-              discordUserId,
-              guildId: messageChannel.guildId,
-              channelId: messageChannel.channelId,
-          fish: catchResult.fish,
-          catchWeight: catchResult.catchWeight,
-          expGain: gain.expGain,
-          expBase: gain.expBase,
-          expEventInfo: gain.expEventInfo
+      const body = JSON.parse(await readBody(request) || "{}");
+      const targetGuildId = String(body.guildId || "").trim();
+      const fishRequests = normalizeEnforceFishRequests(body);
+      startProgressResponse(response);
+      sendProgress(response, { type: "progress", phase: "loading", message: "Loading players from PlayFab…" });
+      try {
+        const data = await adminGetGameData({ caller: "manager enforce fishing for all players" });
+        const allPlayers = await adminListPlayers("", {
+          onProgress: ({ current, total }) => sendProgress(response, {
+            type: "progress",
+            phase: "loading",
+            current,
+            total,
+            message: `Loaded ${current} of ${total} players from PlayFab…`
+          })
         });
-            queuedCount += 1;
-          } else {
-            skippedCount += 1;
-          }
-        } catch (error) {
-          skippedCount += 1;
-          console.error(`Could not enforce fishing for ${record.playFabId}:`, error);
-        }
-      }
+        const players = targetGuildId
+          ? allPlayers.filter((record) => String(record.player?.lastFishingGuildId || "").trim() === targetGuildId)
+          : allPlayers;
+        const updatedPlayers = [];
+        const catches = [];
+        let queuedCount = 0;
+        let noChannelCount = 0;
+        let failedCount = 0;
+        let processed = 0;
+        sendProgress(response, { type: "progress", phase: "processing", current: 0, total: players.length, message: `Preparing ${players.length} targeted player${players.length === 1 ? "" : "s"}…` });
 
-      if (catches.length) {
-        signalEnforcedFishing({ catches });
+        for (const record of players) {
+          const player = cleanPlayer(record.player);
+          const playerCatches = [];
+          try {
+            for (const fishRequest of fishRequests.length ? fishRequests : [{ fishId: "", quantity: 1 }]) {
+              for (let index = 0; index < fishRequest.quantity; index += 1) {
+                const catchResult = rollFishForManager(data, player, fishRequest.fishId);
+                const gain = addManagerCatch(data, player, catchResult.fish, catchResult.catchWeight);
+                playerCatches.push({ catchResult, gain });
+              }
+            }
+            const saved = mergeSavedPlayerRecord(record, await adminSavePlayerData(record.playFabId, player, { refetch: false, remember: false }));
+            updatedPlayers.push(saved);
+            const discordUserId = String(saved.player?.discordUserId || player.discordUserId || record.discordUserId || "").trim();
+            const messageChannel = resolveFishingMessageChannel(player, saved.player);
+            if (discordUserId && messageChannel.channelId) {
+              for (const { catchResult, gain } of playerCatches) {
+                catches.push({
+                  discordUserId,
+                  guildId: messageChannel.guildId,
+                  channelId: messageChannel.channelId,
+                  fish: catchResult.fish,
+                  catchWeight: catchResult.catchWeight,
+                  expGain: gain.expGain,
+                  expBase: gain.expBase,
+                  expEventInfo: gain.expEventInfo
+                });
+              }
+              queuedCount += playerCatches.length;
+            } else {
+              noChannelCount += 1;
+            }
+          } catch (error) {
+            failedCount += 1;
+            console.error(`Could not enforce fishing for ${record.playFabId}:`, error);
+          } finally {
+            processed += 1;
+            sendProgress(response, {
+              type: "progress",
+              phase: "processing",
+              current: processed,
+              total: players.length,
+              message: `Processed ${processed} of ${players.length} targeted players…`
+            });
+          }
+        }
+
+        if (catches.length) signalEnforcedFishing({ catches });
+        sendProgress(response, {
+          type: "complete",
+          ok: true,
+          count: updatedPlayers.length,
+          targetCount: players.length,
+          excludedCount: allPlayers.length - players.length,
+          queuedCount,
+          noChannelCount,
+          failedCount,
+          players: updatedPlayers
+        });
+        response.end();
+      } catch (error) {
+        sendProgress(response, { type: "error", error: error.message });
+        response.end();
       }
-      sendJson(response, 200, { ok: true, count: updatedPlayers.length, queuedCount, skippedCount, players: updatedPlayers });
+      return;
+    }
+
+    if (request.method === "POST" && request.url === "/api/players/refresh-entot") {
+      startProgressResponse(response);
+      sendProgress(response, { type: "progress", phase: "loading", message: "Loading players from PlayFab…" });
+      try {
+        const players = await adminListPlayers("", {
+          onProgress: ({ current, total }) => sendProgress(response, {
+            type: "progress",
+            phase: "loading",
+            current,
+            total,
+            message: `Loaded ${current} of ${total} players from PlayFab…`
+          })
+        });
+        const updatedPlayers = [];
+        let failedCount = 0;
+        let processed = 0;
+        sendProgress(response, { type: "progress", phase: "processing", current: 0, total: players.length, message: `Preparing ${players.length} player${players.length === 1 ? "" : "s"}…` });
+        for (const record of players) {
+          try {
+            const player = cleanPlayer(record.player);
+            player.fishEntotLastUsedAt = 0;
+            const saved = mergeSavedPlayerRecord(record, await adminSavePlayerData(record.playFabId, player, { refetch: false, remember: false }));
+            updatedPlayers.push(saved);
+            const user = String(saved.displayName || saved.username || saved.player?.discordDisplayName || saved.player?.discordUsername || saved.player?.discordUserId || record.playFabId).trim();
+            logManagerAction("Fishentot cooldown refreshed", { user, playFabId: record.playFabId });
+          } catch (error) {
+            failedCount += 1;
+            console.error(`Could not refresh Fishentot cooldown for ${record.playFabId}:`, error);
+          } finally {
+            processed += 1;
+            sendProgress(response, {
+              type: "progress",
+              phase: "processing",
+              current: processed,
+              total: players.length,
+              message: `Processed ${processed} of ${players.length} players…`
+            });
+          }
+        }
+        signalFishEntotRefresh({ user: `${updatedPlayers.length} players`, count: updatedPlayers.length });
+        sendProgress(response, { type: "complete", ok: true, count: updatedPlayers.length, failedCount, players: updatedPlayers });
+        response.end();
+      } catch (error) {
+        sendProgress(response, { type: "error", error: error.message });
+        response.end();
+      }
       return;
     }
 
@@ -1248,7 +1371,11 @@ async function handleApi(request, response) {
 
     sendJson(response, 404, { error: "Not found" });
   } catch (error) {
-    sendJson(response, 500, { error: error.message });
+    if (response.headersSent) {
+      if (!response.writableEnded) response.end();
+    } else {
+      sendJson(response, 500, { error: error.message });
+    }
   }
 }
 
@@ -1331,6 +1458,25 @@ const html = `<!doctype html>
       background: var(--panel);
       text-align: center;
       box-shadow: 0 24px 80px rgba(0, 0, 0, 0.5);
+    }
+    .loading-progress {
+      display: none;
+      gap: 8px;
+      margin-top: 16px;
+    }
+    .loading-progress.active { display: grid; }
+    .loading-progress-track {
+      height: 10px;
+      overflow: hidden;
+      border: 1px solid var(--line);
+      border-radius: 999px;
+      background: #0b0f13;
+    }
+    .loading-progress-bar {
+      width: 0;
+      height: 100%;
+      background: var(--accent);
+      transition: width 0.18s ease;
     }
     .spinner {
       width: 34px;
@@ -1776,7 +1922,14 @@ const html = `<!doctype html>
     <section class="grid" id="grid"></section>
   </main>
   <div class="loading-screen" id="loading-screen" role="status" aria-live="polite" aria-busy="true">
-    <div class="loading-card"><div class="spinner"></div><strong id="loading-message">Loading data…</strong></div>
+    <div class="loading-card">
+      <div class="spinner"></div>
+      <strong id="loading-message">Loading data…</strong>
+      <div class="loading-progress" id="loading-progress">
+        <div class="loading-progress-track"><div class="loading-progress-bar" id="loading-progress-bar"></div></div>
+        <div class="small" id="loading-progress-text"></div>
+      </div>
+    </div>
   </div>
   <script>
     const state = {
@@ -1823,6 +1976,9 @@ const html = `<!doctype html>
       selectedPlayerId: "",
       enforceModalOpen: false,
       enforceFishSelections: [{ fishId: "", quantity: 1 }],
+      enforceAllModalOpen: false,
+      enforceAllGuildId: "",
+      enforceAllFishSelections: [{ fishId: "", quantity: 1 }],
       catchNotice: "",
       giveMoneyAmount: 0,
       uploadNames: {}
@@ -1844,12 +2000,30 @@ const html = `<!doctype html>
       state.processing = processing;
       document.querySelector("#loading-message").textContent = message;
       document.querySelector("#loading-screen").classList.toggle("active", processing);
+      if (!processing) setLoadingProgress();
       document.querySelectorAll("button, input, textarea, select").forEach((element) => {
         if (processing) element.setAttribute("data-processing-disabled", element.disabled ? "already" : "temporary");
         if (processing) element.disabled = true;
         else if (element.dataset.processingDisabled === "temporary") element.disabled = false;
         if (!processing) delete element.dataset.processingDisabled;
       });
+    }
+
+    function setLoadingProgress(current, total, message = "") {
+      const progress = document.querySelector("#loading-progress");
+      const bar = document.querySelector("#loading-progress-bar");
+      const text = document.querySelector("#loading-progress-text");
+      const hasProgress = Number.isFinite(Number(total)) && Number(total) >= 0;
+      progress.classList.toggle("active", hasProgress);
+      if (!hasProgress) {
+        bar.style.width = "0%";
+        text.textContent = "";
+        return;
+      }
+      const safeTotal = Math.max(0, Number(total));
+      const safeCurrent = Math.max(0, Math.min(Number(current || 0), safeTotal));
+      bar.style.width = (safeTotal ? safeCurrent / safeTotal * 100 : 100) + "%";
+      text.textContent = message || (safeCurrent + " of " + safeTotal);
     }
 
     async function runWithLoading(message, work) {
@@ -2143,7 +2317,8 @@ const html = `<!doctype html>
             <input data-player-search placeholder="Search Discord ID or username" value="\${escapeHtml(state.playerSearch)}">
             <div class="button-row">
               <button data-search-players>Search</button>
-              <button data-enforce-all-fishing>Enforce Fishing To All Player</button>
+              <button data-open-enforce-all-fishing>Enforce Fishing To All Player</button>
+              <button data-refresh-all-entot>Refresh Entot For All Players</button>
               <button class="danger" data-reset-all-players>Reset All Player Data</button>
               <button class="danger" data-delete-all-players>Delete All Players</button>
             </div>
@@ -2154,6 +2329,7 @@ const html = `<!doctype html>
             \${selected ? playerPanelTemplate(selected) : '<div class="small">Select a player to manage their data.</div>'}
           </article>
           \${state.enforceModalOpen ? enforceFishingModalTemplate(selected) : ""}
+          \${state.enforceAllModalOpen ? enforceFishingForAllModalTemplate() : ""}
         </div>\`;
     }
 
@@ -2216,7 +2392,7 @@ const html = `<!doctype html>
     function enforceFishingModalTemplate(record) {
       const player = record?.player || {};
       const name = record ? (record.displayName || record.username || player.discordUsername || record.playFabId) : "Selected Player";
-      const rows = getEnforceFishSelections().map((selection, index) => enforceFishRowTemplate(selection, index)).join("");
+      const rows = getEnforceFishSelections().map((selection, index) => enforceFishRowTemplate(selection, index, "single")).join("");
       return \`
         <div class="modal-overlay" data-enforce-modal-overlay>
           <section class="modal-panel" role="dialog" aria-modal="true" aria-label="Enforce fishing">
@@ -2239,25 +2415,54 @@ const html = `<!doctype html>
         </div>\`;
     }
 
-    function getEnforceFishSelections() {
-      if (!Array.isArray(state.enforceFishSelections) || !state.enforceFishSelections.length) {
-        state.enforceFishSelections = [{ fishId: "", quantity: 1 }];
-      }
-      return state.enforceFishSelections;
+    function enforceFishingForAllModalTemplate() {
+      const rows = getEnforceFishSelections("all").map((selection, index) => enforceFishRowTemplate(selection, index, "all")).join("");
+      return \`
+        <div class="modal-overlay" data-enforce-modal-overlay>
+          <section class="modal-panel" role="dialog" aria-modal="true" aria-label="Enforce fishing for all players">
+            <div class="modal-header">
+              <div>
+                <strong>Enforce Fishing To All Players</strong>
+                <div class="small">Only players whose last fishing server matches the target are included. Leave it empty to include every player.</div>
+              </div>
+              <button class="icon-button" data-close-enforce-modal type="button" aria-label="Close">x</button>
+            </div>
+            <label>Target Discord Server ID, optional
+              <input data-enforce-all-guild placeholder="Empty means all servers" value="\${escapeHtml(state.enforceAllGuildId)}">
+            </label>
+            <div class="enforce-list">\${rows}</div>
+            <div class="button-row">
+              <button class="icon-button" data-add-enforce-fish data-enforce-scope="all" type="button" aria-label="Add fish">+</button>
+            </div>
+            <div class="small">Each targeted player receives the complete fish list and quantities configured above.</div>
+            <div class="modal-actions">
+              <button data-close-enforce-modal type="button">Cancel</button>
+              <button class="primary" data-enforce-all-fishing type="button">Enforce Fishing</button>
+            </div>
+          </section>
+        </div>\`;
     }
 
-    function enforceFishRowTemplate(selection, index) {
+    function getEnforceFishSelections(scope = "single") {
+      const key = scope === "all" ? "enforceAllFishSelections" : "enforceFishSelections";
+      if (!Array.isArray(state[key]) || !state[key].length) {
+        state[key] = [{ fishId: "", quantity: 1 }];
+      }
+      return state[key];
+    }
+
+    function enforceFishRowTemplate(selection, index, scope = "single") {
       return \`
         <div class="enforce-row">
-          <label>Fish<select data-enforce-fish-index="\${index}">
+          <label>Fish<select data-enforce-fish-index="\${index}" data-enforce-scope="\${scope}">
             <option value="">Random</option>
             \${state.fish.map((fish) => {
               const fishId = String(fish.id || "");
               return \`<option value="\${escapeHtml(fishId)}" \${String(selection.fishId || "") === fishId ? "selected" : ""}>\${escapeHtml(fish.name || fish.id || "Unnamed Fish")}</option>\`;
             }).join("")}
           </select></label>
-          <label>Qty<input type="number" min="1" max="99" step="1" data-enforce-quantity-index="\${index}" value="\${escapeHtml(String(selection.quantity || 1))}"></label>
-          <button class="icon-button danger" data-remove-enforce-fish="\${index}" type="button" aria-label="Remove fish" \${getEnforceFishSelections().length <= 1 ? "disabled" : ""}>x</button>
+          <label>Qty<input type="number" min="1" max="99" step="1" data-enforce-quantity-index="\${index}" data-enforce-scope="\${scope}" value="\${escapeHtml(String(selection.quantity || 1))}"></label>
+          <button class="icon-button danger" data-remove-enforce-fish="\${index}" data-enforce-scope="\${scope}" type="button" aria-label="Remove fish" \${getEnforceFishSelections(scope).length <= 1 ? "disabled" : ""}>x</button>
         </div>\`;
     }
 
@@ -3727,6 +3932,53 @@ const html = `<!doctype html>
       state.selectedPlayerId = record.playFabId;
     }
 
+    function mergeUpdatedPlayers(records) {
+      const updates = new Map((Array.isArray(records) ? records : []).map((record) => [record.playFabId, record]));
+      state.players = state.players.map((record) => updates.get(record.playFabId) || record);
+      for (const record of updates.values()) {
+        if (!state.players.some((existing) => existing.playFabId === record.playFabId)) state.players.push(record);
+      }
+    }
+
+    async function readProgressResponse(response, onProgress) {
+      const reader = response.body?.getReader?.();
+      if (!reader) {
+        const payload = await response.json();
+        if (!response.ok || payload.type === "error") throw new Error(payload.error || "The operation failed.");
+        return payload;
+      }
+      const decoder = new TextDecoder();
+      let buffer = "";
+      let completed = null;
+      let lastEvent = null;
+      const consumeLine = (line) => {
+        if (!line.trim()) return;
+        const event = JSON.parse(line);
+        lastEvent = event;
+        if (event.type === "error") throw new Error(event.error || "The operation failed.");
+        if (event.type === "complete") completed = event;
+        if (event.type === "progress") onProgress?.(event);
+      };
+      while (true) {
+        const { value, done } = await reader.read();
+        buffer += decoder.decode(value || new Uint8Array(), { stream: !done });
+        const lines = buffer.split("\\n");
+        buffer = lines.pop() || "";
+        for (const line of lines) consumeLine(line);
+        if (done) break;
+      }
+      consumeLine(buffer);
+      if (!response.ok) throw new Error(lastEvent?.error || "The operation failed.");
+      if (!completed) throw new Error("The operation ended before completion was confirmed.");
+      return completed;
+    }
+
+    function showOperationProgress(event) {
+      document.querySelector("#loading-message").textContent = event.message || "Processing players…";
+      if (Number.isFinite(Number(event.total))) setLoadingProgress(event.current || 0, event.total, event.message || "");
+      else setLoadingProgress();
+    }
+
     async function saveSelectedPlayer() {
       const selected = selectedPlayerRecord();
       if (!selected) return;
@@ -3762,18 +4014,33 @@ const html = `<!doctype html>
     async function refreshEntotForSelectedPlayer() {
       const selected = selectedPlayerRecord();
       if (!selected) return;
-      setStatus("Refreshing Fishentot cooldown...");
-      const response = await fetch("/api/player/refresh-entot", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ playFabId: selected.playFabId })
+      await runWithLoading("Refreshing Fishentot cooldown…", async () => {
+        setStatus("Refreshing Fishentot cooldown...");
+        const response = await fetch("/api/player/refresh-entot", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ playFabId: selected.playFabId })
+        });
+        const payload = await response.json();
+        if (!response.ok) throw new Error(payload.error || "Could not refresh Fishentot cooldown.");
+        updateSelectedPlayer(payload.player);
+        state.catchNotice = "Fishentot cooldown refreshed. The player can use /fishentot now.";
+        setStatus("Fishentot cooldown refreshed.");
+        render();
       });
-      const payload = await response.json();
-      if (!response.ok) throw new Error(payload.error || "Could not refresh Fishentot cooldown.");
-      updateSelectedPlayer(payload.player);
-      state.catchNotice = "Fishentot cooldown refreshed. The player can use /fishentot now.";
-      setStatus("Fishentot cooldown refreshed.");
-      render();
+    }
+
+    async function refreshEntotForAllPlayers() {
+      if (!confirm("Refresh the Fishentot cooldown for every PlayFab player?")) return;
+      await runWithLoading("Refreshing Fishentot cooldowns…", async () => {
+        setStatus("Refreshing Fishentot cooldowns for all players...");
+        const response = await fetch("/api/players/refresh-entot", { method: "POST" });
+        const payload = await readProgressResponse(response, showOperationProgress);
+        mergeUpdatedPlayers(payload.players);
+        state.catchNotice = \`Fishentot cooldown refreshed for \${payload.count || 0} players. Failed: \${payload.failedCount || 0}.\`;
+        setStatus("Fishentot cooldown refresh finished.");
+        render();
+      });
     }
 
     async function deleteSelectedPlayer() {
@@ -3796,41 +4063,52 @@ const html = `<!doctype html>
     async function enforceFishingForSelectedPlayer() {
       const selected = selectedPlayerRecord();
       if (!selected) return;
-      setStatus("Forcing a fishing catch...");
-      const fishSelections = getEnforceFishSelections().map((selection) => ({
-        fishId: String(selection.fishId || ""),
-        quantity: Math.max(1, Math.min(99, Math.floor(Number(selection.quantity || 1))))
-      }));
-      const response = await fetch("/api/player/enforce-fishing", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ playFabId: selected.playFabId, player: selected.player, fishSelections })
+      await runWithLoading("Enforcing fishing…", async () => {
+        setStatus("Forcing a fishing catch...");
+        const fishSelections = getEnforceFishSelections().map((selection) => ({
+          fishId: String(selection.fishId || ""),
+          quantity: Math.max(1, Math.min(99, Math.floor(Number(selection.quantity || 1))))
+        }));
+        const response = await fetch("/api/player/enforce-fishing", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ playFabId: selected.playFabId, player: selected.player, fishSelections })
+        });
+        const payload = await response.json();
+        if (!response.ok) throw new Error(payload.error || "Could not enforce fishing.");
+        updateSelectedPlayer(payload.player);
+        const discordStatus = payload.messageQueued ? " Discord catch message queued." : " No last Discord channel is saved for this player yet.";
+        const catches = Array.isArray(payload.catches) ? payload.catches : (payload.catch ? [payload.catch] : []);
+        const catchSummary = catches.length === 1
+          ? \`Caught \${catches[0].fish.name}, \${Number(catches[0].catchWeight || 0).toFixed(2)} kg, +\${catches[0].expGain} EXP, Luck Score \${catches[0].luckScore}\`
+          : \`Caught \${catches.length} fish, +\${catches.reduce((sum, entry) => sum + Number(entry.expGain || 0), 0)} EXP total\`;
+        state.catchNotice = \`\${catchSummary}. Progress reset.\${discordStatus}\`;
+        state.enforceModalOpen = false;
+        setStatus(payload.messageQueued ? "Fishing enforced and Discord message queued." : "Fishing enforced, but no Discord channel was saved.");
+        render();
       });
-      const payload = await response.json();
-      if (!response.ok) throw new Error(payload.error || "Could not enforce fishing.");
-      updateSelectedPlayer(payload.player);
-      const discordStatus = payload.messageQueued ? " Discord catch message queued." : " No last Discord channel is saved for this player yet.";
-      const catches = Array.isArray(payload.catches) ? payload.catches : (payload.catch ? [payload.catch] : []);
-      const catchSummary = catches.length === 1
-        ? \`Caught \${catches[0].fish.name}, \${Number(catches[0].catchWeight || 0).toFixed(2)} kg, +\${catches[0].expGain} EXP, Luck Score \${catches[0].luckScore}\`
-        : \`Caught \${catches.length} fish, +\${catches.reduce((sum, entry) => sum + Number(entry.expGain || 0), 0)} EXP total\`;
-      state.catchNotice = \`\${catchSummary}. Progress reset.\${discordStatus}\`;
-      state.enforceModalOpen = false;
-      setStatus(payload.messageQueued ? "Fishing enforced and Discord message queued." : "Fishing enforced, but no Discord channel was saved.");
-      render();
     }
 
     async function enforceFishingForAllPlayers() {
-      if (!confirm("Enforce one fishing catch for every PlayFab player? Discord messages are queued immediately for players with a saved popup channel.")) return;
-      setStatus("Forcing fishing catches for all players...");
-      const response = await fetch("/api/players/enforce-fishing", { method: "POST" });
-      const payload = await response.json();
-      if (!response.ok) throw new Error(payload.error || "Could not enforce fishing for all players.");
-      state.players = payload.players || state.players;
-      state.selectedPlayerId = state.players.some((player) => player.playFabId === state.selectedPlayerId) ? state.selectedPlayerId : state.players[0]?.playFabId || "";
-      state.catchNotice = \`Enforced fishing for \${payload.count || 0} players. Discord catch messages queued: \${payload.queuedCount || 0}. Skipped/no channel: \${payload.skippedCount || 0}.\`;
-      setStatus("Fishing enforced for all players.");
-      render();
+      const fishSelections = getEnforceFishSelections("all").map((selection) => ({
+        fishId: String(selection.fishId || ""),
+        quantity: Math.max(1, Math.min(99, Math.floor(Number(selection.quantity || 1))))
+      }));
+      await runWithLoading("Enforcing fishing for targeted players…", async () => {
+        setStatus("Forcing fishing catches for targeted players...");
+        const response = await fetch("/api/players/enforce-fishing", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ guildId: state.enforceAllGuildId, fishSelections })
+        });
+        const payload = await readProgressResponse(response, showOperationProgress);
+        mergeUpdatedPlayers(payload.players);
+        state.enforceAllModalOpen = false;
+        const excludedSummary = payload.excludedCount ? \` Excluded by server filter: \${payload.excludedCount}.\` : "";
+        state.catchNotice = \`Enforced fishing for \${payload.count || 0} of \${payload.targetCount || 0} targeted players. Discord catch messages queued: \${payload.queuedCount || 0}. No saved channel: \${payload.noChannelCount || 0}. Failed: \${payload.failedCount || 0}.\${excludedSummary}\`;
+        setStatus("Fishing enforcement finished.");
+        render();
+      });
     }
 
     async function giveMoneyToSelectedPlayer() {
@@ -4109,13 +4387,17 @@ const html = `<!doctype html>
           state.giveMoneyAmount = Number(target.value);
           return;
         }
+        if (target.dataset.enforceAllGuild !== undefined) {
+          state.enforceAllGuildId = target.value;
+          return;
+        }
         if (target.dataset.enforceFishIndex !== undefined) {
-          const selection = getEnforceFishSelections()[Number(target.dataset.enforceFishIndex)];
+          const selection = getEnforceFishSelections(target.dataset.enforceScope)[Number(target.dataset.enforceFishIndex)];
           if (selection) selection.fishId = target.value;
           return;
         }
         if (target.dataset.enforceQuantityIndex !== undefined) {
-          const selection = getEnforceFishSelections()[Number(target.dataset.enforceQuantityIndex)];
+          const selection = getEnforceFishSelections(target.dataset.enforceScope)[Number(target.dataset.enforceQuantityIndex)];
           if (selection) selection.quantity = Math.max(1, Math.min(99, Math.floor(Number(target.value || 1))));
           return;
         }
@@ -4538,21 +4820,29 @@ const html = `<!doctype html>
         render();
         return;
       }
+      const openEnforceAllFishingButton = event.target.closest("[data-open-enforce-all-fishing]");
+      if (openEnforceAllFishingButton) {
+        state.enforceAllModalOpen = true;
+        getEnforceFishSelections("all");
+        render();
+        return;
+      }
       const closeEnforceModalButton = event.target.closest("[data-close-enforce-modal]");
       if (closeEnforceModalButton) {
         state.enforceModalOpen = false;
+        state.enforceAllModalOpen = false;
         render();
         return;
       }
       const addEnforceFishButton = event.target.closest("[data-add-enforce-fish]");
       if (addEnforceFishButton) {
-        getEnforceFishSelections().push({ fishId: "", quantity: 1 });
+        getEnforceFishSelections(addEnforceFishButton.dataset.enforceScope).push({ fishId: "", quantity: 1 });
         render();
         return;
       }
       const removeEnforceFishButton = event.target.closest("[data-remove-enforce-fish]");
       if (removeEnforceFishButton) {
-        const selections = getEnforceFishSelections();
+        const selections = getEnforceFishSelections(removeEnforceFishButton.dataset.enforceScope);
         if (selections.length > 1) {
           selections.splice(Number(removeEnforceFishButton.dataset.removeEnforceFish), 1);
           render();
@@ -4680,6 +4970,10 @@ const html = `<!doctype html>
       }
       if (event.target.closest("[data-refresh-entot]")) {
         refreshEntotForSelectedPlayer().catch((error) => setStatus(error.message, true));
+        return;
+      }
+      if (event.target.closest("[data-refresh-all-entot]")) {
+        refreshEntotForAllPlayers().catch((error) => setStatus(error.message, true));
         return;
       }
       if (event.target.closest("[data-delete-player]")) {

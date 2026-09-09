@@ -579,11 +579,16 @@ async function adminListPlayers(search = "", options = {}) {
     ...legacyPlayers.filter(Boolean).map((record) => record.playFabId)
   ].filter(Boolean))];
   const records = [];
+  let attempted = 0;
   for (const playFabId of playFabIds) {
     try {
       records.push(await adminGetPlayerRecord(playFabId));
     } catch (error) {
       console.error(`Could not load player ${playFabId}:`, error);
+    }
+    attempted += 1;
+    if (typeof options?.onProgress === "function") {
+      options.onProgress({ current: attempted, loaded: records.length, total: playFabIds.length, playFabId });
     }
   }
   return records
@@ -611,7 +616,9 @@ async function adminSavePlayerData(playFabId, player, options = {}) {
     }
   }, true);
   if (options?.refetch === false) {
-    rememberPlayerForAdminList(normalizedPlayer).catch((error) => console.error("Could not update player index:", error));
+    if (options?.remember !== false) {
+      rememberPlayerForAdminList(normalizedPlayer).catch((error) => console.error("Could not update player index:", error));
+    }
     return {
       playFabId,
       discordUserId: String(normalizedPlayer.discordUserId || "").trim(),
