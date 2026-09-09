@@ -133,6 +133,8 @@ let gameData = {
     fishCompGoldReward: 0,
     fishRaidLogIntervalMs: 2500,
     fishRaidCooldownMinutes: 60,
+    fishRaidQuotaStreakBonusPercent: 0,
+    fishRaidRewardStreakBonusPercent: 0,
     fishRaidParticipantExpReward: 25,
     fishRaidParticipantGoldReward: 0,
     fishRaidMvpExpReward: 75,
@@ -146,11 +148,13 @@ let gameData = {
     expMultiplier: 1,
     levelExpMultiplier: 1,
     voiceExpAmount: 1,
-    voiceExpIntervalMinutes: 15
+    voiceExpIntervalMinutes: 15,
+    dailyQuestCount: 3
   },
   activeEvent: null,
   events: [],
-  routineMessages: []
+  routineMessages: [],
+  quests: { main: [], event: [], daily: [], fish: [] }
 };
 const playerQueues = new Map();
 const announcedEvents = new Set();
@@ -410,6 +414,29 @@ function getEffectiveRodAccuracy(rod, context = {}) {
   return Math.max(0, Math.min(100, Number(rod?.accuracy ?? 50) + sumItemBonus(rod, "accuracy", context)));
 }
 
+function getEffectiveRod(rod, context = {}) {
+  if (!rod) return null;
+  return {
+    ...rod,
+    luck: Number(rod.luck || 0) + sumItemBonus(rod, "luck", context),
+    maxWeight: Math.max(0.01, Number(rod.maxWeight || 0.01) + sumItemBonus(rod, "maxWeight", context))
+  };
+}
+
+function rarityRank(rarity) {
+  const rank = Object.keys(rarityColors).indexOf(String(rarity || "Common"));
+  return rank < 0 ? Object.keys(rarityColors).length : rank;
+}
+
+function compareItemRarity(left, right) {
+  return rarityRank(left?.rarity) - rarityRank(right?.rarity)
+    || String(left?.name || "").localeCompare(String(right?.name || ""));
+}
+
+function getStoreRods() {
+  return gameData.rods.filter((rod) => rod.showInStore !== false);
+}
+
 function getEffectiveFishBagSpace(player, context = {}) {
   const bag = getFishBag(player?.fishBagId);
   if (!bag) {
@@ -470,6 +497,8 @@ function getSettings() {
     fishCompGoldReward: 0,
     fishRaidLogIntervalMs: 2500,
     fishRaidCooldownMinutes: 60,
+    fishRaidQuotaStreakBonusPercent: 0,
+    fishRaidRewardStreakBonusPercent: 0,
     fishRaidParticipantExpReward: 25,
     fishRaidParticipantGoldReward: 0,
     fishRaidMvpExpReward: 75,
@@ -483,7 +512,8 @@ function getSettings() {
     expMultiplier: 1,
     levelExpMultiplier: 1,
     voiceExpAmount: 1,
-    voiceExpIntervalMinutes: 15
+    voiceExpIntervalMinutes: 15,
+    dailyQuestCount: 3
   };
 }
 
@@ -503,11 +533,12 @@ function addFishingProgress(player, progressAmount = 1, guildId = "") {
 
   const catches = [];
   const speed = Math.max(1, Number(rod.speed || 1));
-  const progressMultiplier = getEventMultiplier("fishing_speed", guildId);
+  ensurePlayerQuests(player, guildId);
+  const progressMultiplier = getEventMultiplier("fishing_speed", guildId, "", player);
   player.progress = Math.max(0, Number(player.progress || 0)) + Math.max(0, Number(progressAmount || 0) * progressMultiplier);
   while (player.progress >= speed) {
     player.progress -= speed;
-    const catchResult = rollFish(rod, guildId);
+    const catchResult = rollFish(rod, guildId, player);
     if (!catchResult) {
       break;
     }
@@ -1210,6 +1241,155 @@ function isEventEnded(event) {
   return Boolean(event?.title && event?.announcementChannelId && event?.deployedAt && getEventEndedAt(event));
 }
 
+function getAllQuests() {
+  const quests = gameData.quests && typeof gameData.quests === "object" ? gameData.quests : {};
+  return ["main", "event", "daily", "fish"].flatMap((category) => (Array.isArray(quests[category]) ? quests[category] : []));
+}
+
+function getQuest(questId) {
+  return getAllQuests().find((quest) => quest.id === questId) || null;
+}
+
+function getChainedQuestIds() {
+  return new Set(getAllQuests().flatMap((quest) => (quest.rewards || []).filter((reward) => reward.type === "quest").map((reward) => reward.questId)).filter(Boolean));
+}
+
+function questDayKey() {
+  return new Intl.DateTimeFormat("en-CA", { timeZone: "Asia/Jakarta", year: "numeric", month: "2-digit", day: "2-digit" }).format(new Date());
+}
+
+function acceptQuest(player, quest, extra = {}) {
+  if (!quest?.id || quest.enabled === false || player.activeQuests.some((entry) => entry.questId === quest.id)) return false;
+  player.activeQuests.push({ questId: quest.id, category: quest.category, progress: 0, acceptedAt: new Date().toISOString(), ...extra });
+  return true;
+}
+
+function ensurePlayerQuests(player, guildId = "") {
+  player.activeQuests = (Array.isArray(player.activeQuests) ? player.activeQuests : []).filter((entry) => entry && typeof entry === "object" && String(entry.questId || "").trim());
+  player.completedQuestIds = Array.isArray(player.completedQuestIds) ? player.completedQuestIds : [];
+  player.fishQuestHistory = Array.isArray(player.fishQuestHistory) ? player.fishQuestHistory : [];
+  const chainedQuestIds = getChainedQuestIds();
+  for (const quest of gameData.quests?.main || []) {
+    if (chainedQuestIds.has(quest.id)) continue;
+    if (!player.completedQuestIds.includes(quest.id)) acceptQuest(player, quest);
+  }
+
+  const dayKey = questDayKey();
+  const dailyPool = [...(gameData.quests?.daily || [])].filter((quest) => quest.enabled !== false && !chainedQuestIds.has(quest.id));
+  if (player.dailyQuestDate !== dayKey && dailyPool.length) {
+    player.activeQuests = player.activeQuests.filter((entry) => entry.category !== "daily");
+    const pool = dailyPool.sort(() => Math.random() - 0.5);
+    const count = Math.min(pool.length, Math.max(0, Number(getSettings().dailyQuestCount ?? 3)));
+    pool.slice(0, count).forEach((quest) => acceptQuest(player, quest, { dailyDate: dayKey }));
+    player.dailyQuestDate = dayKey;
+  }
+
+  const activeEvents = getActiveEvents(guildId);
+  const activeEventKeys = new Set(activeEvents.map((event) => event.id));
+  const knownEventKeys = new Set(getEvents().map((event) => event.id));
+  player.activeQuests = player.activeQuests.filter((entry) => entry.category !== "event"
+    || !getQuest(entry.questId)
+    || !entry.eventId
+    || !knownEventKeys.has(entry.eventId)
+    || entry.unlockedBy
+    || activeEventKeys.has(entry.eventId));
+  for (const event of activeEvents) {
+    for (const questId of event.questIds || []) {
+      const quest = getQuest(questId);
+      if (quest?.category === "event" && !chainedQuestIds.has(quest.id)) acceptQuest(player, quest, { eventId: event.id });
+    }
+  }
+  player.buffs = (Array.isArray(player.buffs) ? player.buffs : []).filter((buff) => !buff.endsAt || Date.parse(buff.endsAt) > Date.now());
+}
+
+function queueQuestNotification(player, completion) {
+  if (!Object.prototype.hasOwnProperty.call(player, "__questNotifications")) {
+    Object.defineProperty(player, "__questNotifications", { value: [], writable: true, enumerable: false });
+  }
+  player.__questNotifications.push(completion);
+}
+
+function describeQuestReward(reward) {
+  const amount = Math.max(0, Number(reward.amount || 0));
+  if (reward.type === "gold") return `${amount} gold`;
+  if (reward.type === "exp") return `${amount} EXP`;
+  if (reward.type === "fish") return `${amount || 1}x ${gameData.fish.find((item) => item.id === reward.itemId)?.name || reward.itemId}`;
+  if (reward.type === "fishing_rod") return getRod(reward.itemId)?.name || reward.itemId;
+  if (reward.type === "fishing_bag") return getFishBag(reward.itemId)?.name || reward.itemId;
+  if (reward.type === "quest") return `quest: ${getQuest(reward.questId)?.name || reward.questId}`;
+  if (reward.type === "event") return `event: ${getEvents().find((event) => event.id === reward.eventId)?.title || reward.eventId}`;
+  if (reward.type === "buff") return `${reward.multiplierType} x${Number(reward.value || 1)} (${Number(reward.durationMinutes || 60)}m)`;
+  return reward.type;
+}
+
+function applyQuestRewards(player, quest, guildId = "") {
+  const rewardTexts = [];
+  for (const reward of quest.rewards || []) {
+    if (reward.type === "gold") player.gold = Math.max(0, Number(player.gold || 0)) + Math.max(0, Number(reward.amount || 0));
+    if (reward.type === "exp") player.exp = Math.max(0, Number(player.exp || 0)) + Math.max(0, Number(reward.amount || 0));
+    if (reward.type === "fish" && reward.itemId) player.inventory[reward.itemId] = Math.max(0, Number(player.inventory[reward.itemId] || 0)) + Math.max(1, Number(reward.amount || 1));
+    if (reward.type === "fishing_rod" && reward.itemId && !player.ownedRods.includes(reward.itemId)) player.ownedRods.push(reward.itemId);
+    if (reward.type === "fishing_bag" && reward.itemId && !player.ownedFishBags.includes(reward.itemId)) player.ownedFishBags.push(reward.itemId);
+    if (reward.type === "quest") {
+      const nextQuest = getQuest(reward.questId);
+      if (nextQuest && !player.completedQuestIds.includes(nextQuest.id)) acceptQuest(player, nextQuest, { unlockedBy: quest.id });
+    }
+    if (reward.type === "buff") player.buffs.push({ id: `${quest.id}:${Date.now()}:${Math.random()}`, multiplierType: reward.multiplierType, value: Number(reward.value || 1), endsAt: new Date(Date.now() + Math.max(1, Number(reward.durationMinutes || 60)) * 60_000).toISOString() });
+    if (reward.type === "event" && reward.eventId) {
+      if (!Object.prototype.hasOwnProperty.call(player, "__questEventRewards")) Object.defineProperty(player, "__questEventRewards", { value: [], writable: true, enumerable: false });
+      player.__questEventRewards.push({ eventId: reward.eventId, durationMinutes: reward.durationMinutes, guildId });
+    }
+    rewardTexts.push(describeQuestReward(reward));
+  }
+  return rewardTexts;
+}
+
+function processQuestCatch(player, caughtFish, guildId = "") {
+  ensurePlayerQuests(player, guildId);
+  for (const drop of caughtFish.questDrops || []) {
+    const quest = getQuest(drop.questId);
+    if (quest?.category === "fish" && !getChainedQuestIds().has(quest.id) && !player.fishQuestHistory.includes(quest.id) && Math.random() * 100 < Number(drop.chance || 0)) {
+      player.fishQuestHistory.push(quest.id);
+      acceptQuest(player, quest, { obtainedFromFishId: caughtFish.id });
+    }
+  }
+
+  for (const active of [...player.activeQuests]) {
+    const quest = getQuest(active.questId);
+    if (!quest) continue;
+    const objective = quest.objective || {};
+    if (objective.type === "catch_any" || (objective.type === "catch_fish" && (!objective.fishId || objective.fishId === caughtFish.id))) active.progress = Math.max(0, Number(active.progress || 0)) + 1;
+    if (objective.type === "catch_rarity" && String(objective.rarity || "").toLowerCase() === String(caughtFish.rarity || "").toLowerCase()) active.progress = Math.max(0, Number(active.progress || 0)) + 1;
+  }
+  completeReadyQuests(player, guildId);
+}
+
+function processQuestAction(player, action, guildId = "") {
+  ensurePlayerQuests(player, guildId);
+  const selectedAction = String(action || "").trim().replace(/^\//, "");
+  for (const active of player.activeQuests) {
+    const quest = getQuest(active.questId);
+    if (quest?.objective?.type === "perform_action" && String(quest.objective.action || "").replace(/^\//, "") === selectedAction) {
+      active.progress = Math.max(0, Number(active.progress || 0)) + 1;
+    }
+  }
+  completeReadyQuests(player, guildId);
+}
+
+function completeReadyQuests(player, guildId = "") {
+  const completed = player.activeQuests.map((active) => ({ active, quest: getQuest(active.questId) })).filter(({ active, quest }) => quest && Number(active.progress || 0) >= Math.max(1, Number(quest.objective?.amount || 1)));
+  for (const { active, quest } of completed) {
+    player.activeQuests = player.activeQuests.filter((entry) => entry !== active);
+    if (quest.category !== "daily" && !player.completedQuestIds.includes(quest.id)) player.completedQuestIds.push(quest.id);
+    const rewards = applyQuestRewards(player, quest, guildId);
+    queueQuestNotification(player, { questId: quest.id, questName: quest.name, rewards, guildId });
+  }
+}
+
+function getPlayerBuffMultiplier(player, type) {
+  return (Array.isArray(player?.buffs) ? player.buffs : []).filter((buff) => buff.multiplierType === type && (!buff.endsAt || Date.parse(buff.endsAt) > Date.now())).reduce((total, buff) => total * Math.max(0, Number(buff.value || 1)), 1);
+}
+
 function getEventStartMs(event) {
   const startsAt = Date.parse(event?.startAt || event?.deployedAt || "");
   return Number.isFinite(startsAt) ? startsAt : 0;
@@ -1244,18 +1424,19 @@ function getActiveEvents(guildId = "") {
   return getEvents().filter((event) => isEventRunning(event) && event.guildId && event.guildId === guildId);
 }
 
-function getEventMultiplier(type, guildId = "", fishId = "") {
-  return getActiveEvents(guildId).reduce((multiplier, event) => {
+function getEventMultiplier(type, guildId = "", fishId = "", player = null) {
+  const eventMultiplier = getActiveEvents(guildId).reduce((multiplier, event) => {
     const eventMultiplier = normalizeEventBonuses(event)
       .filter((bonus) => bonus.type === type)
       .filter((bonus) => type !== "fish_chance" || !bonus.fishId || bonus.fishId === fishId)
       .reduce((bonusMultiplier, bonus) => bonusMultiplier * Math.max(0, Number(bonus.value || 1)), 1);
     return multiplier * eventMultiplier;
   }, 1);
+  return eventMultiplier * getPlayerBuffMultiplier(player, type);
 }
 
-function getEventMultiplierInfo(type, guildId = "", fishId = "") {
-  const multiplier = getEventMultiplier(type, guildId, fishId);
+function getEventMultiplierInfo(type, guildId = "", fishId = "", player = null) {
+  const multiplier = getEventMultiplier(type, guildId, fishId, player);
   return {
     multiplier,
     active: Math.abs(multiplier - 1) > 0.000001
@@ -1560,7 +1741,7 @@ function getAvailableFish(guildId = "") {
   });
 }
 
-function rollFish(rod, guildId = "") {
+function rollFish(rod, guildId = "", player = null) {
   const rodMaxWeight = Number(rod.maxWeight || Infinity);
   const availableFish = getAvailableFish(guildId);
   const catchableFish = availableFish.filter((entry) => Number(entry.minWeight || 0) <= rodMaxWeight);
@@ -1569,7 +1750,7 @@ function rollFish(rod, guildId = "") {
     const luckWeight = Number(entry.baseWeight || 0) + Number(rod.luck || 0) * Number(entry.luckScale || 0);
     return {
       fish: entry,
-      weight: Math.max(0.1, luckWeight) * getEventMultiplier("fish_chance", guildId, entry.id)
+      weight: Math.max(0.1, luckWeight) * getEventMultiplier("fish_chance", guildId, entry.id, player)
     };
   });
   const totalWeight = weightedFish.reduce((sum, entry) => sum + entry.weight, 0);
@@ -1590,7 +1771,7 @@ function rollFish(rod, guildId = "") {
 }
 
 function addCatch(player, caughtFish, catchWeight, guildId = "") {
-  const expReward = calculateCatchExp(caughtFish, guildId);
+  const expReward = calculateCatchExp(caughtFish, guildId, player);
   const expGain = expReward.total;
   const luckScore = formatFishLuckScore(caughtFish);
   player.inventory[caughtFish.id] = (player.inventory[caughtFish.id] || 0) + 1;
@@ -1612,12 +1793,13 @@ function addCatch(player, caughtFish, catchWeight, guildId = "") {
   }
   refreshPlayerLuckiestFish(player, guildId);
   player.exp += expGain;
+  processQuestCatch(player, caughtFish, guildId);
   return { expGain, expBase: expReward.base, expEventInfo: expReward.eventInfo, luckScore };
 }
 
-function calculateCatchExp(caughtFish, guildId = "") {
+function calculateCatchExp(caughtFish, guildId = "", player = null) {
   const base = Math.max(0, Math.round(Number(caughtFish.exp || 0) * Number(getSettings().expMultiplier || 1)));
-  const eventInfo = getEventMultiplierInfo("exp_multiplier", guildId);
+  const eventInfo = getEventMultiplierInfo("exp_multiplier", guildId, "", player);
   return {
     base,
     total: Math.max(0, Math.round(base * eventInfo.multiplier)),
@@ -1643,7 +1825,7 @@ function formatInventoryFishLine(fishEntry, quantity) {
 }
 
 function calculateInventorySellGold(player, guildId = "") {
-  const goldEventInfo = getEventMultiplierInfo("gold_multiplier", guildId);
+  const goldEventInfo = getEventMultiplierInfo("gold_multiplier", guildId, "", player);
   const baseGold = gameData.fish.reduce((sum, fishEntry) => {
     const quantity = Math.max(0, Math.floor(Number(player.inventory?.[fishEntry.id] || 0)));
     return sum + Math.max(0, Math.round(quantity * Number(fishEntry.gold || 0)));
@@ -1819,6 +2001,7 @@ function makeProfileComponents(player, member = null, fishCompRoleOverride = nul
 }
 
 function makeProfileMessage(user, player, member = null, guildId = "", fishCompRoleOverride = null) {
+  ensurePlayerQuests(player, guildId);
   const rod = getRod(player.rodId);
   const fishBag = getFishBag(player.fishBagId);
   const level = getLevel(player.exp);
@@ -1881,7 +2064,46 @@ function makeProfileMessage(user, player, member = null, guildId = "", fishCompR
       container.addTextDisplayComponents(makeTextDisplay("**Tas Pancing dipakai**\nBelum ada tas pancing yang bisa dipakai."));
     }
   }
-  return makeComponentsV2Message([container], {
+  const questContainer = new ContainerBuilder().setAccentColor(0xf1c40f);
+  const categoryLabels = { main: "Main Quest", event: "Event Quest", daily: "Daily Quest", fish: "Fish Quest" };
+  const actionInstructions = {
+    fishentot: (amount) => `Lakukan ${amount} entot`,
+    fishshowoff: (amount) => `Pamerkan ikan ${amount} kali`,
+    fishraid: (amount) => `Ikuti FishRaid ${amount} kali`,
+    fishcomp: (amount) => `Ikuti FishComp ${amount} kali`,
+    fishduel: (amount) => `Ikuti FishDuel ${amount} kali`
+  };
+  const activeQuestEntries = (player.activeQuests || []).map((active) => ({ active, quest: getQuest(active.questId) }));
+  const visibleQuestEntries = activeQuestEntries.slice(0, 15);
+  const questSections = [];
+  for (const category of ["main", "event", "daily", "fish"]) {
+    const entries = visibleQuestEntries.filter(({ active, quest }) => (active.category || quest?.category) === category);
+    if (!entries.length) continue;
+    const questBlocks = entries.map(({ active, quest }) => {
+      if (!quest) {
+        return `**Quest sementara tidak tersedia** · ID: ${active.questId}\nProgress tersimpan: ${Math.max(0, Number(active.progress || 0))}. Quest akan muncul kembali saat konfigurasinya tersedia.`;
+      }
+      const objective = quest.objective || {};
+      const required = Math.max(1, Number(objective.amount || 1));
+      const progress = Math.min(required, Math.max(0, Number(active.progress || 0)));
+      let instruction = `Pancing ${required} ikan`;
+      if (objective.type === "catch_fish") instruction = `Pancing ${required} ${gameData.fish.find((fish) => fish.id === objective.fishId)?.name || objective.fishId || "ikan"}`;
+      if (objective.type === "catch_rarity") instruction = `Pancing ${required} Ikan ${objective.rarity || "Common"}`;
+      if (objective.type === "perform_action") {
+        const action = String(objective.action || "").replace(/^\//, "");
+        instruction = actionInstructions[action]?.(required) || `Lakukan /${action || "action"} ${required} kali`;
+      }
+      const description = String(quest.description || "Tidak ada deskripsi.").trim().slice(0, 300);
+      return `**${quest.name}** · ${instruction} (${progress}/${required})\n"${description}"`;
+    });
+    questSections.push(`**[${categoryLabels[category]}]**\n${questBlocks.join("\n\n")}`);
+  }
+  if (activeQuestEntries.length > visibleQuestEntries.length) questSections.push(`…dan ${activeQuestEntries.length - visibleQuestEntries.length} quest lainnya.`);
+  const emptyQuestText = getAllQuests().length
+    ? "## Active Quests\nNo active quests."
+    : "## Active Quests\nQuest configuration is temporarily unavailable. Saved quest progress was left unchanged.";
+  questContainer.addTextDisplayComponents(makeTextDisplay(questSections.length ? questSections.join("\n\n") : emptyQuestText));
+  return makeComponentsV2Message([container, questContainer], {
     files: icon?.attachment ? [icon.attachment] : []
   });
 }
@@ -2963,9 +3185,13 @@ async function resetTodayFishRaid(guildId, channelId = "", reason = "manual") {
     await cancelCompetition(activeRaid, "Raid direset oleh admin.");
   }
   const previousState = dailyFishRaids.get(guildId) || null;
-  dailyFishRaids.delete(guildId);
-  const nextState = normalizeDailyRaidState(guildId);
-  nextState.channelId = String(channelId || previousState?.channelId || "").trim();
+  const nextState = createDailyRaidState(
+    guildId,
+    getLocalDateKey(),
+    Math.max(0, Math.floor(Number(previousState?.streak || 0))),
+    channelId || previousState?.channelId || ""
+  );
+  dailyFishRaids.set(guildId, nextState);
   saveFishRaidState();
   return { previousState, nextState, reason };
 }
@@ -3023,7 +3249,7 @@ async function processFishRaidMidnightReset() {
     if (!state?.dateKey || state.dateKey === today) {
       continue;
     }
-    const hadActivity = Number(state.filledKg || 0) > 0 || Object.keys(state.participants || {}).length > 0 || Number(state.lastRaidEndedAt || 0) > 0;
+    const hadActivity = hasRaidActivity(state);
     if (!state.fulfilledAt && hadActivity) {
       const channel = await fetchRaidAnnouncementChannel(state);
       if (channel) {
@@ -3032,7 +3258,7 @@ async function processFishRaidMidnightReset() {
         });
       }
     }
-    dailyFishRaids.delete(guildId);
+    dailyFishRaids.set(guildId, createDailyRaidState(guildId, today, getNextRaidStreak(state), state.channelId || ""));
   }
   saveFishRaidState();
 }
@@ -3171,8 +3397,8 @@ function makeRodStoreImageAttachment(player) {
   const cardHeight = 164;
   const gap = 12;
   const items = [
-    ...gameData.rods.map((item) => ({ ...item, storeType: "rod" })),
-    ...gameData.fishBags.map((item) => ({ ...item, storeType: "fishBag" }))
+    ...getStoreRods().sort(compareItemRarity).map((item) => ({ ...item, storeType: "rod" })),
+    ...[...gameData.fishBags].sort(compareItemRarity).map((item) => ({ ...item, storeType: "fishBag" }))
   ];
   const rows = Math.max(1, Math.ceil(items.length / columns));
   const height = 24 + rows * cardHeight + (rows - 1) * gap + 24;
@@ -3211,8 +3437,8 @@ function makeRodStoreImageAttachment(player) {
 }
 
 function makeRodSelectOptions(player) {
-  return [...gameData.rods]
-    .sort((left, right) => Number(left.price || 0) - Number(right.price || 0) || left.name.localeCompare(right.name))
+  return getStoreRods()
+    .sort(compareItemRarity)
     .slice(0, 25)
     .map((rod) => {
     const owned = player.ownedRods.includes(rod.id);
@@ -3229,7 +3455,7 @@ function makeRodSelectOptions(player) {
 
 function makeFishBagSelectOptions(player) {
   return [...gameData.fishBags]
-    .sort((left, right) => Number(left.price || 0) - Number(right.price || 0) || left.name.localeCompare(right.name))
+    .sort(compareItemRarity)
     .slice(0, 25)
     .map((bag) => {
     const owned = (player.ownedFishBags || []).includes(bag.id);
@@ -3245,14 +3471,17 @@ function makeFishBagSelectOptions(player) {
 }
 
 function makeStoreComponents(player, selectedRodId = null, selectedFishBagId = null) {
-  const selectedRod = gameData.rods.find((rod) => rod.id === selectedRodId) || gameData.rods[0];
+  const storeRods = getStoreRods();
+  const selectedRod = storeRods.find((rod) => rod.id === selectedRodId) || storeRods[0];
   const selectedFishBag = gameData.fishBags.find((bag) => bag.id === selectedFishBagId) || gameData.fishBags[0];
   const owned = selectedRod ? player.ownedRods.includes(selectedRod.id) : false;
   const equipped = selectedRod ? player.rodId === selectedRod.id : false;
+  const rodOptions = makeRodSelectOptions(player);
   const rodSelect = new StringSelectMenuBuilder()
     .setCustomId(`rod_select:${selectedRod?.id || ""}`)
-    .setPlaceholder("Pilih pancingan")
-    .addOptions(makeRodSelectOptions(player).map((option) => ({
+    .setPlaceholder(rodOptions.length ? "Pilih pancingan" : "Tidak ada pancingan di toko")
+    .setDisabled(!rodOptions.length)
+    .addOptions((rodOptions.length ? rodOptions : [{ label: "Tidak ada pancingan tersedia", value: "unavailable" }]).map((option) => ({
       ...option,
       default: option.value === selectedRod?.id
     })));
@@ -3313,7 +3542,7 @@ function getFishDexPageCount(guildId = "") {
 function getFishDexPageFish(guildId = "", page = 0) {
   const pageCount = getFishDexPageCount(guildId);
   const selectedPage = Math.max(0, Math.min(pageCount - 1, Number(page) || 0));
-  const availableFish = getAvailableFish(guildId);
+  const availableFish = [...getAvailableFish(guildId)].sort(compareItemRarity);
   return {
     page: selectedPage,
     pageCount,
@@ -3950,6 +4179,41 @@ function pickDailyRaidBoss(dateKey, guildId) {
   return bosses[seed % bosses.length];
 }
 
+function hasRaidActivity(state) {
+  return Number(state?.filledKg || 0) > 0
+    || Object.keys(state?.participants || {}).length > 0
+    || Number(state?.lastRaidEndedAt || 0) > 0;
+}
+
+function getNextRaidStreak(previousState) {
+  const currentStreak = Math.max(0, Math.floor(Number(previousState?.streak || 0)));
+  if (previousState?.fulfilledAt) return currentStreak + 1;
+  return 0;
+}
+
+function getRaidQuotaMultiplier(streak) {
+  const bonusPercent = Math.max(0, Number(getSettings().fishRaidQuotaStreakBonusPercent || 0));
+  return 1 + Math.max(0, Math.floor(Number(streak || 0))) * bonusPercent / 100;
+}
+
+function createDailyRaidState(guildId, dateKey, streak = 0, channelId = "") {
+  const boss = pickDailyRaidBoss(dateKey, guildId);
+  const normalizedStreak = Math.max(0, Math.floor(Number(streak || 0)));
+  const quotaKg = Math.round(Number(boss.quotaKg || 1) * getRaidQuotaMultiplier(normalizedStreak) * 100) / 100;
+  return {
+    dateKey,
+    boss,
+    baseQuotaKg: Math.max(1, Number(boss.quotaKg || 1)),
+    quotaKg: Math.max(1, quotaKg),
+    streak: normalizedStreak,
+    filledKg: 0,
+    participants: {},
+    fulfilledAt: "",
+    lastRaidEndedAt: 0,
+    channelId: String(channelId || "").trim()
+  };
+}
+
 function getRaidBossById(bossId) {
   return cleanRaidBosses().find((boss) => boss.id === bossId) || null;
 }
@@ -3960,22 +4224,19 @@ function normalizeDailyRaidState(guildId) {
   if (current?.dateKey === dateKey && current?.boss?.id) {
     current.boss = getRaidBossById(current.boss.id) || current.boss;
     current.quotaKg = Math.max(1, Number(current.quotaKg || current.boss.quotaKg || 100));
+    current.baseQuotaKg = Math.max(1, Number(current.baseQuotaKg || current.boss.quotaKg || current.quotaKg || 100));
+    current.streak = Math.max(0, Math.floor(Number(current.streak || 0)));
     current.filledKg = Math.max(0, Number(current.filledKg || 0));
     current.participants = current.participants && typeof current.participants === "object" && !Array.isArray(current.participants) ? current.participants : {};
     return current;
   }
 
-  const boss = pickDailyRaidBoss(dateKey, guildId);
-  const next = {
+  const next = createDailyRaidState(
+    guildId,
     dateKey,
-    boss,
-    quotaKg: boss.quotaKg,
-    filledKg: 0,
-    participants: {},
-    fulfilledAt: "",
-    lastRaidEndedAt: 0,
-    channelId: ""
-  };
+    current ? getNextRaidStreak(current) : 0,
+    current?.channelId || ""
+  );
   dailyFishRaids.set(guildId, next);
   saveFishRaidState();
   return next;
@@ -4030,7 +4291,9 @@ function getSortedRaidResults(results) {
 function formatRaidQuotaLine(state) {
   const filled = Math.max(0, Number(state.filledKg || 0));
   const quota = Math.max(1, Number(state.quotaKg || 1));
-  return `Quota: **${formatKg(filled)} / ${formatKg(quota)}**\n${makeProgressBar(filled, quota, 18)}`;
+  const streak = Math.max(0, Math.floor(Number(state.streak || 0)));
+  const targetPercent = Math.round(getRaidQuotaMultiplier(streak) * 100);
+  return `Quota: **${formatKg(filled)} / ${formatKg(quota)}** · Target **${targetPercent}%** · Streak **${streak}**\n${makeProgressBar(filled, quota, 18)}`;
 }
 
 function getRaidCooldownRemainingMs(guildId) {
@@ -4085,8 +4348,11 @@ function getCompetitionParticipantMultiplier(competition) {
 }
 
 function getRaidRewardAmount(key, guildId, multiplierType = "") {
-  const multiplier = multiplierType ? getEventMultiplier(multiplierType, guildId) : 1;
-  return Math.round(Number(getSettings()[key] ?? 0) * multiplier);
+  const eventMultiplier = multiplierType ? getEventMultiplier(multiplierType, guildId) : 1;
+  const streak = Math.max(0, Math.floor(Number(normalizeDailyRaidState(guildId).streak || 0)));
+  const streakBonusPercent = Math.max(0, Number(getSettings().fishRaidRewardStreakBonusPercent || 0));
+  const streakMultiplier = 1 + streak * streakBonusPercent / 100;
+  return Math.round(Number(getSettings()[key] ?? 0) * streakMultiplier * eventMultiplier);
 }
 
 function getRaidBaseRewardAmount(key) {
@@ -4288,6 +4554,9 @@ async function finishFishRaid(raid, channel) {
         raidWinner ? `# MVP Raid: ${raidWinner.displayName}` : "# MVP Raid: -"
       ];
   const rewardLines = [
+    Number(state.streak || 0) > 0
+      ? `Streak reward: **${Math.round((1 + Number(state.streak || 0) * Math.max(0, Number(getSettings().fishRaidRewardStreakBonusPercent || 0)) / 100) * 100)}%**`
+      : "",
     `Peserta raid ini: **${formatRewardWithBonus(baseParticipantExp, baseParticipantBaseExp, "EXP")}** dan **${formatRewardWithBonus(baseParticipantGold, baseParticipantBaseGold, "Gold")}**`,
     raidWinnerIsFinalDailyMvp
       ? `MVP raid ini dan harian (**${raidWinner.displayName}**): **${formatRewardWithBonus(combinedMvpTotalExp, combinedMvpBaseTotalExp, "EXP")}** dan **${formatRewardWithBonus(combinedMvpTotalGold, combinedMvpBaseTotalGold, "Gold")}**`
@@ -4397,7 +4666,8 @@ function runCompetitionTurnForParticipant(competition, participant, turn, turnEf
     opponentLevel: Number(opponent?.level || 1)
   };
   const baseRod = getRod(participant.rodId);
-  const rod = baseRod ? { ...baseRod, luck: Number(baseRod.luck || 0) + luckModifier } : null;
+  const effectiveRod = getEffectiveRod(baseRod, context);
+  const rod = effectiveRod ? { ...effectiveRod, luck: Number(effectiveRod.luck || 0) + luckModifier } : null;
   const accuracy = getEffectiveRodAccuracy(rod, context);
   const result = competition.results.get(participant.id);
   if (!rod || !result || Math.random() * 100 >= accuracy) {
@@ -4466,6 +4736,17 @@ async function runCompetition(competition) {
   }
   if (!channel?.isTextBased()) {
     throw new Error("Competition channel is no longer available.");
+  }
+  const questAction = competition.mode === "duel" ? "fishduel" : competition.mode === "raid" ? "fishraid" : "fishcomp";
+  const questProgress = await Promise.allSettled(
+    [...competition.participants.values()].map((participant) => withPlayer(participant.id, async (player) => {
+      processQuestAction(player, questAction, competition.guildId);
+    }))
+  );
+  for (const result of questProgress) {
+    if (result.status === "rejected") {
+      console.error(`Could not update ${questAction} quest progress:`, result.reason);
+    }
   }
   competition.logMessage = await channel.send(makeCompetitionMessage(competition, "running", []));
 
@@ -4802,6 +5083,10 @@ function buyRod(player, rodId) {
     return { ok: changed, message: `Berhasil memakai ${rod.name}.` };
   }
 
+  if (rod.showInStore === false) {
+    return { ok: false, message: "Pancingan itu tidak tersedia di toko." };
+  }
+
   if (player.gold < Number(rod.price || 0)) {
     return { ok: false, message: `Gold kamu kurang ${Number(rod.price || 0) - player.gold} untuk membeli ${rod.name}.` };
   }
@@ -4840,15 +5125,58 @@ function getUserIdentity(userOrId) {
   };
 }
 
+async function activateQuestRewardEvent(reward, player) {
+  const source = getEvents().find((event) => event.id === reward.eventId || event.templateId === reward.eventId);
+  if (!source) return;
+  const now = new Date();
+  const deployed = {
+    ...source,
+    id: `${source.id}:quest:${Date.now()}`,
+    templateId: source.templateId || source.id,
+    guildId: reward.guildId || player.lastFishingGuildId || source.guildId || "",
+    announcementChannelId: source.announcementChannelId || player.lastFishingChannelId || "",
+    startAt: now.toISOString(),
+    deployedAt: now.toISOString(),
+    endsAt: new Date(now.getTime() + Math.max(1, Number(reward.durationMinutes || source.durationMinutes || 60)) * 60_000).toISOString(),
+    stoppedAt: "",
+    isAnnounced: false
+  };
+  gameData.events = [deployed, ...getEvents()];
+  gameData.activeEvent = deployed;
+  await adminSaveEventData(gameData.activeEvent, gameData.events);
+  await announceEventUpdates();
+}
+
+async function handleQuestSideEffects(userOrId, player) {
+  const userId = typeof userOrId === "string" ? userOrId : userOrId?.id;
+  const mention = userId ? formatDiscordMention(userId) : "A fisher";
+  const notifications = Array.isArray(player.__questNotifications) ? player.__questNotifications.splice(0) : [];
+  if (notifications.length) {
+    const channel = await fetchFishingMessageChannel(player, notifications[0]?.guildId || player.lastFishingGuildId);
+    for (const completion of notifications) {
+      const rewardText = completion.rewards.length ? completion.rewards.join(", ") : "no reward";
+      await channel?.send({ content: `🎉 ${mention} completed quest **${completion.questName}** and gained **${rewardText}**!`, allowedMentions: userId ? { users: [userId] } : undefined }).catch((error) => console.error("Could not announce quest completion:", error));
+    }
+  }
+  const eventRewards = Array.isArray(player.__questEventRewards) ? player.__questEventRewards.splice(0) : [];
+  for (const reward of eventRewards) await activateQuestRewardEvent(reward, player).catch((error) => console.error("Could not activate quest reward event:", error));
+}
+
 async function withPlayer(userOrId, action) {
   const { userId, identity } = getUserIdentity(userOrId);
   return queuePlayerWork(userId, async () => {
-    const { sessionTicket, player } = await getPlayer(userId, identity);
+    const { sessionTicket, player, needsPlayerDataMigration, needsPlayerProfileSave } = await getPlayer(userId, identity);
+    const previousPlayer = structuredClone(player);
     refreshPlayerLuckiestFish(player);
     const result = await action(player);
     if (result?.save !== false) {
-      await savePlayer(sessionTicket, player);
+      await savePlayer(sessionTicket, player, {
+        previousPlayer,
+        forceMigration: needsPlayerDataMigration,
+        forceProfile: needsPlayerProfileSave
+      });
     }
+    await handleQuestSideEffects(userOrId, player);
     return result;
   });
 }
@@ -4876,7 +5204,8 @@ function fishNow(player, guildId = "") {
     return { ok: false, message: "Fishing data is not ready yet. Check PlayFab item data." };
   }
 
-  const catchResult = rollFish(rod, guildId);
+  ensurePlayerQuests(player, guildId);
+  const catchResult = rollFish(rod, guildId, player);
   if (!catchResult) {
     return { ok: false, message: "No fish are configured yet." };
   }
@@ -5596,13 +5925,13 @@ async function handleCommand(message) {
     return;
   }
 
-  if (command === "fish" && !isActivityAllowed()) {
-    await message.reply(activityBlockedMessage());
+  if (!isAdmin(message.author)) {
+    await message.reply(`${message.author} berusaha memakai command admin, semua data ${message.author} akan dihapus. Terima Kasih.`);
     return;
   }
 
-  if (!isAdmin(message.author)) {
-    await message.reply("Only admins can use this test fishing command.");
+  if (command === "fish" && !isActivityAllowed()) {
+    await message.reply(activityBlockedMessage());
     return;
   }
 
@@ -6102,7 +6431,7 @@ async function handleRoutineButton(interaction) {
   if (button.action === "fishprofile") {
     await interaction.deferReply({ flags: MessageFlags.Ephemeral });
     const member = interaction.guild?.members?.fetch ? await interaction.guild.members.fetch(interaction.user.id).catch(() => null) : null;
-    await withPlayerReadOnly(interaction.user, async (player) => interaction.editReply(makeProfileMessage(interaction.user, player, member, interaction.guildId)));
+    await withPlayer(interaction.user, async (player) => interaction.editReply(makeProfileMessage(interaction.user, player, member, interaction.guildId)));
     return;
   }
   if (button.action === "fishleaderboard") {
@@ -6199,7 +6528,7 @@ client.on("interactionCreate", async (interaction) => {
         return;
       }
       await interaction.deferUpdate();
-      await withPlayerReadOnly(interaction.user, async (player) => {
+      await withPlayer(interaction.user, async (player) => {
         await interaction.editReply(makeFishDexMessage(interaction.user, player, interaction.values[0], interaction.guildId, Number(pageValue || 0)));
       });
       return;
@@ -6212,7 +6541,7 @@ client.on("interactionCreate", async (interaction) => {
         return;
       }
       await interaction.deferUpdate();
-      await withPlayerReadOnly(interaction.user, async (player) => {
+      await withPlayer(interaction.user, async (player) => {
         await interaction.editReply(makeFishDexMessage(interaction.user, player, "", interaction.guildId, Number(pageValue || 0)));
       });
       return;
@@ -6534,7 +6863,7 @@ client.on("interactionCreate", async (interaction) => {
       }
       const hasRole = !hadRole;
 
-      await withPlayerReadOnly(interaction.user, async (player) => {
+      await withPlayer(interaction.user, async (player) => {
         await interaction.editReply(makeProfileMessage(interaction.user, player, member, interaction.guildId, hasRole));
       });
       return;
@@ -6554,7 +6883,7 @@ client.on("interactionCreate", async (interaction) => {
       const member = interaction.guild?.members?.fetch
         ? await interaction.guild.members.fetch(interaction.user.id).catch(() => null)
         : null;
-      await withPlayerReadOnly(interaction.user, async (player) => {
+      await withPlayer(interaction.user, async (player) => {
         await interaction.editReply(makeProfileMessage(interaction.user, player, member, interaction.guildId));
       });
       return;
@@ -6565,10 +6894,11 @@ client.on("interactionCreate", async (interaction) => {
       const member = interaction.guild?.members?.fetch
         ? await interaction.guild.members.fetch(interaction.user.id).catch(() => null)
         : null;
-      await withPlayerReadOnly(interaction.user, async (player) => {
+      await withPlayer(interaction.user, async (player) => {
         const selectedFish = getFishShowoffFish(player, interaction.guildId);
         const showoffMessage = await interaction.editReply(await makeFishShowoffMessage(interaction.user, player, member, interaction.guildId));
         scheduleMessageDelete(showoffMessage);
+        processQuestAction(player, "fishshowoff", interaction.guildId);
       });
       return;
     }
@@ -6591,6 +6921,7 @@ client.on("interactionCreate", async (interaction) => {
           return { ok: false, noFish: true, save: false };
         }
         player.fishEntotLastUsedAt = now;
+        processQuestAction(player, "fishentot", interaction.guildId);
         return {
           ok: true,
           showcasedFish: profileFish,

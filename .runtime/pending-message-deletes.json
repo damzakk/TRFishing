@@ -1,3 +1,16 @@
 {
-  "messages": []
+  "messages": [
+    {
+      "channelId": "1543804160611319880",
+      "messageId": "1547222367435104327",
+      "deleteAt": 1788957862553,
+      "reason": "Fishentot message cleanup"
+    },
+    {
+      "channelId": "1543804160611319880",
+      "messageId": "1547222542887161906",
+      "deleteAt": 1788957904201,
+      "reason": "Fishentot message cleanup"
+    }
+  ]
 }

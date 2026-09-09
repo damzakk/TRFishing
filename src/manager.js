@@ -235,7 +235,12 @@ function cleanPlayer(player) {
     voiceTotalMs: Math.max(0, cleanNumber(source.voiceTotalMs, 0)),
     voiceExpRemainderMs: Math.max(0, cleanNumber(source.voiceExpRemainderMs, 0)),
     dailyLastClaimedAt: Math.max(0, cleanNumber(source.dailyLastClaimedAt, 0)),
-    dailyStreak: Math.max(0, Math.floor(cleanNumber(source.dailyStreak, 0)))
+    dailyStreak: Math.max(0, Math.floor(cleanNumber(source.dailyStreak, 0))),
+    activeQuests: Array.isArray(source.activeQuests) ? source.activeQuests : [],
+    completedQuestIds: Array.isArray(source.completedQuestIds) ? source.completedQuestIds : [],
+    fishQuestHistory: Array.isArray(source.fishQuestHistory) ? source.fishQuestHistory : [],
+    dailyQuestDate: String(source.dailyQuestDate || ""),
+    buffs: Array.isArray(source.buffs) ? source.buffs : []
   };
 }
 
@@ -389,7 +394,11 @@ function cleanItem(item, type) {
       gold: cleanNumber(item.gold, 0),
       serverId: String(item.serverId || "").trim(),
       description: descriptions[0] || "",
-      descriptions
+      descriptions,
+      questDrops: (Array.isArray(item.questDrops) ? item.questDrops : []).map((drop) => ({
+        questId: String(drop?.questId || "").trim(),
+        chance: Math.max(0, Math.min(100, cleanNumber(drop?.chance, 0)))
+      })).filter((drop) => drop.questId && drop.chance > 0)
     };
   }
 
@@ -411,6 +420,7 @@ function cleanItem(item, type) {
     luck: cleanNumber(item.luck, 0),
     maxWeight: Math.max(0.01, cleanNumber(item.maxWeight, 10)),
     accuracy: Math.max(0, Math.min(100, cleanNumber(item.accuracy, 50))),
+    showInStore: item.showInStore !== false,
     description: String(item.description || "").trim()
   };
 }
@@ -504,6 +514,8 @@ function cleanSettings(settings) {
     fishDuelLogIntervalMs: Math.max(0, cleanNumber(source.fishDuelLogIntervalMs, 2500)),
     fishRaidLogIntervalMs: Math.max(0, cleanNumber(source.fishRaidLogIntervalMs, 2500)),
     fishRaidCooldownMinutes: Math.max(0, cleanNumber(source.fishRaidCooldownMinutes, 60)),
+    fishRaidQuotaStreakBonusPercent: Math.max(0, cleanNumber(source.fishRaidQuotaStreakBonusPercent, 0)),
+    fishRaidRewardStreakBonusPercent: Math.max(0, cleanNumber(source.fishRaidRewardStreakBonusPercent, 0)),
     fishRaidParticipantExpReward: Math.max(0, cleanNumber(source.fishRaidParticipantExpReward, 25)),
     fishRaidParticipantGoldReward: Math.max(0, cleanNumber(source.fishRaidParticipantGoldReward, 0)),
     fishRaidMvpExpReward: Math.max(0, cleanNumber(source.fishRaidMvpExpReward, 75)),
@@ -517,8 +529,37 @@ function cleanSettings(settings) {
     expMultiplier: Math.max(0, cleanNumber(source.expMultiplier, 1)),
     levelExpMultiplier: Math.max(0.01, cleanNumber(source.levelExpMultiplier, 1)),
     voiceExpAmount: Math.max(0, cleanNumber(source.voiceExpAmount, 1)),
-    voiceExpIntervalMinutes: Math.max(1, cleanNumber(source.voiceExpIntervalMinutes, 15))
+    voiceExpIntervalMinutes: Math.max(1, cleanNumber(source.voiceExpIntervalMinutes, 15)),
+    dailyQuestCount: Math.max(0, Math.floor(cleanNumber(source.dailyQuestCount, 3)))
   };
+}
+
+function cleanQuestReward(reward) {
+  const source = reward && typeof reward === "object" ? reward : {};
+  return { type: String(source.type || "gold").trim(), amount: Math.max(0, cleanNumber(source.amount, 0)), itemId: String(source.itemId || "").trim(), questId: String(source.questId || "").trim(), eventId: String(source.eventId || "").trim(), durationMinutes: Math.max(1, cleanNumber(source.durationMinutes, 60)), multiplierType: String(source.multiplierType || "exp_multiplier").trim(), value: Math.max(0, cleanNumber(source.value, 1)) };
+}
+
+function cleanQuests(quests) {
+  const source = quests && typeof quests === "object" && !Array.isArray(quests) ? quests : {};
+  return Object.fromEntries(["main", "event", "daily", "fish"].map((category) => [category, (Array.isArray(source[category]) ? source[category] : []).map((quest, index) => {
+    const objective = quest?.objective && typeof quest.objective === "object" ? quest.objective : {};
+    return { id: String(quest?.id || `${category}_quest_${index + 1}`).trim().toLowerCase().replace(/[^a-z0-9_:-]/g, "_"), name: String(quest?.name || `Quest ${index + 1}`).trim(), description: String(quest?.description || "").trim(), category, objective: { type: String(objective.type || "catch_fish").trim(), fishId: String(objective.fishId || "").trim(), rarity: String(objective.rarity || "Common").trim(), action: String(objective.action || "fishentot").trim().replace(/^\//, ""), amount: Math.max(1, Math.floor(cleanNumber(objective.amount, 1))) }, rewards: (Array.isArray(quest?.rewards) ? quest.rewards : []).map(cleanQuestReward), enabled: quest?.enabled !== false };
+  }).filter((quest) => quest.id)]));
+}
+
+function forceRefreshDailyQuests(data, player) {
+  const quests = cleanQuests(data.quests);
+  const chainedIds = new Set(Object.values(quests).flat().flatMap((quest) => quest.rewards.filter((reward) => reward.type === "quest").map((reward) => reward.questId)).filter(Boolean));
+  const pool = quests.daily.filter((quest) => quest.enabled !== false && !chainedIds.has(quest.id)).sort(() => Math.random() - 0.5);
+  const count = Math.min(pool.length, Math.max(0, Math.floor(cleanNumber(data.settings?.dailyQuestCount, 3))));
+  const dayKey = new Intl.DateTimeFormat("en-CA", { timeZone: "Asia/Jakarta", year: "numeric", month: "2-digit", day: "2-digit" }).format(new Date());
+  player.activeQuests = (Array.isArray(player.activeQuests) ? player.activeQuests : []).filter((entry) => entry?.category !== "daily");
+  const assigned = pool.slice(0, count);
+  for (const quest of assigned) {
+    player.activeQuests.push({ questId: quest.id, category: "daily", progress: 0, acceptedAt: new Date().toISOString(), dailyDate: dayKey });
+  }
+  player.dailyQuestDate = dayKey;
+  return assigned;
 }
 
 function cleanFishCompEvents(events) {
@@ -623,7 +664,8 @@ function cleanEvent(event) {
     guildId: String(event.guildId || "").trim(),
     isAnnounced: event.isAnnounced === true,
     stoppedAt: String(event.stoppedAt || "").trim(),
-    deployedAt: String(event.deployedAt || "").trim()
+    deployedAt: String(event.deployedAt || "").trim(),
+    questIds: [...new Set((Array.isArray(event.questIds) ? event.questIds : event.questId ? [event.questId] : []).map(String).filter(Boolean))]
   };
 }
 
@@ -721,7 +763,8 @@ function cleanData(data) {
     settings: cleanSettings(data.settings),
     activeEvent: cleanEvent(data.activeEvent),
     events,
-    routineMessages: cleanRoutineMessages(data.routineMessages)
+    routineMessages: cleanRoutineMessages(data.routineMessages),
+    quests: cleanQuests(data.quests)
   };
 }
 
@@ -749,6 +792,7 @@ function cleanTabData(tab, data) {
     const activeEvent = cleanEvent(data.activeEvent);
     return { activeEvent, events: cleanEvents(data.events, activeEvent) };
   }
+  if (tab === "quests") return { quests: cleanQuests(data.quests) };
   if (tab === "routine") return { routineMessages: cleanRoutineMessages(data.routineMessages) };
   throw new Error(`The ${tab} tab does not have editable data.`);
 }
@@ -928,6 +972,17 @@ async function handleApi(request, response) {
       return;
     }
 
+    if (request.method === "POST" && request.url === "/api/player/save-quests") {
+      const body = JSON.parse(await readBody(request));
+      const playFabId = String(body.playFabId || "").trim();
+      if (!playFabId) throw new Error("Missing PlayFab ID.");
+      sendJson(response, 200, {
+        ok: true,
+        player: await adminSavePlayerData(playFabId, cleanPlayer(body.player), { saveProfile: false, saveQuestState: true })
+      });
+      return;
+    }
+
     if (request.method === "POST" && request.url === "/api/player/reset") {
       const body = JSON.parse(await readBody(request));
       const playFabId = String(body.playFabId || "").trim();
@@ -952,6 +1007,24 @@ async function handleApi(request, response) {
       return;
     }
 
+    if (request.method === "POST" && request.url === "/api/player/refresh-daily-quests") {
+      const body = JSON.parse(await readBody(request));
+      const playFabId = String(body.playFabId || "").trim();
+      if (!playFabId) throw new Error("Missing PlayFab ID.");
+      const [current, questData, settingsData] = await Promise.all([
+        adminGetPlayerRecord(playFabId),
+        adminGetManagerTabData("quests", { caller: "manager force daily quest refresh" }),
+        adminGetManagerTabData("settings", { caller: "manager force daily quest refresh" })
+      ]);
+      const player = cleanPlayer(current.player);
+      const assigned = forceRefreshDailyQuests({ quests: questData.quests, settings: settingsData.settings }, player);
+      const saved = mergeSavedPlayerRecord(current, await adminSavePlayerData(playFabId, player, { refetch: false, saveProfile: false, saveQuestState: true }));
+      const user = String(saved.displayName || saved.username || saved.player?.discordDisplayName || saved.player?.discordUsername || saved.player?.discordUserId || playFabId).trim();
+      logManagerAction("Daily quests refreshed", { user, playFabId, extra: `assigned=${assigned.length}` });
+      sendJson(response, 200, { ok: true, player: saved, assigned: assigned.map((quest) => ({ id: quest.id, name: quest.name })) });
+      return;
+    }
+
     if (request.method === "POST" && request.url === "/api/player/delete") {
       const body = JSON.parse(await readBody(request));
       const playFabId = String(body.playFabId || "").trim();
@@ -965,7 +1038,8 @@ async function handleApi(request, response) {
       const playFabId = String(body.playFabId || "").trim();
       if (!playFabId) throw new Error("Missing PlayFab ID.");
       const data = await adminGetGameData({ caller: "manager enforce fishing" });
-      const player = cleanPlayer(body.player);
+      const current = await adminGetPlayerRecord(playFabId);
+      const player = cleanPlayer(current.player);
       const fishRequests = normalizeEnforceFishRequests(body);
       const catches = [];
       for (const fishRequest of fishRequests.length ? fishRequests : [{ fishId: "", quantity: 1 }]) {
@@ -1222,7 +1296,8 @@ async function handleApi(request, response) {
       if (!playFabId) throw new Error("Missing PlayFab ID.");
       const amount = Math.max(0, Math.floor(cleanNumber(body.amount, 0)));
       if (amount <= 0) throw new Error("Money amount must be greater than 0.");
-      const player = cleanPlayer(body.player);
+      const current = await adminGetPlayerRecord(playFabId);
+      const player = cleanPlayer(current.player);
       const goldBefore = Math.max(0, Math.floor(Number(player.gold || 0)));
       player.gold = goldBefore + amount;
       const saved = await adminSavePlayerData(playFabId, player);
@@ -1675,27 +1750,39 @@ const html = `<!doctype html>
       display: grid;
       gap: 10px;
     }
+    .quest-reward-scroll {
+      display: grid;
+      gap: 8px;
+      height: 280px;
+      overflow-y: auto;
+      padding-right: 4px;
+      align-content: start;
+    }
     .warning { color: var(--warn); }
-    .player-layout {
+    .player-layout,
+    .quest-layout {
       grid-column: 1 / -1;
       display: grid;
       grid-template-columns: minmax(280px, 380px) 1fr;
       gap: 14px;
       align-items: start;
     }
-    .player-list {
+    .player-list,
+    .quest-list {
       display: grid;
       gap: 8px;
       max-height: 68vh;
       overflow: auto;
     }
-    .player-row {
+    .player-row,
+    .quest-row {
       width: 100%;
       text-align: left;
       display: grid;
       gap: 4px;
     }
-    .player-row.active {
+    .player-row.active,
+    .quest-row.active {
       border-color: var(--accent);
     }
     .button-row {
@@ -1884,7 +1971,7 @@ const html = `<!doctype html>
     @media (max-width: 620px) {
       header { align-items: flex-start; flex-direction: column; }
       .fields { grid-template-columns: 1fr; }
-      .player-layout { grid-template-columns: 1fr; }
+      .player-layout, .quest-layout { grid-template-columns: 1fr; }
       .fish-layout { grid-template-columns: 1fr; }
       .settings-panel > .fields { grid-template-columns: 1fr; }
       .fishraid-settings-layout { grid-template-columns: 1fr; }
@@ -1909,6 +1996,7 @@ const html = `<!doctype html>
       <button data-tab="admin">Admin Control</button>
       <button data-tab="settings">Settings</button>
       <button data-tab="event">Event</button>
+      <button data-tab="quests">Quest</button>
       <button data-tab="routine">Routine Message</button>
       <button data-tab="players">Player Management</button>
     </div>
@@ -1935,13 +2023,16 @@ const html = `<!doctype html>
     const state = {
       tab: "fish",
       settingsTab: "general",
+      questTab: "main",
+      selectedQuestIds: { main: "", event: "", daily: "", fish: "" },
       fish: [],
       rods: [],
       fishBags: [],
       adminDiscordIds: [],
-      settings: { rodStoreImageBase64: "", rodStoreImageUrl: "", fishCompBannerBase64: "", fishCompBannerUrl: "", fishCompRegistrationBannerBase64: "", fishCompRegistrationBannerUrl: "", fishCompRunningBannerBase64: "", fishCompRunningBannerUrl: "", fishCompResultBannerBase64: "", fishCompResultBannerUrl: "", fishRaidBannerBase64: "", fishRaidBannerUrl: "", fishRaidRegistrationBannerBase64: "", fishRaidRegistrationBannerUrl: "", fishRaidRunningBannerBase64: "", fishRaidRunningBannerUrl: "", fishRaidResultBannerBase64: "", fishRaidResultBannerUrl: "", fishDuelRegistrationBannerBase64: "", fishDuelRegistrationBannerUrl: "", fishDuelRunningBannerBase64: "", fishDuelRunningBannerUrl: "", fishDuelResultBannerBase64: "", fishDuelResultBannerUrl: "", fishGuideBannerBase64: "", fishGuideBannerUrl: "", fishHelpBannerBase64: "", fishHelpBannerUrl: "", sellFishBannerBase64: "", sellFishBannerUrl: "", fishCompEvents: [], fishRaidEvents: [], fishDuelEvents: [], fishRaidBosses: [{ id: "big_order", name: "Big Fish Order", quotaKg: 100, description: "Pesanan ikan besar hari ini sudah menunggu.", registrationBannerBase64: "", registrationBannerUrl: "", runningBannerBase64: "", runningBannerUrl: "", resultBannerBase64: "", resultBannerUrl: "", fulfilledBannerBase64: "", fulfilledBannerUrl: "", failedBannerBase64: "", failedBannerUrl: "" }], fishCompLogIntervalMs: 2500, fishCompHistoryLogHours: 24, fishCompExpReward: 50, fishCompGoldReward: 0, fishDuelExpReward: 40, fishDuelLogIntervalMs: 2500, fishRaidLogIntervalMs: 2500, fishRaidParticipantExpReward: 25, fishRaidParticipantGoldReward: 0, fishRaidMvpExpReward: 75, fishRaidMvpGoldReward: 0, fishRaidClearParticipantExpReward: 50, fishRaidClearParticipantGoldReward: 0, fishRaidClearMvpExpReward: 150, fishRaidClearMvpGoldReward: 0, allowActivity: true, chatCooldownMs: 20000, expMultiplier: 1, levelExpMultiplier: 1, voiceExpAmount: 1, voiceExpIntervalMinutes: 15 },
+      settings: { rodStoreImageBase64: "", rodStoreImageUrl: "", fishCompBannerBase64: "", fishCompBannerUrl: "", fishCompRegistrationBannerBase64: "", fishCompRegistrationBannerUrl: "", fishCompRunningBannerBase64: "", fishCompRunningBannerUrl: "", fishCompResultBannerBase64: "", fishCompResultBannerUrl: "", fishRaidBannerBase64: "", fishRaidBannerUrl: "", fishRaidRegistrationBannerBase64: "", fishRaidRegistrationBannerUrl: "", fishRaidRunningBannerBase64: "", fishRaidRunningBannerUrl: "", fishRaidResultBannerBase64: "", fishRaidResultBannerUrl: "", fishDuelRegistrationBannerBase64: "", fishDuelRegistrationBannerUrl: "", fishDuelRunningBannerBase64: "", fishDuelRunningBannerUrl: "", fishDuelResultBannerBase64: "", fishDuelResultBannerUrl: "", fishGuideBannerBase64: "", fishGuideBannerUrl: "", fishHelpBannerBase64: "", fishHelpBannerUrl: "", sellFishBannerBase64: "", sellFishBannerUrl: "", fishCompEvents: [], fishRaidEvents: [], fishDuelEvents: [], fishRaidBosses: [{ id: "big_order", name: "Big Fish Order", quotaKg: 100, description: "Pesanan ikan besar hari ini sudah menunggu.", registrationBannerBase64: "", registrationBannerUrl: "", runningBannerBase64: "", runningBannerUrl: "", resultBannerBase64: "", resultBannerUrl: "", fulfilledBannerBase64: "", fulfilledBannerUrl: "", failedBannerBase64: "", failedBannerUrl: "" }], fishCompLogIntervalMs: 2500, fishCompHistoryLogHours: 24, fishCompExpReward: 50, fishCompGoldReward: 0, fishDuelExpReward: 40, fishDuelLogIntervalMs: 2500, fishRaidLogIntervalMs: 2500, fishRaidParticipantExpReward: 25, fishRaidParticipantGoldReward: 0, fishRaidMvpExpReward: 75, fishRaidMvpGoldReward: 0, fishRaidClearParticipantExpReward: 50, fishRaidClearParticipantGoldReward: 0, fishRaidClearMvpExpReward: 150, fishRaidClearMvpGoldReward: 0, allowActivity: true, chatCooldownMs: 20000, expMultiplier: 1, levelExpMultiplier: 1, voiceExpAmount: 1, voiceExpIntervalMinutes: 15, dailyQuestCount: 3 },
       activeEvent: null,
       events: [],
+      quests: { main: [], event: [], daily: [], fish: [] },
       routineMessages: [],
       loadedTabs: {},
       processing: false,
@@ -1993,7 +2084,7 @@ const html = `<!doctype html>
       statusEl.style.color = isError ? "var(--danger)" : "var(--muted)";
     }
 
-    const editableTabs = new Set(["fish", "rods", "fishBags", "admin", "settings", "event", "routine"]);
+    const editableTabs = new Set(["fish", "rods", "fishBags", "admin", "settings", "event", "quests", "routine"]);
     const seedableTabs = new Set(["fish", "rods", "fishBags"]);
 
     function setProcessing(processing, message = "Processing data…") {
@@ -2067,7 +2158,7 @@ const html = `<!doctype html>
       if (type === "fishBags") {
         return { id: "new_fish_bag_" + Date.now(), name: "New Fish Bag", rarity: "Common", price: 100, spaceKg: 50, description: "", bonuses: [], iconBase64: "" };
       }
-      return { id: "new_rod_" + Date.now(), name: "New Rod", rarity: "Common", price: 100, speed: 5, luck: 1, maxWeight: 10, description: "", iconBase64: "" };
+      return { id: "new_rod_" + Date.now(), name: "New Rod", rarity: "Common", price: 100, speed: 5, luck: 1, maxWeight: 10, accuracy: 50, showInStore: true, description: "", bonuses: [], iconBase64: "" };
     }
 
     function updateItem(index, key, value) {
@@ -2083,7 +2174,8 @@ const html = `<!doctype html>
     function captureScrollState() {
       return {
         fishGallery: document.querySelector(".fish-gallery")?.scrollTop || 0,
-        playerList: document.querySelector(".player-list")?.scrollTop || 0
+        playerList: document.querySelector(".player-list")?.scrollTop || 0,
+        questList: document.querySelector(".quest-list")?.scrollTop || 0
       };
     }
 
@@ -2091,8 +2183,10 @@ const html = `<!doctype html>
       requestAnimationFrame(() => {
         const fishGallery = document.querySelector(".fish-gallery");
         const playerList = document.querySelector(".player-list");
+        const questList = document.querySelector(".quest-list");
         if (fishGallery) fishGallery.scrollTop = scrollState.fishGallery || 0;
         if (playerList) playerList.scrollTop = scrollState.playerList || 0;
+        if (questList) questList.scrollTop = scrollState.questList || 0;
         hydrateVisibleImages();
       });
     }
@@ -2241,6 +2335,12 @@ const html = `<!doctype html>
         return;
       }
 
+      if (state.tab === "quests") {
+        grid.innerHTML = questTabTemplate();
+        finishRender();
+        return;
+      }
+
       if (state.tab === "routine") {
         const listCard = document.createElement("article");
         listCard.className = "item";
@@ -2374,14 +2474,21 @@ const html = `<!doctype html>
           <label class="wide">FishDex JSON<textarea data-player-json="fishDex">\${escapeHtml(JSON.stringify(player.fishDex || {}, null, 2))}</textarea></label>
           <label class="wide">Heaviest Fish JSON<textarea data-player-json="heaviestFish">\${escapeHtml(JSON.stringify(player.heaviestFish || null, null, 2))}</textarea></label>
           <label class="wide">Luckiest Fish JSON<textarea data-player-json="luckiestFish">\${escapeHtml(JSON.stringify(player.luckiestFish || null, null, 2))}</textarea></label>
+          <div class="wide topline"><strong>Separate Quest State</strong><span class="small">Saved independently from profile data.</span></div>
+          <label class="wide">Active Quests JSON<textarea data-player-json="activeQuests">\${escapeHtml(JSON.stringify(player.activeQuests || [], null, 2))}</textarea></label>
+          <label class="wide">Completed Quest IDs JSON<textarea data-player-json="completedQuestIds">\${escapeHtml(JSON.stringify(player.completedQuestIds || [], null, 2))}</textarea></label>
+          <label class="wide">Fish Quest History JSON<textarea data-player-json="fishQuestHistory">\${escapeHtml(JSON.stringify(player.fishQuestHistory || [], null, 2))}</textarea></label>
+          <label class="wide">Active Buffs JSON<textarea data-player-json="buffs">\${escapeHtml(JSON.stringify(player.buffs || [], null, 2))}</textarea></label>
           <div class="wide button-row">
             <label>Give Money Amount<input type="number" step="1" min="1" data-give-money-amount value="\${escapeHtml(String(state.giveMoneyAmount || ""))}"></label>
             <button data-give-money>Give Money</button>
           </div>
           <div class="wide button-row">
-            <button class="primary" data-save-player>Save Player</button>
+            <button class="primary" data-save-player>Save Profile Data</button>
+            <button data-save-player-quests>Save Quest Data</button>
             <button data-open-enforce-fishing>Enforce Fishing</button>
             <button data-refresh-entot>Refresh Entot</button>
+            <button data-refresh-daily-quests>Refresh Daily Quests</button>
             <button data-make-admin>Make Admin</button>
             <button class="danger" data-reset-player>Reset Player Data</button>
             <button class="danger" data-delete-player>Delete Player</button>
@@ -2533,7 +2640,7 @@ const html = `<!doctype html>
             \${createField("Price", "price", item.price, "number", "1")}
             \${createField("Capacity Kg", "spaceKg", item.spaceKg, "number", "0.01")}
             <label class="wide">Description<textarea data-create-item-key="description">\${escapeHtml(item.description || "")}</textarea></label>
-            <label class="wide">Bonuses JSON<textarea data-create-item-key="bonuses">\${escapeHtml(JSON.stringify(item.bonuses || [], null, 2))}</textarea></label>
+            \${fishBagBonusesTemplate(item, "draft")}
             \${createField("Icon URL Import", "iconUrl", item.iconUrl || "", "url")}
             \${createIconField()}
           </div>\`;
@@ -2548,8 +2655,9 @@ const html = `<!doctype html>
           \${createField("Luck", "luck", item.luck, "number", "1")}
           \${createField("Max Kg", "maxWeight", item.maxWeight, "number", "0.01")}
           \${createField("Accuracy", "accuracy", item.accuracy, "number", "1")}
+          <label><input type="checkbox" data-create-item-key="showInStore" \${item.showInStore !== false ? "checked" : ""}> Show in Fish Store</label>
           <label class="wide">Description<textarea data-create-item-key="description">\${escapeHtml(item.description || "")}</textarea></label>
-          <label class="wide">Bonuses JSON<textarea data-create-item-key="bonuses">\${escapeHtml(JSON.stringify(item.bonuses || [], null, 2))}</textarea></label>
+          \${rodBonusesTemplate(item, "draft")}
           \${createField("Icon URL Import", "iconUrl", item.iconUrl || "", "url")}
           \${createIconField()}
         </div>\`;
@@ -2648,6 +2756,7 @@ const html = `<!doctype html>
           \${field("Level EXP Multiplier", "levelExpMultiplier", state.settings.levelExpMultiplier ?? 1, 0, "number", "0.01")}
           \${field("Voice Progress Amount", "voiceExpAmount", state.settings.voiceExpAmount ?? 1, 0, "number", "1")}
           \${field("Voice Progress Interval, minutes", "voiceExpIntervalMinutes", state.settings.voiceExpIntervalMinutes ?? 15, 0, "number", "1")}
+          \${field("Random Daily Quests Per Player", "dailyQuestCount", state.settings.dailyQuestCount ?? 3, 0, "number", "1")}
           <label class="wide toggle-row"><input type="checkbox" data-key="allowActivity" \${state.settings.allowActivity !== false ? "checked" : ""}> Allow Activity</label>
           <div class="wide small">EXP Multiplier changes EXP gained from fish. Voice Progress Amount and Interval control passive fishing progress from voice.</div>
           <div class="image-grid">
@@ -2706,6 +2815,8 @@ const html = `<!doctype html>
             \${field("Clear MVP Bonus Gold", "fishRaidClearMvpGoldReward", state.settings.fishRaidClearMvpGoldReward ?? 0, 0, "number", "1")}
             \${field("Fish Raid Log Interval, ms", "fishRaidLogIntervalMs", state.settings.fishRaidLogIntervalMs ?? 2500, 0, "number", "100")}
             \${field("Fish Raid Cooldown, minutes", "fishRaidCooldownMinutes", state.settings.fishRaidCooldownMinutes ?? 60, 0, "number", "1")}
+            \${field("Quota Increase per Completion Streak, %", "fishRaidQuotaStreakBonusPercent", state.settings.fishRaidQuotaStreakBonusPercent ?? 0, 0, "number", "0.1")}
+            \${field("Reward Increase per Completion Streak, %", "fishRaidRewardStreakBonusPercent", state.settings.fishRaidRewardStreakBonusPercent ?? 0, 0, "number", "0.1")}
             \${fishRaidControlsTemplate()}
             <label class="wide">Raid Events JSON<textarea data-settings-json="fishRaidEvents">\${escapeHtml(JSON.stringify(state.settings.fishRaidEvents || [], null, 2))}</textarea></label>
             <div class="wide small">Raid events use the same format as Fish Comp Events, but only affect FishRaid turns.</div>
@@ -2730,7 +2841,7 @@ const html = `<!doctype html>
     function fishRaidControlsTemplate() {
       const guildState = state.fishRaidControlGuildId ? state.fishRaidState[state.fishRaidControlGuildId] : null;
       const statusText = guildState
-        ? \`\${guildState.boss?.name || "Raid Boss"} · \${Number(guildState.filledKg || 0).toFixed(2)} / \${Number(guildState.quotaKg || 0).toFixed(2)} kg · \${guildState.fulfilledAt ? "Fulfilled" : "Active"}\`
+        ? \`\${guildState.boss?.name || "Raid Boss"} · \${Number(guildState.filledKg || 0).toFixed(2)} / \${Number(guildState.quotaKg || 0).toFixed(2)} kg · Streak \${Math.max(0, Number(guildState.streak || 0))} · \${guildState.fulfilledAt ? "Fulfilled" : "Active"}\`
         : "No local state loaded for this server yet.";
       return \`
         <section class="wide item">
@@ -2873,7 +2984,7 @@ const html = `<!doctype html>
 
     function makeEmptyEvent() {
       const startAt = formatDateTimeLocal(new Date());
-      return { id: String(Date.now()), title: "", description: "", bannerBase64: "", bannerUrl: "", startAt, durationMinutes: 60, bonuses: [{ type: "gold_multiplier", value: 2, fishId: "" }], announcementChannelId: state.lastAnnouncementChannelId, guildId: "", stoppedAt: "", deployedAt: "" };
+      return { id: String(Date.now()), title: "", description: "", bannerBase64: "", bannerUrl: "", startAt, durationMinutes: 60, bonuses: [{ type: "gold_multiplier", value: 2, fishId: "" }], questIds: [], announcementChannelId: state.lastAnnouncementChannelId, guildId: "", stoppedAt: "", deployedAt: "" };
     }
 
     function formatDateTimeLocal(date) {
@@ -2939,6 +3050,7 @@ const html = `<!doctype html>
               <span class="badge">\${status}</span>
             </div>
             <div class="small">Bonus: \${escapeHtml(eventBonusText(event))}</div>
+            \${event.questIds?.length ? \`<div class="small">Quests: \${escapeHtml(event.questIds.join(", "))}</div>\` : ""}
             \${event.description ? \`<div class="small event-description-preview">\${escapeHtml(event.description)}</div>\` : ""}
             <div class="small">Start: \${escapeHtml(start)} · End: \${escapeHtml(end)}</div>
             <div class="small">Announcement Channel: \${escapeHtml(event.announcementChannelId || "-")} · Server: \${escapeHtml(event.guildId || "resolved by bot after announce")}</div>
@@ -2974,6 +3086,7 @@ const html = `<!doctype html>
           \${field("Start At", "startAt", event.startAt, 0, "datetime-local")}
           \${field("Duration, minutes", "durationMinutes", event.durationMinutes, 0, "number", "1")}
           \${field("Announcement Channel ID", "announcementChannelId", event.announcementChannelId, 0)}
+          <label class="wide">Event Quests<select multiple size="6" data-event-quest-ids>\${(state.quests.event || []).map((quest) => \`<option value="\${escapeHtml(quest.id)}" \${(event.questIds || []).includes(quest.id) ? "selected" : ""}>\${escapeHtml(quest.name)} (\${escapeHtml(quest.id)})</option>\`).join("")}</select></label>
           <div class="wide small">The bot applies this event across the whole server that contains the announcement channel.</div>
           <div class="wide fields">
             <div class="wide topline">
@@ -3205,6 +3318,87 @@ const html = `<!doctype html>
       return index === -1 ? fishRarities.length : index;
     }
 
+    function questRewardTemplate(reward, questIndex, rewardIndex) {
+      const types = ["gold", "exp", "fish", "buff", "fishing_rod", "fishing_bag", "quest", "event"];
+      const attrs = \`data-quest-index="\${questIndex}" data-reward-index="\${rewardIndex}"\`;
+      const amountField = ["gold", "exp", "fish"].includes(reward.type) ? \`<label>Amount<input type="number" min="0" step="1" value="\${Number(reward.amount || 0)}" \${attrs} data-reward-key="amount"></label>\` : "";
+      const itemCollections = {
+        fish: state.fish,
+        fishing_rod: state.rods,
+        fishing_bag: state.fishBags,
+        quest: Object.values(state.quests).flat(),
+        event: state.events
+      };
+      const items = itemCollections[reward.type] || [];
+      const selectedId = reward.type === "quest" ? reward.questId : reward.type === "event" ? reward.eventId : reward.itemId;
+      const itemField = items.length || ["fish", "fishing_rod", "fishing_bag", "quest", "event"].includes(reward.type)
+        ? \`<label>\${reward.type === "quest" ? "Next Quest" : reward.type === "event" ? "Event" : "Item"}<select \${attrs} data-reward-key="targetId"><option value="">Choose \${reward.type}</option>\${items.map((item) => { const id = item.id; const name = item.name || item.title || id; return \`<option value="\${escapeHtml(id)}" \${selectedId === id ? "selected" : ""}>\${escapeHtml(name)} (\${escapeHtml(id)})</option>\`; }).join("")}</select></label>\`
+        : "";
+      const buffFields = reward.type === "buff" ? \`<label>Buff Type<select \${attrs} data-reward-key="multiplierType">\${["exp_multiplier", "gold_multiplier", "fish_chance", "fishing_speed"].map((type) => \`<option value="\${type}" \${reward.multiplierType === type ? "selected" : ""}>\${type}</option>\`).join("")}</select></label><label>Multiplier<input type="number" min="0" step="0.01" value="\${Number(reward.value ?? 1)}" \${attrs} data-reward-key="value"></label><label>Duration, minutes<input type="number" min="1" step="1" value="\${Number(reward.durationMinutes || 60)}" \${attrs} data-reward-key="durationMinutes"></label>\` : "";
+      return \`<div class="bonus-row wide"><div class="fields">
+        <label>Reward Type<select data-quest-index="\${questIndex}" data-reward-index="\${rewardIndex}" data-reward-key="type">\${types.map((type) => \`<option value="\${type}" \${reward.type === type ? "selected" : ""}>\${type}</option>\`).join("")}</select></label>
+        \${amountField}\${itemField}\${buffFields}
+        <button class="danger" data-remove-quest-reward="\${rewardIndex}" data-quest-index="\${questIndex}" type="button">Remove Reward</button>
+      </div></div>\`;
+    }
+
+    function selectedQuestEntry() {
+      const quests = state.quests[state.questTab] || [];
+      if (!quests.length) return null;
+      const selectedId = state.selectedQuestIds[state.questTab];
+      let index = quests.findIndex((quest) => quest.id === selectedId);
+      if (index < 0) index = 0;
+      state.selectedQuestIds[state.questTab] = quests[index].id;
+      return { quest: quests[index], index };
+    }
+
+    function questRowTemplate(quest, active) {
+      return \`
+        <button class="quest-row \${active ? "active" : ""}" data-select-quest="\${escapeHtml(quest.id || "")}">
+          <strong>\${escapeHtml(quest.name || "Unnamed Quest")}</strong>
+        </button>\`;
+    }
+
+    function questEditorTemplate(quest, index) {
+      const fishOptions = state.fish.map((fish) => \`<option value="\${escapeHtml(fish.id)}" \${quest.objective?.fishId === fish.id ? "selected" : ""}>\${escapeHtml(fish.name)} (\${escapeHtml(fish.id)})</option>\`).join("");
+      const rewards = Array.isArray(quest.rewards) ? quest.rewards : [];
+      return \`<article class="item">
+        <div class="topline"><strong>\${escapeHtml(quest.name || "New Quest")}</strong><button class="danger" data-remove-quest="\${index}" type="button">Remove Quest</button></div>
+        <div class="fields">
+          <label>ID<input value="\${escapeHtml(quest.id || "")}" data-quest-index="\${index}" data-quest-key="id"></label>
+          <label>Name<input value="\${escapeHtml(quest.name || "")}" data-quest-index="\${index}" data-quest-key="name"></label>
+          <label>Objective<select data-quest-index="\${index}" data-objective-key="type"><option value="catch_fish" \${quest.objective?.type === "catch_fish" ? "selected" : ""}>Catch specific fish</option><option value="catch_any" \${quest.objective?.type === "catch_any" ? "selected" : ""}>Catch any fish</option><option value="catch_rarity" \${quest.objective?.type === "catch_rarity" ? "selected" : ""}>Catch fish rarity</option><option value="perform_action" \${quest.objective?.type === "perform_action" ? "selected" : ""}>Perform action</option></select></label>
+          \${quest.objective?.type === "catch_fish" ? \`<label>Target Fish<select data-quest-index="\${index}" data-objective-key="fishId"><option value="">Choose fish</option>\${fishOptions}</select></label>\` : ""}
+          \${quest.objective?.type === "catch_rarity" ? \`<label>Target Rarity<select data-quest-index="\${index}" data-objective-key="rarity">\${fishRarities.map((rarity) => \`<option value="\${rarity}" \${quest.objective?.rarity === rarity ? "selected" : ""}>\${rarity}</option>\`).join("")}</select></label>\` : ""}
+          \${quest.objective?.type === "perform_action" ? \`<label>Action<select data-quest-index="\${index}" data-objective-key="action">\${["fishentot", "fishshowoff", "fishraid", "fishcomp", "fishduel"].map((action) => \`<option value="\${action}" \${String(quest.objective?.action || "").replace(/^\\//, "") === action ? "selected" : ""}>/\${action}</option>\`).join("")}</select></label>\` : ""}
+          <label>\${quest.objective?.type === "perform_action" ? "Required Uses" : "Required Catches"}<input type="number" min="1" step="1" value="\${Number(quest.objective?.amount || 1)}" data-quest-index="\${index}" data-objective-key="amount"></label>
+          <label class="checkbox"><input type="checkbox" \${quest.enabled !== false ? "checked" : ""} data-quest-index="\${index}" data-quest-key="enabled"> Enabled</label>
+          <label class="wide">Description<textarea data-quest-index="\${index}" data-quest-key="description">\${escapeHtml(quest.description || "")}</textarea></label>
+          <div class="wide topline"><strong>Rewards</strong><button data-add-quest-reward="\${index}" type="button">Add Reward</button></div>
+          <div class="wide quest-reward-scroll">\${rewards.length ? rewards.map((reward, rewardIndex) => questRewardTemplate(reward, index, rewardIndex)).join("") : '<div class="small">No rewards yet.</div>'}</div>
+        </div>
+      </article>\`;
+    }
+
+    function questTabTemplate() {
+      const labels = { main: "Main Quest", event: "Event Quest", daily: "Daily Quest", fish: "Fish Quest" };
+      const quests = state.quests[state.questTab] || [];
+      const selected = selectedQuestEntry();
+      const rows = quests.length
+        ? quests.map((quest) => questRowTemplate(quest, selected?.quest === quest)).join("")
+        : '<div class="small">No quests in this category.</div>';
+      return \`<article class="item wide"><div class="topline"><strong>Quest System</strong><div class="button-row"><button data-add-quest type="button">Add \${labels[state.questTab]}</button><button data-export-quests="\${state.questTab}" type="button">Export \${labels[state.questTab]}</button><label class="file-picker"><span>Import \${labels[state.questTab]}</span><input type="file" accept="application/json,.json" data-import-quests="\${state.questTab}"></label></div></div>
+        <div class="tabs wide">\${Object.entries(labels).map(([key, label]) => \`<button class="\${state.questTab === key ? "active" : ""}" data-quest-tab="\${key}" type="button">\${label}</button>\`).join("")}</div>
+        <div class="small">Main quests are assigned automatically. Event quests are selected during event deployment. Daily quests are randomly assigned using Settings → Daily Quest Count. Fish quests are attached to fish with a drop chance in the Fish tab.</div></article>
+        <div class="quest-layout">
+          <article class="item">
+            <div class="topline"><strong>\${labels[state.questTab]} List</strong><span class="badge">\${quests.length}</span></div>
+            <div class="quest-list">\${rows}</div>
+          </article>
+          \${selected ? questEditorTemplate(selected.quest, selected.index) : '<article class="item"><div class="small">Select or add a quest to edit its full data.</div></article>'}
+        </div>\`;
+    }
+
     function sortedFishEntries() {
       const query = normalizeSearch(state.fishSearch);
       return state.fish
@@ -3325,6 +3519,8 @@ const html = `<!doctype html>
           \${field("EXP", "exp", item.exp, index, "number", "1")}
           \${field("Sell Gold", "gold", item.gold, index, "number", "1")}
           \${field("Server ID", "serverId", item.serverId || "", index)}
+          <div class="wide topline"><strong>Fish Quest Drops</strong><button data-add-fish-quest-drop="\${index}" type="button">Add Quest Chance</button></div>
+          \${(item.questDrops || []).map((drop, dropIndex) => \`<div class="bonus-row wide"><div class="fields"><label>Fish Quest<select data-index="\${index}" data-fish-quest-drop-index="\${dropIndex}" data-fish-quest-drop-key="questId"><option value="">Choose quest</option>\${(state.quests.fish || []).map((quest) => \`<option value="\${escapeHtml(quest.id)}" \${drop.questId === quest.id ? "selected" : ""}>\${escapeHtml(quest.name)} (\${escapeHtml(quest.id)})</option>\`).join("")}</select></label><label>Obtain Chance %<input type="number" min="0" max="100" step="0.01" value="\${Number(drop.chance || 0)}" data-index="\${index}" data-fish-quest-drop-index="\${dropIndex}" data-fish-quest-drop-key="chance"></label><button class="danger" data-remove-fish-quest-drop="\${dropIndex}" data-index="\${index}" type="button">Remove</button></div></div>\`).join("")}
           <label class="wide">Descriptions, one per line<textarea data-index="\${index}" data-key="description">\${escapeHtml(fishDescriptionsText(item))}</textarea></label>
           \${field("Icon URL Import", "iconUrl", item.iconUrl || "", index, "url")}
           \${iconField(index, size)}
@@ -3348,11 +3544,37 @@ const html = `<!doctype html>
           \${field("Luck", "luck", item.luck, index, "number", "1")}
           \${field("Max Kg", "maxWeight", item.maxWeight, index, "number", "0.01")}
           \${field("Accuracy", "accuracy", item.accuracy, index, "number", "1")}
+          <label><input type="checkbox" data-index="\${index}" data-key="showInStore" \${item.showInStore !== false ? "checked" : ""}> Show in Fish Store</label>
           <label class="wide">Description<textarea data-index="\${index}" data-key="description">\${escapeHtml(item.description || "")}</textarea></label>
-          <label class="wide">Bonuses JSON<textarea data-index="\${index}" data-key="bonuses">\${escapeHtml(JSON.stringify(item.bonuses || [], null, 2))}</textarea></label>
+          \${rodBonusesTemplate(item, index)}
           \${field("Icon URL Import", "iconUrl", item.iconUrl || "", index, "url")}
           \${iconField(index, size)}
         </div>\`;
+    }
+
+    function rodBonusesTemplate(item, itemIndex) {
+      const bonuses = Array.isArray(item.bonuses) ? item.bonuses : [];
+      const typeOptions = [["accuracy", "Accuracy"], ["luck", "Luck"], ["maxWeight", "Max Weight"]];
+      const modeOptions = [["", "All uses"], ["duel", "FishDuel"], ["raid", "FishRaid"], ["competition", "FishComp"]];
+      const conditionOptions = [["", "Always"], ["opponent_higher_level", "Opponent higher level"], ["opponent_lower_level", "Opponent lower level"]];
+      const rows = bonuses.map((bonus, bonusIndex) => {
+        const types = typeOptions.some(([value]) => value === bonus.type) ? typeOptions : [[bonus.type, bonus.type], ...typeOptions];
+        return \`
+          <div class="wide item fields">
+            <label>Stat<select data-rod-bonus-key="type" data-rod-bonus-index="\${bonusIndex}" data-index="\${itemIndex}">\${types.map(([value, label]) => \`<option value="\${escapeHtml(value)}" \${bonus.type === value ? "selected" : ""}>\${escapeHtml(label)}</option>\`).join("")}</select></label>
+            <label>Increase<input type="number" step="0.01" data-rod-bonus-key="value" data-rod-bonus-index="\${bonusIndex}" data-index="\${itemIndex}" value="\${escapeHtml(String(bonus.value ?? 0))}"></label>
+            <label>Use<select data-rod-bonus-key="mode" data-rod-bonus-index="\${bonusIndex}" data-index="\${itemIndex}">\${modeOptions.map(([value, label]) => \`<option value="\${value}" \${String(bonus.mode || "") === value ? "selected" : ""}>\${label}</option>\`).join("")}</select></label>
+            <label>Condition<select data-rod-bonus-key="condition" data-rod-bonus-index="\${bonusIndex}" data-index="\${itemIndex}">\${conditionOptions.map(([value, label]) => \`<option value="\${value}" \${String(bonus.condition || "") === value ? "selected" : ""}>\${label}</option>\`).join("")}</select></label>
+            <label class="wide">Description<input data-rod-bonus-key="description" data-rod-bonus-index="\${bonusIndex}" data-index="\${itemIndex}" value="\${escapeHtml(String(bonus.description || ""))}"></label>
+            <button class="danger" type="button" data-remove-rod-bonus="\${bonusIndex}" data-index="\${itemIndex}">Remove Bonus</button>
+          </div>\`;
+      }).join("");
+      return \`
+        <section class="wide item">
+          <div class="topline"><strong>Rod Bonuses</strong><button type="button" data-add-rod-bonus data-index="\${itemIndex}">Add Bonus</button></div>
+          <div class="small">Bonuses can stack. Choose whether each stat increase applies everywhere, only in FishDuel, FishRaid, or FishComp.</div>
+          \${rows || '<div class="small">No bonuses configured.</div>'}
+        </section>\`;
     }
 
     function fishDescriptionsText(item) {
@@ -3508,10 +3730,35 @@ const html = `<!doctype html>
           \${field("Price", "price", item.price, index, "number", "1")}
           \${field("Capacity Kg", "spaceKg", item.spaceKg, index, "number", "0.01")}
           <label class="wide">Description<textarea data-index="\${index}" data-key="description">\${escapeHtml(item.description || "")}</textarea></label>
-          <label class="wide">Bonuses JSON<textarea data-index="\${index}" data-key="bonuses">\${escapeHtml(JSON.stringify(item.bonuses || [], null, 2))}</textarea></label>
+          \${fishBagBonusesTemplate(item, index)}
           \${field("Icon URL Import", "iconUrl", item.iconUrl || "", index, "url")}
           \${iconField(index, size)}
         </div>\`;
+    }
+
+    function fishBagBonusesTemplate(item, itemIndex) {
+      const bonuses = Array.isArray(item.bonuses) ? item.bonuses : [];
+      const standardTypes = [["spaceKg", "Capacity Kg"]];
+      const modeOptions = [["", "All uses"], ["duel", "FishDuel"]];
+      const conditionOptions = [["", "Always"], ["opponent_higher_level", "Opponent higher level"], ["opponent_lower_level", "Opponent lower level"]];
+      const rows = bonuses.map((bonus, bonusIndex) => {
+        const types = standardTypes.some(([value]) => value === bonus.type) ? standardTypes : [[bonus.type, bonus.type], ...standardTypes];
+        return \`
+          <div class="wide item fields">
+            <label>Stat<select data-fish-bag-bonus-key="type" data-fish-bag-bonus-index="\${bonusIndex}" data-index="\${itemIndex}">\${types.map(([value, label]) => \`<option value="\${escapeHtml(value)}" \${bonus.type === value ? "selected" : ""}>\${escapeHtml(label)}</option>\`).join("")}</select></label>
+            <label>Increase<input type="number" step="0.01" data-fish-bag-bonus-key="value" data-fish-bag-bonus-index="\${bonusIndex}" data-index="\${itemIndex}" value="\${escapeHtml(String(bonus.value ?? 0))}"></label>
+            <label>Use<select data-fish-bag-bonus-key="mode" data-fish-bag-bonus-index="\${bonusIndex}" data-index="\${itemIndex}">\${modeOptions.map(([value, label]) => \`<option value="\${value}" \${String(bonus.mode || "") === value ? "selected" : ""}>\${label}</option>\`).join("")}</select></label>
+            <label>Condition<select data-fish-bag-bonus-key="condition" data-fish-bag-bonus-index="\${bonusIndex}" data-index="\${itemIndex}">\${conditionOptions.map(([value, label]) => \`<option value="\${value}" \${String(bonus.condition || "") === value ? "selected" : ""}>\${label}</option>\`).join("")}</select></label>
+            <label class="wide">Description<input data-fish-bag-bonus-key="description" data-fish-bag-bonus-index="\${bonusIndex}" data-index="\${itemIndex}" value="\${escapeHtml(String(bonus.description || ""))}"></label>
+            <button class="danger" type="button" data-remove-fish-bag-bonus="\${bonusIndex}" data-index="\${itemIndex}">Remove Bonus</button>
+          </div>\`;
+      }).join("");
+      return \`
+        <section class="wide item">
+          <div class="topline"><strong>Fish Bag Bonuses</strong><button type="button" data-add-fish-bag-bonus data-index="\${itemIndex}">Add Bonus</button></div>
+          <div class="small">Capacity bonuses can stack and may apply to every supported use or only FishDuel, with an optional opponent-level condition.</div>
+          \${rows || '<div class="small">No bonuses configured.</div>'}
+        </section>\`;
     }
 
     function infoPanelTemplate(key, title, body) {
@@ -3677,6 +3924,34 @@ const html = `<!doctype html>
 
     function exportRoutineMessagesJson() {
       downloadJson({ routineMessages: state.routineMessages || [] }, "trfishing-routine-messages.json", "Exported routine messages.");
+    }
+
+    function exportQuestCategoryJson(category) {
+      const quests = state.quests[category] || [];
+      downloadJson({ category, quests }, "trfishing-" + category + "-quests.json", "Exported " + quests.length + " " + category + " quests.");
+    }
+
+    function importQuestCategoryJson(file, category) {
+      if (!file || !state.quests[category]) return;
+      const reader = new FileReader();
+      reader.onload = () => {
+        try {
+          const parsed = JSON.parse(String(reader.result || ""));
+          const imported = Array.isArray(parsed)
+            ? parsed
+            : Array.isArray(parsed?.quests) ? parsed.quests
+              : Array.isArray(parsed?.[category]) ? parsed[category]
+                : Array.isArray(parsed?.quests?.[category]) ? parsed.quests[category] : [];
+          if (!imported.length) throw new Error("JSON must contain a non-empty quest array for " + category + ".");
+          const normalized = imported.filter((quest) => quest && typeof quest === "object" && String(quest.id || "").trim()).map((quest) => ({ ...quest, category }));
+          const result = mergeById(state.quests[category], normalized);
+          setStatus("Imported " + category + " quests. Replaced " + result.replaced + ", added " + result.added + ". Press Save to store changes.");
+          render();
+        } catch (error) {
+          setStatus(error.message || "Could not import quest JSON.", true);
+        }
+      };
+      reader.readAsText(file);
     }
 
     function importSettingsJson(file) {
@@ -3845,6 +4120,7 @@ const html = `<!doctype html>
         state.routineMessages = Array.isArray(payload.routineMessages) ? payload.routineMessages : [];
         state.routineDraft = null;
       }
+      if (tab === "quests" && payload.quests) state.quests = payload.quests;
       state.selectedFishId = state.fish.some((item) => item.id === state.selectedFishId) ? state.selectedFishId : state.fish[0]?.id || "";
       state.selectedRodId = state.rods.some((item) => item.id === state.selectedRodId) ? state.selectedRodId : state.rods[0]?.id || "";
       state.selectedFishBagId = state.fishBags.some((item) => item.id === state.selectedFishBagId) ? state.selectedFishBagId : state.fishBags[0]?.id || "";
@@ -3879,6 +4155,7 @@ const html = `<!doctype html>
       if (tab === "settings") return { settings: state.settings };
       if (tab === "event") return { activeEvent: state.activeEvent, events: state.events };
       if (tab === "routine") return { routineMessages: state.routineMessages };
+      if (tab === "quests") return { quests: state.quests };
       throw new Error("This tab has no editable data.");
     }
 
@@ -3890,6 +4167,7 @@ const html = `<!doctype html>
             : tab === "admin" ? state.adminDiscordIds
               : tab === "event" ? state.events
                 : tab === "routine" ? state.routineMessages
+                  : tab === "quests" ? Object.values(state.quests).flat()
                   : null;
       if (Array.isArray(collection) && collection.length === 0 && !confirm("This will save an empty " + tab + " tab. Continue?")) return;
       await runWithLoading("Saving " + tab + " data…", async () => {
@@ -3991,7 +4269,23 @@ const html = `<!doctype html>
       const payload = await response.json();
       if (!response.ok) throw new Error(payload.error || "Could not save player.");
       updateSelectedPlayer(payload.player);
-      setStatus("Player saved.");
+      setStatus("Player profile saved. Quest data was left unchanged.");
+      render();
+    }
+
+    async function saveSelectedPlayerQuests() {
+      const selected = selectedPlayerRecord();
+      if (!selected || !confirm("Replace this player's saved quest state with the quest JSON shown here?")) return;
+      setStatus("Saving player quest data...");
+      const response = await fetch("/api/player/save-quests", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ playFabId: selected.playFabId, player: selected.player })
+      });
+      const payload = await response.json();
+      if (!response.ok) throw new Error(payload.error || "Could not save player quest data.");
+      updateSelectedPlayer(payload.player);
+      setStatus("Player quest data saved separately.");
       render();
     }
 
@@ -4026,6 +4320,26 @@ const html = `<!doctype html>
         updateSelectedPlayer(payload.player);
         state.catchNotice = "Fishentot cooldown refreshed. The player can use /fishentot now.";
         setStatus("Fishentot cooldown refreshed.");
+        render();
+      });
+    }
+
+    async function refreshDailyQuestsForSelectedPlayer() {
+      const selected = selectedPlayerRecord();
+      if (!selected || !confirm("Replace this player's current daily quests with a new random set? Existing daily progress will be lost.")) return;
+      await runWithLoading("Refreshing daily quests…", async () => {
+        setStatus("Refreshing daily quests...");
+        const response = await fetch("/api/player/refresh-daily-quests", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ playFabId: selected.playFabId })
+        });
+        const payload = await response.json();
+        if (!response.ok) throw new Error(payload.error || "Could not refresh daily quests.");
+        updateSelectedPlayer(payload.player);
+        const names = (payload.assigned || []).map((quest) => quest.name).join(", ");
+        state.catchNotice = names ? "Daily quests refreshed: " + names : "Daily quests refreshed; no eligible daily quests were available.";
+        setStatus("Daily quests refreshed.");
         render();
       });
     }
@@ -4348,11 +4662,68 @@ const html = `<!doctype html>
       button.addEventListener("click", () => {
         state.tab = button.dataset.tab;
         render();
-        loadData(state.tab, false).catch((error) => setStatus(error.message, true));
+        const tabLoad = loadData(state.tab, false);
+        if (state.tab === "quests") tabLoad.then(() => loadData("rods", false)).then(() => loadData("fishBags", false)).then(() => loadData("event", false)).catch((error) => setStatus(error.message, true));
+        else tabLoad.catch((error) => setStatus(error.message, true));
+        if (state.tab === "fish" || state.tab === "event") loadData("quests", false).catch((error) => setStatus(error.message, true));
       });
     });
     grid.addEventListener("input", (event) => {
       const target = event.target;
+      if (target.dataset.fishQuestDropKey) {
+        const drop = state.fish[Number(target.dataset.index)]?.questDrops?.[Number(target.dataset.fishQuestDropIndex)];
+        if (drop) drop[target.dataset.fishQuestDropKey] = target.type === "number" ? Number(target.value) : target.value;
+        return;
+      }
+      if (target.dataset.questKey || target.dataset.objectiveKey || target.dataset.rewardKey) {
+        const quest = state.quests[state.questTab]?.[Number(target.dataset.questIndex)];
+        if (!quest) return;
+        if (target.dataset.questKey) {
+          const previousId = quest.id;
+          quest[target.dataset.questKey] = target.type === "checkbox" ? target.checked : target.value;
+          if (target.dataset.questKey === "id" && state.selectedQuestIds[state.questTab] === previousId) {
+            state.selectedQuestIds[state.questTab] = quest.id;
+          }
+        }
+        if (target.dataset.objectiveKey) {
+          quest.objective = quest.objective || {};
+          quest.objective[target.dataset.objectiveKey] = target.type === "number" ? Number(target.value) : target.value;
+          if (target.dataset.objectiveKey === "type") render();
+        }
+        if (target.dataset.rewardKey) {
+          const reward = quest.rewards?.[Number(target.dataset.rewardIndex)];
+          if (!reward) return;
+          if (target.dataset.rewardKey === "targetId") {
+            if (reward.type === "quest") reward.questId = target.value;
+            else if (reward.type === "event") reward.eventId = target.value;
+            else reward.itemId = target.value;
+          } else reward[target.dataset.rewardKey] = target.type === "number" ? Number(target.value) : target.value;
+          if (target.dataset.rewardKey === "type") render();
+        }
+        return;
+      }
+      if (target.dataset.eventQuestIds !== undefined) {
+        getEvent().questIds = [...target.selectedOptions].map((option) => option.value);
+        return;
+      }
+      if (target.dataset.fishBagBonusKey) {
+        const item = target.dataset.index === "draft"
+          ? state.createItemDraft
+          : state.fishBags[Number(target.dataset.index)];
+        const bonus = item?.bonuses?.[Number(target.dataset.fishBagBonusIndex)];
+        if (!bonus) return;
+        bonus[target.dataset.fishBagBonusKey] = target.type === "number" ? Number(target.value) : target.value;
+        return;
+      }
+      if (target.dataset.rodBonusKey) {
+        const item = target.dataset.index === "draft"
+          ? state.createItemDraft
+          : state.rods[Number(target.dataset.index)];
+        const bonus = item?.bonuses?.[Number(target.dataset.rodBonusIndex)];
+        if (!bonus) return;
+        bonus[target.dataset.rodBonusKey] = target.type === "number" ? Number(target.value) : target.value;
+        return;
+      }
       if (target.dataset.createItemKey) {
         const item = state.createItemDraft;
         if (!item) return;
@@ -4366,7 +4737,7 @@ const html = `<!doctype html>
           }
           return;
         }
-        item[key] = target.type === "number" ? Number(target.value) : target.value;
+        item[key] = target.type === "checkbox" ? target.checked : target.type === "number" ? Number(target.value) : target.value;
         if (state.createItemType === "fish" && key === "description") {
           item.descriptions = String(target.value || "").split(/\\r?\\n/).map((description) => description.trim()).filter(Boolean);
         }
@@ -4580,7 +4951,7 @@ const html = `<!doctype html>
         }
         return;
       }
-      updateItem(itemIndex, target.dataset.key, target.type === "number" ? Number(target.value) : target.value);
+      updateItem(itemIndex, target.dataset.key, target.type === "checkbox" ? target.checked : target.type === "number" ? Number(target.value) : target.value);
       if (state.tab === "fish" && target.dataset.key === "description") {
         state.fish[itemIndex].descriptions = String(target.value || "").split(/\\r?\\n/).map((description) => description.trim()).filter(Boolean);
       }
@@ -4644,6 +5015,11 @@ const html = `<!doctype html>
       }
       if (target.dataset.importRoutines !== undefined) {
         importRoutineMessagesJson(target.files[0]);
+        target.value = "";
+        return;
+      }
+      if (target.dataset.importQuests !== undefined) {
+        importQuestCategoryJson(target.files[0], target.dataset.importQuests);
         target.value = "";
         return;
       }
@@ -4748,6 +5124,37 @@ const html = `<!doctype html>
       reader.readAsDataURL(file);
     });
     grid.addEventListener("click", (event) => {
+      const questTabButton = event.target.closest("[data-quest-tab]");
+      if (questTabButton) { state.questTab = questTabButton.dataset.questTab; render(); return; }
+      const selectQuestButton = event.target.closest("[data-select-quest]");
+      if (selectQuestButton) {
+        state.selectedQuestIds[state.questTab] = selectQuestButton.dataset.selectQuest;
+        render();
+        return;
+      }
+      if (event.target.closest("[data-add-quest]")) {
+        const quest = { id: state.questTab + "_quest_" + Date.now(), name: "New Quest", description: "", category: state.questTab, objective: { type: "catch_fish", fishId: "", rarity: "Common", action: "fishentot", amount: 1 }, rewards: [], enabled: true };
+        state.quests[state.questTab].push(quest);
+        state.selectedQuestIds[state.questTab] = quest.id;
+        render(); return;
+      }
+      const removeQuestButton = event.target.closest("[data-remove-quest]");
+      if (removeQuestButton) {
+        const quests = state.quests[state.questTab];
+        const removedIndex = Number(removeQuestButton.dataset.removeQuest);
+        quests.splice(removedIndex, 1);
+        state.selectedQuestIds[state.questTab] = quests[Math.min(removedIndex, quests.length - 1)]?.id || "";
+        render();
+        return;
+      }
+      const addQuestRewardButton = event.target.closest("[data-add-quest-reward]");
+      if (addQuestRewardButton) { state.quests[state.questTab][Number(addQuestRewardButton.dataset.addQuestReward)].rewards.push({ type: "gold", amount: 100, itemId: "", questId: "", eventId: "", multiplierType: "exp_multiplier", value: 1, durationMinutes: 60 }); render(); return; }
+      const removeQuestRewardButton = event.target.closest("[data-remove-quest-reward]");
+      if (removeQuestRewardButton) { state.quests[state.questTab][Number(removeQuestRewardButton.dataset.questIndex)].rewards.splice(Number(removeQuestRewardButton.dataset.removeQuestReward), 1); render(); return; }
+      const addFishQuestDropButton = event.target.closest("[data-add-fish-quest-drop]");
+      if (addFishQuestDropButton) { const fish = state.fish[Number(addFishQuestDropButton.dataset.addFishQuestDrop)]; fish.questDrops = fish.questDrops || []; fish.questDrops.push({ questId: "", chance: 10 }); render(); return; }
+      const removeFishQuestDropButton = event.target.closest("[data-remove-fish-quest-drop]");
+      if (removeFishQuestDropButton) { state.fish[Number(removeFishQuestDropButton.dataset.index)]?.questDrops?.splice(Number(removeFishQuestDropButton.dataset.removeFishQuestDrop), 1); render(); return; }
       const settingsTabButton = event.target.closest("[data-settings-tab]");
       if (settingsTabButton) {
         state.settingsTab = settingsTabButton.dataset.settingsTab;
@@ -4861,6 +5268,48 @@ const html = `<!doctype html>
         render();
         return;
       }
+      const addRodBonusButton = event.target.closest("[data-add-rod-bonus]");
+      if (addRodBonusButton) {
+        const item = addRodBonusButton.dataset.index === "draft"
+          ? state.createItemDraft
+          : state.rods[Number(addRodBonusButton.dataset.index)];
+        if (!item) return;
+        if (!Array.isArray(item.bonuses)) item.bonuses = [];
+        item.bonuses.push({ id: "bonus_" + Date.now(), type: "accuracy", value: 5, mode: "", target: "self", condition: "", description: "" });
+        render();
+        return;
+      }
+      const addFishBagBonusButton = event.target.closest("[data-add-fish-bag-bonus]");
+      if (addFishBagBonusButton) {
+        const item = addFishBagBonusButton.dataset.index === "draft"
+          ? state.createItemDraft
+          : state.fishBags[Number(addFishBagBonusButton.dataset.index)];
+        if (!item) return;
+        if (!Array.isArray(item.bonuses)) item.bonuses = [];
+        item.bonuses.push({ id: "bonus_" + Date.now(), type: "spaceKg", value: 10, mode: "duel", target: "self", condition: "", description: "" });
+        render();
+        return;
+      }
+      const removeFishBagBonusButton = event.target.closest("[data-remove-fish-bag-bonus]");
+      if (removeFishBagBonusButton) {
+        const item = removeFishBagBonusButton.dataset.index === "draft"
+          ? state.createItemDraft
+          : state.fishBags[Number(removeFishBagBonusButton.dataset.index)];
+        if (!item || !Array.isArray(item.bonuses)) return;
+        item.bonuses.splice(Number(removeFishBagBonusButton.dataset.removeFishBagBonus), 1);
+        render();
+        return;
+      }
+      const removeRodBonusButton = event.target.closest("[data-remove-rod-bonus]");
+      if (removeRodBonusButton) {
+        const item = removeRodBonusButton.dataset.index === "draft"
+          ? state.createItemDraft
+          : state.rods[Number(removeRodBonusButton.dataset.index)];
+        if (!item || !Array.isArray(item.bonuses)) return;
+        item.bonuses.splice(Number(removeRodBonusButton.dataset.removeRodBonus), 1);
+        render();
+        return;
+      }
       if (event.target.closest("[data-save-created-item]")) {
         saveCreatedItem();
         render();
@@ -4949,6 +5398,11 @@ const html = `<!doctype html>
         exportRoutineMessagesJson();
         return;
       }
+      const exportQuestsButton = event.target.closest("[data-export-quests]");
+      if (exportQuestsButton) {
+        exportQuestCategoryJson(exportQuestsButton.dataset.exportQuests);
+        return;
+      }
       const selectPlayerButton = event.target.closest("[data-select-player]");
       if (selectPlayerButton) {
         state.selectedPlayerId = selectPlayerButton.dataset.selectPlayer;
@@ -4964,12 +5418,20 @@ const html = `<!doctype html>
         saveSelectedPlayer().catch((error) => setStatus(error.message, true));
         return;
       }
+      if (event.target.closest("[data-save-player-quests]")) {
+        saveSelectedPlayerQuests().catch((error) => setStatus(error.message, true));
+        return;
+      }
       if (event.target.closest("[data-reset-player]")) {
         resetSelectedPlayer().catch((error) => setStatus(error.message, true));
         return;
       }
       if (event.target.closest("[data-refresh-entot]")) {
         refreshEntotForSelectedPlayer().catch((error) => setStatus(error.message, true));
+        return;
+      }
+      if (event.target.closest("[data-refresh-daily-quests]")) {
+        refreshDailyQuestsForSelectedPlayer().catch((error) => setStatus(error.message, true));
         return;
       }
       if (event.target.closest("[data-refresh-all-entot]")) {
@@ -5156,7 +5618,7 @@ const html = `<!doctype html>
     });
 
     render();
-    loadData("fish", false).catch((error) => setStatus(error.message, true));
+    loadData("fish", false).then(() => loadData("quests", false)).catch((error) => setStatus(error.message, true));
   </script>
 </body>
 </html>`;

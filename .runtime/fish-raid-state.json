@@ -64,7 +64,7 @@
         }
       },
       "quotaKg": 500,
-      "filledKg": 87.22275254548549,
+      "filledKg": 368.60959817617464,
       "participants": {
         "367669792993181697": {
           "id": "367669792993181697",
@@ -72,15 +72,50 @@
           "globalName": "PakTuki",
           "displayName": "<@367669792993181697>",
           "logName": "TR | Ebol Ebol",
-          "count": 16,
-          "totalWeight": 87.22275254548549,
+          "count": 27,
+          "totalWeight": 161.5248517779628,
           "heaviestWeight": 32.607868547476315,
           "heaviestName": "Hamim Jepang"
+        },
+        "281139082380312576": {
+          "id": "281139082380312576",
+          "username": "vnmrm",
+          "globalName": "venomenom",
+          "displayName": "<@281139082380312576>",
+          "logName": "TR | Mereun",
+          "count": 9,
+          "totalWeight": 26.76356710037125,
+          "heaviestWeight": 7.081497340320489,
+          "heaviestName": "Ebem"
+        },
+        "451776326723174401": {
+          "id": "451776326723174401",
+          "username": "azaralea",
+          "globalName": "Azara",
+          "displayName": "<@451776326723174401>",
+          "logName": "TR | Aktor (Adam) (Awiwir)",
+          "count": 12,
+          "totalWeight": 151.80889796963527,
+          "heaviestWeight": 61.51372614385194,
+          "heaviestName": "Ikan Hell Rina"
+        },
+        "275237881323454465": {
+          "id": "275237881323454465",
+          "username": "shera",
+          "globalName": "Delta",
+          "displayName": "<@275237881323454465>",
+          "logName": "᲼",
+          "count": 10,
+          "totalWeight": 28.512281328205436,
+          "heaviestWeight": 7.355868885335808,
+          "heaviestName": "Adhiet"
         }
       },
       "fulfilledAt": "",
-      "lastRaidEndedAt": 1788915836617,
-      "channelId": "891474628122394637"
+      "lastRaidEndedAt": 1788942041061,
+      "channelId": "891474628122394637",
+      "baseQuotaKg": 500,
+      "streak": 0
     }
   }
 }

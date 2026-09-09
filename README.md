@@ -1,6 +1,6 @@
 # TR Fishing Bot
 
-A Discord bot where chatting slowly builds up fishing progress. The bot handles catching fish, earning EXP, inventory, selling fish for gold, and buying better rods. Player saves and game data are stored in PlayFab. Uploaded manager images are stored in a Discord storage channel, and PlayFab stores the resulting image URLs.
+A Discord bot where chatting slowly builds up fishing progress. The bot handles catching fish, earning EXP, inventory, selling fish for gold, and buying better rods. Player saves and game data are stored in PlayFab. Player profile data uses the `player` User Data key, while active quests, completed quest IDs, fish quest history, the daily quest date, and quest buffs use `player_quest_state`. Migration from older combined `player` records is automatic and backward-compatible. Uploaded manager images are stored in a Discord storage channel, and PlayFab stores the resulting image URLs.
 
 ## Setup
 
@@ -60,7 +60,8 @@ The manager also has:
 - Admin Control: add admin Discord IDs or usernames for testing commands.
 - Settings: split into General, FishComp, and FishRaid panels for command banners, competition banners, raid rewards, per-boss raid banners, boss quota data, raid controls, events, chat cooldown, EXP multipliers, and voice progress.
 - Event: list deployed events, create server-scoped timed events with start time and duration, add multiple bonus types, and stop running events.
-- Player Management: list and search players by Discord ID or username, edit player data, reset a player, delete a player from the PlayFab title, make a player admin, force one fishing catch, and reset or delete all loaded players.
+- Player Management: list and search players by Discord ID or username, edit profile and quest data through separate save actions, reset a player, delete a player from the PlayFab title, make a player admin, force one fishing catch, and reset or delete all loaded players.
+- Quest System: browse each quest category in a scrollable name list and edit the selected quest in a dedicated detail panel.
 
 ## Commands
 
@@ -121,3 +122,5 @@ During competitions, caught fish do not enter inventory and do not give normal f
 Fish Raid uses the competition-style registration and turn flow, but all caught fish weight fills a shared daily boss quota. Only one raid can run at once in a server, raids have a 1 hour cooldown after each run, and the daily boss/quota resets at midnight. During a live raid, rankings show only that run; the result shows all participants and total contribution for the whole day.
 
 FishRaid settings include a raid boss editor. Each boss can have its own registration, running, finish, quota fulfilled, and failed-at-midnight banners. The manager can also reset today's raid or force-clear today's quota for a server.
+
+Each boss quota is the 100% base target. FishRaid settings can increase the next day's quota and rewards by separate percentages for every consecutive daily completion; an uncompleted raid day resets the streak. Rods and fish bags support multiple manager-edited contextual bonuses, and rods have a default-on store visibility toggle for secret items. Store and FishDex item menus are ordered by rarity.

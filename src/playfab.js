@@ -11,6 +11,11 @@ const { getDiscordImageUrl, uploadDiscordImageFromUrl, uploadDiscordImageWithRef
 const titleId = process.env.PLAYFAB_TITLE_ID;
 const secretKey = process.env.PLAYFAB_SECRET_KEY;
 const legacyPlayersPath = path.join(__dirname, "..", "data", "players.json");
+const playerDataKeys = {
+  profile: "player",
+  quests: "player_quest_state"
+};
+const playerQuestStateFields = ["activeQuests", "completedQuestIds", "fishQuestHistory", "dailyQuestDate", "buffs"];
 
 const titleDataKeys = {
   fish: "fish_config",
@@ -20,6 +25,7 @@ const titleDataKeys = {
   admins: "admin_access_config",
   settings: "game_settings_config",
   events: "event_config",
+  quests: "quest_config",
   routines: "routine_config",
   routineState: "routine_runtime_state",
   legacyConfigBackup: "admin_config_backup_before_split",
@@ -86,6 +92,8 @@ const defaultSettings = {
   fishCompGoldReward: 0,
   fishRaidLogIntervalMs: 2500,
   fishRaidCooldownMinutes: 60,
+  fishRaidQuotaStreakBonusPercent: 0,
+  fishRaidRewardStreakBonusPercent: 0,
   fishRaidParticipantExpReward: 25,
   fishRaidParticipantGoldReward: 0,
   fishRaidMvpExpReward: 75,
@@ -99,7 +107,8 @@ const defaultSettings = {
   expMultiplier: 1,
   levelExpMultiplier: 1,
   voiceExpAmount: 1,
-  voiceExpIntervalMinutes: 15
+  voiceExpIntervalMinutes: 15,
+  dailyQuestCount: 3
 };
 const titleDataChunkSize = 8_000;
 const maxStoredImageLength = 500_000;
@@ -303,7 +312,12 @@ function makeDefaultPlayer() {
     lastFishingGuildId: "",
     lastFishingChannelId: "",
     voiceTotalMs: 0,
-    voiceExpRemainderMs: 0
+    voiceExpRemainderMs: 0,
+    activeQuests: [],
+    completedQuestIds: [],
+    fishQuestHistory: [],
+    dailyQuestDate: "",
+    buffs: []
   };
 }
 
@@ -367,8 +381,46 @@ function normalizePlayer(rawPlayer) {
     rodId: rawPlayer?.rodId === "twig" ? starterRodId : rawPlayer?.rodId || starterRodId,
     ownedRods: ownedRods.map((rodId) => (rodId === "twig" ? starterRodId : rodId)),
     fishBagId: String(rawPlayer?.fishBagId || "").trim(),
-    ownedFishBags: ownedFishBags.map((bagId) => String(bagId || "").trim()).filter(Boolean)
+    ownedFishBags: ownedFishBags.map((bagId) => String(bagId || "").trim()).filter(Boolean),
+    activeQuests: Array.isArray(rawPlayer?.activeQuests) ? rawPlayer.activeQuests.filter((entry) => entry && typeof entry === "object") : [],
+    completedQuestIds: [...new Set((Array.isArray(rawPlayer?.completedQuestIds) ? rawPlayer.completedQuestIds : []).map(String).filter(Boolean))],
+    fishQuestHistory: [...new Set((Array.isArray(rawPlayer?.fishQuestHistory) ? rawPlayer.fishQuestHistory : []).map(String).filter(Boolean))],
+    dailyQuestDate: String(rawPlayer?.dailyQuestDate || ""),
+    buffs: (Array.isArray(rawPlayer?.buffs) ? rawPlayer.buffs : []).filter((entry) => entry && typeof entry === "object" && (!entry.endsAt || Date.parse(entry.endsAt) > Date.now()))
   };
+}
+
+function normalizePlayerQuestState(rawState) {
+  const source = rawState && typeof rawState === "object" && !Array.isArray(rawState) ? rawState : {};
+  return {
+    activeQuests: Array.isArray(source.activeQuests) ? source.activeQuests.filter((entry) => entry && typeof entry === "object") : [],
+    completedQuestIds: [...new Set((Array.isArray(source.completedQuestIds) ? source.completedQuestIds : []).map(String).filter(Boolean))],
+    fishQuestHistory: [...new Set((Array.isArray(source.fishQuestHistory) ? source.fishQuestHistory : []).map(String).filter(Boolean))],
+    dailyQuestDate: String(source.dailyQuestDate || ""),
+    buffs: (Array.isArray(source.buffs) ? source.buffs : []).filter((entry) => entry && typeof entry === "object" && (!entry.endsAt || Date.parse(entry.endsAt) > Date.now()))
+  };
+}
+
+function extractPlayerQuestState(player) {
+  return normalizePlayerQuestState(player);
+}
+
+function applyPlayerQuestState(player, questState) {
+  return Object.assign(player, normalizePlayerQuestState(questState));
+}
+
+function extractPlayerProfile(player) {
+  const profile = { ...normalizePlayer(player) };
+  for (const field of playerQuestStateFields) delete profile[field];
+  return profile;
+}
+
+function parseStoredPlayerJson(value, label) {
+  try {
+    return JSON.parse(value);
+  } catch (error) {
+    throw new Error(`Stored ${label} data is invalid JSON; refusing to replace it with defaults. ${error.message}`);
+  }
 }
 
 function applyPlayerIdentity(player, identity = {}) {
@@ -389,27 +441,45 @@ function applyPlayerIdentity(player, identity = {}) {
 async function getPlayer(discordUserId, identity = {}) {
   const sessionTicket = await loginDiscordUser(discordUserId);
   const result = await callClientWithSession("GetUserData", sessionTicket, {
-    Keys: ["player"]
+    Keys: [playerDataKeys.profile, playerDataKeys.quests]
   });
 
-  const value = result.Data?.player?.Value;
-  if (!value) {
-    return { sessionTicket, player: applyPlayerIdentity(makeDefaultPlayer(), { ...identity, discordUserId }) };
-  }
-
-  try {
-    return { sessionTicket, player: applyPlayerIdentity(normalizePlayer(JSON.parse(value)), { ...identity, discordUserId }) };
-  } catch {
-    return { sessionTicket, player: applyPlayerIdentity(makeDefaultPlayer(), { ...identity, discordUserId }) };
-  }
+  const profileValue = result.Data?.[playerDataKeys.profile]?.Value;
+  const questStateValue = result.Data?.[playerDataKeys.quests]?.Value;
+  const rawProfile = profileValue ? parseStoredPlayerJson(profileValue, "player profile") : {};
+  const hasLegacyQuestState = playerQuestStateFields.some((field) => Object.prototype.hasOwnProperty.call(rawProfile, field));
+  const player = normalizePlayer(rawProfile);
+  if (questStateValue) applyPlayerQuestState(player, parseStoredPlayerJson(questStateValue, "player quest state"));
+  const profileBeforeIdentity = JSON.stringify(extractPlayerProfile(player));
+  applyPlayerIdentity(player, { ...identity, discordUserId });
+  return {
+    sessionTicket,
+    player,
+    needsPlayerDataMigration: !profileValue || !questStateValue || hasLegacyQuestState,
+    needsPlayerProfileSave: profileBeforeIdentity !== JSON.stringify(extractPlayerProfile(player))
+  };
 }
 
-async function savePlayer(sessionTicket, player) {
+async function savePlayer(sessionTicket, player, options = {}) {
   const normalizedPlayer = normalizePlayer(player);
+  const profile = extractPlayerProfile(normalizedPlayer);
+  const questState = extractPlayerQuestState(normalizedPlayer);
+  const previousPlayer = options.previousPlayer ? normalizePlayer(options.previousPlayer) : null;
+  const forceMigration = options.forceMigration === true;
+  const profileChanged = forceMigration || options.forceProfile === true || !previousPlayer || JSON.stringify(profile) !== JSON.stringify(extractPlayerProfile(previousPlayer));
+  const questStateChanged = forceMigration || !previousPlayer || JSON.stringify(questState) !== JSON.stringify(extractPlayerQuestState(previousPlayer));
+  const data = {};
+  if (profileChanged) data[playerDataKeys.profile] = JSON.stringify(profile);
+  if (questStateChanged) data[playerDataKeys.quests] = JSON.stringify(questState);
+  if (!Object.keys(data).length) return;
+  if (forceMigration && data[playerDataKeys.profile] && data[playerDataKeys.quests]) {
+    await callClientWithSession("UpdateUserData", sessionTicket, {
+      Data: { [playerDataKeys.quests]: data[playerDataKeys.quests] }
+    });
+    delete data[playerDataKeys.quests];
+  }
   await callClientWithSession("UpdateUserData", sessionTicket, {
-    Data: {
-      player: JSON.stringify(normalizedPlayer)
-    }
+    Data: data
   });
   rememberPlayerForAdminList(normalizedPlayer).catch((error) => console.error("Could not update player index:", error));
 }
@@ -417,17 +487,14 @@ async function savePlayer(sessionTicket, player) {
 async function adminGetPlayerRecord(playFabId) {
   const [accountInfo, userData] = await Promise.all([
     callPlayFab("Admin", "GetUserAccountInfo", { PlayFabId: playFabId }, true).catch(() => ({})),
-    callPlayFab("Admin", "GetUserData", { PlayFabId: playFabId, Keys: ["player"] }, true).catch(() => ({ Data: {} }))
+    callPlayFab("Admin", "GetUserData", { PlayFabId: playFabId, Keys: [playerDataKeys.profile, playerDataKeys.quests] }, true)
   ]);
   const userInfo = accountInfo.UserInfo || {};
   let player = makeDefaultPlayer();
-  if (userData.Data?.player?.Value) {
-    try {
-      player = normalizePlayer(JSON.parse(userData.Data.player.Value));
-    } catch {
-      player = makeDefaultPlayer();
-    }
-  }
+  const profileValue = userData.Data?.[playerDataKeys.profile]?.Value;
+  const questStateValue = userData.Data?.[playerDataKeys.quests]?.Value;
+  if (profileValue) player = normalizePlayer(parseStoredPlayerJson(profileValue, "player profile"));
+  if (questStateValue) applyPlayerQuestState(player, parseStoredPlayerJson(questStateValue, "player quest state"));
   const customId = userInfo.CustomIdInfo?.CustomId || "";
   const discordUserId = String(player.discordUserId || (customId.startsWith("discord:") ? customId.slice("discord:".length) : "")).trim();
   applyPlayerIdentity(player, { discordUserId });
@@ -609,11 +676,35 @@ async function adminListPlayers(search = "", options = {}) {
 
 async function adminSavePlayerData(playFabId, player, options = {}) {
   const normalizedPlayer = normalizePlayer(player);
+  const data = {};
+  let migratingLegacyQuestState = false;
+  if (options.saveProfile !== false) data[playerDataKeys.profile] = JSON.stringify(extractPlayerProfile(normalizedPlayer));
+  if (options.saveQuestState === true) data[playerDataKeys.quests] = JSON.stringify(extractPlayerQuestState(normalizedPlayer));
+  if (options.saveProfile !== false && options.saveQuestState !== true) {
+    const current = await callPlayFab("Admin", "GetUserData", {
+      PlayFabId: playFabId,
+      Keys: [playerDataKeys.profile, playerDataKeys.quests]
+    }, true);
+    if (!current.Data?.[playerDataKeys.quests]?.Value) {
+      const currentProfileValue = current.Data?.[playerDataKeys.profile]?.Value;
+      const currentPlayer = currentProfileValue
+        ? normalizePlayer(parseStoredPlayerJson(currentProfileValue, "player profile"))
+        : normalizedPlayer;
+      data[playerDataKeys.quests] = JSON.stringify(extractPlayerQuestState(currentPlayer));
+      migratingLegacyQuestState = true;
+    }
+  }
+  if (!Object.keys(data).length) throw new Error("No player data section was selected for saving.");
+  if (migratingLegacyQuestState && data[playerDataKeys.profile]) {
+    await callPlayFab("Admin", "UpdateUserData", {
+      PlayFabId: playFabId,
+      Data: { [playerDataKeys.quests]: data[playerDataKeys.quests] }
+    }, true);
+    delete data[playerDataKeys.quests];
+  }
   await callPlayFab("Admin", "UpdateUserData", {
     PlayFabId: playFabId,
-    Data: {
-      player: JSON.stringify(normalizedPlayer)
-    }
+    Data: data
   }, true);
   if (options?.refetch === false) {
     if (options?.remember !== false) {
@@ -643,7 +734,7 @@ async function adminResetPlayerData(playFabId) {
     displayName: record.player.discordDisplayName,
     avatarUrl: record.player.discordAvatarUrl
   });
-  return adminSavePlayerData(playFabId, player);
+  return adminSavePlayerData(playFabId, player, { saveQuestState: true });
 }
 
 async function adminDeletePlayer(playFabId) {
@@ -789,6 +880,8 @@ function cleanSettings(settings) {
     fishDuelLogIntervalMs: Math.max(0, cleanNumber(source.fishDuelLogIntervalMs ?? defaultSettings.fishDuelLogIntervalMs, defaultSettings.fishDuelLogIntervalMs)),
     fishRaidLogIntervalMs: Math.max(0, cleanNumber(source.fishRaidLogIntervalMs ?? defaultSettings.fishRaidLogIntervalMs, defaultSettings.fishRaidLogIntervalMs)),
     fishRaidCooldownMinutes: Math.max(0, cleanNumber(source.fishRaidCooldownMinutes ?? defaultSettings.fishRaidCooldownMinutes, defaultSettings.fishRaidCooldownMinutes)),
+    fishRaidQuotaStreakBonusPercent: Math.max(0, cleanNumber(source.fishRaidQuotaStreakBonusPercent ?? defaultSettings.fishRaidQuotaStreakBonusPercent, defaultSettings.fishRaidQuotaStreakBonusPercent)),
+    fishRaidRewardStreakBonusPercent: Math.max(0, cleanNumber(source.fishRaidRewardStreakBonusPercent ?? defaultSettings.fishRaidRewardStreakBonusPercent, defaultSettings.fishRaidRewardStreakBonusPercent)),
     fishRaidParticipantExpReward: Math.max(0, cleanNumber(source.fishRaidParticipantExpReward ?? defaultSettings.fishRaidParticipantExpReward, defaultSettings.fishRaidParticipantExpReward)),
     fishRaidParticipantGoldReward: Math.max(0, cleanNumber(source.fishRaidParticipantGoldReward ?? defaultSettings.fishRaidParticipantGoldReward, defaultSettings.fishRaidParticipantGoldReward)),
     fishRaidMvpExpReward: Math.max(0, cleanNumber(source.fishRaidMvpExpReward ?? defaultSettings.fishRaidMvpExpReward, defaultSettings.fishRaidMvpExpReward)),
@@ -802,8 +895,51 @@ function cleanSettings(settings) {
     expMultiplier: Math.max(0, Number(source.expMultiplier ?? defaultSettings.expMultiplier) || defaultSettings.expMultiplier),
     levelExpMultiplier: Math.max(0.01, Number(source.levelExpMultiplier ?? defaultSettings.levelExpMultiplier) || defaultSettings.levelExpMultiplier),
     voiceExpAmount: Math.max(0, cleanNumber(source.voiceExpAmount ?? defaultSettings.voiceExpAmount, defaultSettings.voiceExpAmount)),
-    voiceExpIntervalMinutes: Math.max(1, cleanNumber(source.voiceExpIntervalMinutes ?? defaultSettings.voiceExpIntervalMinutes, defaultSettings.voiceExpIntervalMinutes))
+    voiceExpIntervalMinutes: Math.max(1, cleanNumber(source.voiceExpIntervalMinutes ?? defaultSettings.voiceExpIntervalMinutes, defaultSettings.voiceExpIntervalMinutes)),
+    dailyQuestCount: Math.max(0, Math.floor(cleanNumber(source.dailyQuestCount ?? defaultSettings.dailyQuestCount, defaultSettings.dailyQuestCount)))
   };
+}
+
+function cleanQuestReward(reward) {
+  const source = reward && typeof reward === "object" ? reward : {};
+  return {
+    type: String(source.type || "gold").trim(),
+    amount: Math.max(0, cleanNumber(source.amount, 0)),
+    itemId: String(source.itemId || "").trim(),
+    questId: String(source.questId || "").trim(),
+    eventId: String(source.eventId || "").trim(),
+    durationMinutes: Math.max(1, cleanNumber(source.durationMinutes, 60)),
+    multiplierType: String(source.multiplierType || "exp_multiplier").trim(),
+    value: Math.max(0, cleanNumber(source.value, 1))
+  };
+}
+
+function cleanQuest(quest, category, index = 0) {
+  const source = quest && typeof quest === "object" ? quest : {};
+  const objective = source.objective && typeof source.objective === "object" ? source.objective : {};
+  return {
+    id: String(source.id || `${category}_quest_${index + 1}`).trim().toLowerCase().replace(/[^a-z0-9_:-]/g, "_"),
+    name: String(source.name || `Quest ${index + 1}`).trim(),
+    description: String(source.description || "").trim(),
+    category,
+    objective: {
+      type: String(objective.type || "catch_fish").trim(),
+      fishId: String(objective.fishId || "").trim(),
+      rarity: String(objective.rarity || "Common").trim(),
+      action: String(objective.action || "fishentot").trim().replace(/^\//, ""),
+      amount: Math.max(1, Math.floor(cleanNumber(objective.amount, 1)))
+    },
+    rewards: (Array.isArray(source.rewards) ? source.rewards : []).map(cleanQuestReward),
+    enabled: source.enabled !== false
+  };
+}
+
+function cleanQuests(quests) {
+  const source = quests && typeof quests === "object" && !Array.isArray(quests) ? quests : {};
+  return Object.fromEntries(["main", "event", "daily", "fish"].map((category) => [
+    category,
+    (Array.isArray(source[category]) ? source[category] : []).map((quest, index) => cleanQuest(quest, category, index)).filter((quest) => quest.id)
+  ]));
 }
 
 function cleanFishCompEvents(events, fallbackEvents = defaultSettings.fishCompEvents) {
@@ -908,7 +1044,8 @@ function cleanEvent(event) {
     guildId: String(event.guildId || "").trim(),
     isAnnounced: event.isAnnounced === true,
     stoppedAt: String(event.stoppedAt || "").trim(),
-    deployedAt: String(event.deployedAt || "").trim()
+    deployedAt: String(event.deployedAt || "").trim(),
+    questIds: [...new Set((Array.isArray(event.questIds) ? event.questIds : event.questId ? [event.questId] : []).map(String).filter(Boolean))]
   };
 }
 
@@ -1532,7 +1669,7 @@ async function loadLegacyConfig(useSecretKey = true) {
   return loaded.value && typeof loaded.value === "object" && !Array.isArray(loaded.value) ? loaded.value : {};
 }
 
-async function loadConfigSections(useSecretKey = true, requestedSections = ["admins", "settings", "events", "routines", "routineState"]) {
+async function loadConfigSections(useSecretKey = true, requestedSections = ["admins", "settings", "events", "quests", "routines", "routineState"]) {
   const legacy = await loadLegacyConfig(useSecretKey);
   const requested = new Set(requestedSections);
   const result = {
@@ -1540,6 +1677,7 @@ async function loadConfigSections(useSecretKey = true, requestedSections = ["adm
     settings: legacy.settings || {},
     activeEvent: legacy.activeEvent || null,
     events: legacy.events || [],
+    quests: legacy.quests || {},
     routineMessages: legacy.routineMessages || [],
     routineState: {}
   };
@@ -1558,6 +1696,10 @@ async function loadConfigSections(useSecretKey = true, requestedSections = ["adm
       result.activeEvent = loaded.value?.activeEvent || null;
       result.events = Array.isArray(loaded.value?.events) ? loaded.value.events : [];
     }
+  }
+  if (requested.has("quests")) {
+    const loaded = await loadJsonAsset(titleDataKeys.quests, result.quests, useSecretKey);
+    if (loaded.exists) result.quests = loaded.value && typeof loaded.value === "object" ? loaded.value : {};
   }
   if (requested.has("routines")) {
     const loaded = await loadJsonAsset(titleDataKeys.routines, null, useSecretKey);
@@ -1619,6 +1761,7 @@ async function getGameData(options = {}) {
     settings: configWithAssets.settings,
     activeEvent: configWithAssets.activeEvent,
     events: configWithAssets.events,
+    quests: cleanQuests(config.quests),
     routineMessages: configWithAssets.routineMessages
   };
   logGameDataLoad(caller, gameData);
@@ -1640,6 +1783,7 @@ async function adminGetGameData(options = {}) {
     settings: configWithAssets.settings,
     activeEvent: configWithAssets.activeEvent,
     events: configWithAssets.events,
+    quests: cleanQuests(config.quests),
     routineMessages: configWithAssets.routineMessages
   };
   logGameDataLoad(caller, gameData);
@@ -2069,6 +2213,18 @@ async function saveRoutineSection(routineMessages) {
   return stored.routineMessages;
 }
 
+async function saveQuestSection(quests) {
+  const stored = cleanQuests(quests);
+  const ids = new Set();
+  for (const quest of Object.values(stored).flat()) {
+    if (ids.has(quest.id)) throw new Error(`Duplicate quest ID "${quest.id}". Quest IDs must be unique across every quest category.`);
+    ids.add(quest.id);
+  }
+  await ensureLegacyConfigBackup();
+  await saveTitleAsset(titleDataKeys.quests, JSON.stringify(stored));
+  return stored;
+}
+
 async function adminSaveRoutineState(routineMessages) {
   const state = Object.fromEntries(cleanRoutineMessages(routineMessages).map((routine) => [routine.id, {
     lastSentAt: routine.lastSentAt || "",
@@ -2108,6 +2264,10 @@ async function adminGetManagerTabData(tab, options = {}) {
     const attached = await attachConfigAssets({ activeEvent: config.activeEvent, events: config.events }, true, caller);
     return { activeEvent: attached.activeEvent, events: attached.events };
   }
+  if (tab === "quests") {
+    const config = await loadConfigSections(true, ["quests"]);
+    return { quests: cleanQuests(config.quests) };
+  }
   if (tab === "routine") {
     const config = await loadConfigSections(true, ["routines", "routineState"]);
     config.routineMessages = applyRoutineRuntimeState(config.routineMessages, config.routineState);
@@ -2129,6 +2289,7 @@ async function adminSaveManagerTabData(tab, data) {
   }
   if (tab === "settings") return { settings: await saveSettingsSection(data.settings) };
   if (tab === "event") return saveEventSection(data.activeEvent, data.events);
+  if (tab === "quests") return { quests: await saveQuestSection(data.quests) };
   if (tab === "routine") return { routineMessages: await saveRoutineSection(data.routineMessages) };
   throw new Error(`The ${tab} tab does not have editable data.`);
 }
