@@ -1987,7 +1987,7 @@ function makeProfileComponents(player, member = null, fishCompRoleOverride = nul
       new ActionRowBuilder().addComponents(
         new StringSelectMenuBuilder()
           .setCustomId("profile_rod_select")
-          .setPlaceholder("Pilih pancingan aktif")
+          .setPlaceholder(truncateText(`🎣 Pancing: ${getRod(player.rodId)?.name || "Belum ada"}`, 150))
           .addOptions(rodOptions)
       )
     );
@@ -1998,7 +1998,7 @@ function makeProfileComponents(player, member = null, fishCompRoleOverride = nul
       new ActionRowBuilder().addComponents(
         new StringSelectMenuBuilder()
           .setCustomId("profile_fishbag_select")
-          .setPlaceholder("Pilih tas pancing aktif")
+          .setPlaceholder(truncateText(`🎒 Tas: ${getFishBag(player.fishBagId)?.name || "Belum ada"}`, 150))
           .addOptions(fishBagOptions)
       )
     );
@@ -2007,10 +2007,24 @@ function makeProfileComponents(player, member = null, fishCompRoleOverride = nul
   return components;
 }
 
-function makeProfileMessage(user, player, member = null, guildId = "", fishCompRoleOverride = null) {
+function makeProfileQuestTabRow(userId, activeCategory, categoryCounts) {
+  const tabs = [
+    ["main", "Main"],
+    ["event", "Event"],
+    ["daily", "Daily"],
+    ["fish", "Fish"]
+  ];
+  return new ActionRowBuilder().addComponents(
+    tabs.map(([category, label]) => new ButtonBuilder()
+      .setCustomId(`profile_quest_tab:${userId}:${category}`)
+      .setLabel(`${label} (${categoryCounts[category] || 0})`)
+      .setStyle(activeCategory === category ? ButtonStyle.Primary : ButtonStyle.Secondary))
+  );
+}
+
+function makeProfileMessage(user, player, member = null, guildId = "", fishCompRoleOverride = null, questCategory = "main") {
   ensurePlayerQuests(player, guildId);
   const rod = getRod(player.rodId);
-  const fishBag = getFishBag(player.fishBagId);
   const level = getLevel(player.exp);
   const nextExp = expForLevel(level);
   const heaviestFish = player.heaviestFish;
@@ -2027,15 +2041,24 @@ function makeProfileMessage(user, player, member = null, guildId = "", fishCompR
   const showcasedFishEntry = getShowcasedFish(player, guildId);
   const profileFishIconEntry = showcasedFishEntry || heaviestFishEntry;
   const icon = profileFishIconEntry ? makeIconAttachment(profileFishIconEntry, "fish") : null;
+  const displayName = truncateText(member?.displayName || user.globalName || user.username, 40);
+  const expValue = Math.max(0, Number(player.exp || 0));
+  const expPercent = Math.min(100, Math.max(0, Math.round((expValue / Math.max(1, nextExp)) * 100)));
+  const expBar = makeProgressBar(expValue, nextExp, 14);
+  const gold = Math.max(0, Math.floor(Number(player.gold || 0)));
+  const totalFishCaught = Math.max(0, Math.floor(Number(player.totalFishCaught || 0)));
+  const fishingSpeed = Math.max(1, Number(rod?.speed || 1));
+  const fishingProgress = Math.max(0, Number(player.progress || 0));
+  const selectedQuestCategory = new Set(["main", "event", "daily", "fish"]).has(questCategory)
+    ? questCategory
+    : "main";
   const profileText = [
-    `## ${user.username} · Level ${level}`,
-    "",
-    `**EXP:** ${player.exp}/${nextExp} · **Gold:** ${player.gold}`,
-    `**Pancingan:** ${rod?.name || "No rod found"} · **Voice:** ${voiceTime}`,
-    `**Total Ikan:** ${Math.max(0, Number(player.totalFishCaught || 0))}`,
-    `**Jenis Ikan Tertangkap:** ${caughtFishTypes}/${availableFishCount}`,
-    `**Ikan Terberat:** ${heaviestText}`,
-    `**Progress:** ${progressBar} ${player.progress}/${rod?.speed || "?"}`
+    `## 🎣 ${displayName} · Level ${level}`,
+    `**EXP** ${expBar} **${expValue}/${nextExp}** · ${expPercent}%`,
+    `**💰 Gold** \`${gold.toLocaleString("id-ID")}\`  ·  **🎙️ Voice** \`${voiceTime}\`  ·  **🐟 Total** \`${totalFishCaught.toLocaleString("id-ID")}\``,
+    `**🏆 Ikan Terberat** \`${truncateText(heaviestText, 100)}\``,
+    `**📚 Jenis Ikan** \`${caughtFishTypes}/${availableFishCount}\``,
+    `**🎯 Memancing** ${progressBar} **${fishingProgress}/${fishingSpeed}**`
   ].join("\n");
   const container = new ContainerBuilder().setAccentColor(0x2ecc71);
   if (icon) {
@@ -2050,66 +2073,75 @@ function makeProfileMessage(user, player, member = null, guildId = "", fishCompR
   const components = makeProfileComponents(player, member, fishCompRoleOverride);
   if (components.length) {
     container.addSeparatorComponents(new SeparatorBuilder());
+    container.addTextDisplayComponents(makeTextDisplay("### 🧰 Peralatan Memancing"));
     let renderedFishBagSelect = false;
     for (const component of components) {
       const row = component.toJSON?.() || {};
       const customId = row.components?.[0]?.custom_id || "";
       if (customId === "fishcomp_role_toggle" && !renderedFishBagSelect && gameData.fishBags.length) {
-        container.addTextDisplayComponents(makeTextDisplay("**Tas Pancing dipakai**\nBelum ada tas pancing yang bisa dipakai."));
+        container.addTextDisplayComponents(makeTextDisplay("**🎒 Tas** · Belum ada tas pancing yang bisa dipakai."));
         renderedFishBagSelect = true;
       }
-      if (customId === "profile_rod_select") {
-        container.addTextDisplayComponents(makeTextDisplay("**Pancing dipakai**"));
-      }
       if (customId === "profile_fishbag_select") {
-        container.addTextDisplayComponents(makeTextDisplay("**Tas Pancing dipakai**"));
         renderedFishBagSelect = true;
       }
       container.addActionRowComponents(component);
     }
     if (!renderedFishBagSelect && gameData.fishBags.length) {
-      container.addTextDisplayComponents(makeTextDisplay("**Tas Pancing dipakai**\nBelum ada tas pancing yang bisa dipakai."));
+      container.addTextDisplayComponents(makeTextDisplay("**🎒 Tas** · Belum ada tas pancing yang bisa dipakai."));
     }
   }
   const questContainer = new ContainerBuilder().setAccentColor(0xf1c40f);
-  const categoryLabels = { main: "Main Quest", event: "Event Quest", daily: "Daily Quest", fish: "Fish Quest" };
-  const actionInstructions = {
-    fishentot: (amount) => `Lakukan ${amount} entot`,
-    fishshowoff: (amount) => `Pamerkan ikan ${amount} kali`,
-    fishraid: (amount) => `Ikuti FishRaid ${amount} kali`,
-    fishcomp: (amount) => `Ikuti FishComp ${amount} kali`,
-    fishduel: (amount) => `Ikuti FishDuel ${amount} kali`
-  };
+  const categoryLabels = { main: "🏹 Main Quest", event: "⚡ Event Quest", daily: "☀️ Daily Quest", fish: "🐟 Fish Quest" };
   const activeQuestEntries = (player.activeQuests || []).map((active) => ({ active, quest: getQuest(active.questId) }));
-  const visibleQuestEntries = activeQuestEntries.slice(0, 15);
+  const categoryCounts = {
+    total: activeQuestEntries.length,
+    main: activeQuestEntries.filter(({ active, quest }) => (active.category || quest?.category) === "main").length,
+    event: activeQuestEntries.filter(({ active, quest }) => (active.category || quest?.category) === "event").length,
+    daily: activeQuestEntries.filter(({ active, quest }) => (active.category || quest?.category) === "daily").length,
+    fish: activeQuestEntries.filter(({ active, quest }) => (active.category || quest?.category) === "fish").length
+  };
+  const filteredQuestEntries = activeQuestEntries.filter(({ active, quest }) => (active.category || quest?.category) === selectedQuestCategory);
+  const visibleQuestEntries = filteredQuestEntries;
   const questSections = [];
   for (const category of ["main", "event", "daily", "fish"]) {
     const entries = visibleQuestEntries.filter(({ active, quest }) => (active.category || quest?.category) === category);
     if (!entries.length) continue;
     const questBlocks = entries.map(({ active, quest }) => {
       if (!quest) {
-        return `**Quest sementara tidak tersedia** · ID: ${active.questId}\nProgress tersimpan: ${Math.max(0, Number(active.progress || 0))}. Quest akan muncul kembali saat konfigurasinya tersedia.`;
+        return `**Quest sementara tidak tersedia** · ${Math.max(0, Number(active.progress || 0))} progress\n-# ID: ${active.questId}`;
       }
       const objective = quest.objective || {};
       const required = Math.max(1, Number(objective.amount || 1));
       const progress = Math.min(required, Math.max(0, Number(active.progress || 0)));
-      let instruction = `Pancing ${required} ikan`;
-      if (objective.type === "catch_fish") instruction = `Pancing ${required} ${gameData.fish.find((fish) => fish.id === objective.fishId)?.name || objective.fishId || "ikan"}`;
-      if (objective.type === "catch_rarity") instruction = `Pancing ${required} Ikan ${objective.rarity || "Common"}`;
-      if (objective.type === "perform_action") {
-        const action = String(objective.action || "").replace(/^\//, "");
-        instruction = actionInstructions[action]?.(required) || `Lakukan /${action || "action"} ${required} kali`;
-      }
-      const description = String(quest.description || "Tidak ada deskripsi.").trim().slice(0, 300);
-      return `**${quest.name}** · ${instruction} (${progress}/${required})\n"${description}"`;
+      const rewards = (quest.rewards || [])
+        .filter((reward) => reward?.type !== "quest")
+        .map((reward) => ["fishing_rod", "fishing_bag"].includes(reward?.type)
+          ? "[ ??? ]"
+          : describeQuestReward(reward))
+        .filter(Boolean)
+        .join(", ");
+      const description = truncateText(String(quest.description || "").replace(/\s+/g, " ").trim(), 150);
+      const status = progress >= required ? "✅ Selesai" : "🔄 Berjalan";
+      return [
+        `**${quest.name}** · ${status} · **${progress}/${required}**`,
+        `${makeProgressBar(progress, required, 12)}${rewards ? ` · 🎁 ${truncateText(rewards, 150)}` : ""}`,
+        `-# _${description || "Tidak ada deskripsi."}_`
+      ].join("\n");
     });
-    questSections.push(`**[${categoryLabels[category]}]**\n${questBlocks.join("\n\n")}`);
+    questSections.push(`### ${categoryLabels[category]}\n${questBlocks.join("\n\n")}`);
   }
-  if (activeQuestEntries.length > visibleQuestEntries.length) questSections.push(`…dan ${activeQuestEntries.length - visibleQuestEntries.length} quest lainnya.`);
-  const emptyQuestText = getAllQuests().length
-    ? "## Active Quests\nNo active quests."
-    : "## Active Quests\nQuest configuration is temporarily unavailable. Saved quest progress was left unchanged.";
-  questContainer.addTextDisplayComponents(makeTextDisplay(questSections.length ? questSections.join("\n\n") : emptyQuestText));
+  questContainer.addTextDisplayComponents(makeTextDisplay([
+    "## 📜 Quest Memancing",
+    `-# Selesaikan misi untuk mendapatkan hadiah · ${categoryCounts.total} quest aktif`
+  ].join("\n")));
+  questContainer.addActionRowComponents(makeProfileQuestTabRow(user.id, selectedQuestCategory, categoryCounts));
+  questContainer.addSeparatorComponents(new SeparatorBuilder());
+  questContainer.addTextDisplayComponents(makeTextDisplay(questSections.length
+    ? questSections.join("\n\n")
+    : getAllQuests().length
+      ? `### ${categoryLabels[selectedQuestCategory] || "Quest"}\n-# Belum ada quest aktif di kategori ini.`
+      : "### Quest belum tersedia\n-# Konfigurasi quest sedang tidak tersedia. Progress tersimpan tetap aman."));
   return makeComponentsV2Message([container, questContainer], {
     files: icon?.attachment ? [icon.attachment] : []
   });
@@ -6600,6 +6632,26 @@ client.on("interactionCreate", async (interaction) => {
         });
         scheduleMessageDelete(showoffMessage);
         return undefined;
+      });
+      return;
+    }
+
+    if (interaction.isButton() && interaction.customId.startsWith("profile_quest_tab:")) {
+      const [, ownerId, category] = interaction.customId.split(":");
+      if (ownerId && ownerId !== interaction.user.id) {
+        await interaction.reply({ content: "Profile ini punya pemain lain.", flags: MessageFlags.Ephemeral });
+        return;
+      }
+      if (!["main", "event", "daily", "fish"].includes(category)) {
+        await interaction.reply({ content: "Kategori quest ini tidak tersedia.", flags: MessageFlags.Ephemeral });
+        return;
+      }
+      await interaction.deferUpdate();
+      const member = interaction.guild?.members?.fetch
+        ? await interaction.guild.members.fetch(interaction.user.id).catch(() => null)
+        : null;
+      await withPlayerReadOnly(interaction.user, async (player) => {
+        await interaction.editReply(makeProfileMessage(interaction.user, player, member, interaction.guildId, null, category));
       });
       return;
     }
