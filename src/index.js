@@ -60,6 +60,10 @@ const fishEntotMessageTtlMs = 15 * 60_000;
 const publicShowoffTtlMs = 30 * 60_000;
 const fishDailyResetHour = 12;
 const fishDailyWindowMs = 24 * 60 * 60 * 1000;
+const rodSpeedDisplayBase = 29;
+const rodSpeedDisplayMultiplier = 3;
+const massLuckSaturation = 20;
+const massLuckBiasScale = 3.85;
 
 const rarityColors = {
   Common: 0x95a5a6,
@@ -423,6 +427,11 @@ function getEffectiveRod(rod, context = {}) {
   };
 }
 
+function getDisplayedRodSpeed(speed) {
+  const internalSpeed = Math.max(1, Number(speed || 1));
+  return rodSpeedDisplayMultiplier * Math.max(1, rodSpeedDisplayBase - internalSpeed);
+}
+
 function rarityRank(rarity) {
   const rank = Object.keys(rarityColors).indexOf(String(rarity || "Common"));
   return rank < 0 ? Object.keys(rarityColors).length : rank;
@@ -445,7 +454,10 @@ function getStoreRods() {
 }
 
 function getEffectiveFishBagSpace(player, context = {}) {
-  const bag = getFishBag(player?.fishBagId);
+  return getEffectiveFishBagCapacityForItem(getFishBag(player?.fishBagId), context);
+}
+
+function getEffectiveFishBagCapacityForItem(bag, context = {}) {
   if (!bag) {
     return 0;
   }
@@ -1618,7 +1630,17 @@ function rollCatchWeight(fish, rod) {
   const fishMaxWeight = Math.max(minWeight, Number(fish.maxWeight || minWeight));
   const rodMaxWeight = Number(rod.maxWeight || fishMaxWeight);
   const maxWeight = Math.max(minWeight, Math.min(fishMaxWeight, rodMaxWeight));
-  return minWeight + Math.random() * (maxWeight - minWeight);
+  const weightRange = maxWeight - minWeight;
+  if (weightRange <= 0) {
+    return minWeight;
+  }
+
+  const luck = Math.max(0, Number(rod.luck || 0));
+  const luckFactor = luck / (luck + massLuckSaturation);
+  const massBias = 1 + massLuckBiasScale * luckFactor;
+  const randomValue = Math.random();
+  const weightedPosition = 1 - (1 - randomValue) ** massBias;
+  return minWeight + weightedPosition * weightRange;
 }
 
 function expForLevel(level) {
@@ -1960,7 +1982,7 @@ function makeProfileRodOptions(player) {
     .slice(0, 25)
     .map((rod) => ({
       label: truncateText(rod.name, 100),
-      description: truncateText(`${rod.rarity || "Common"} · Speed ${rod.speed} · Luck ${rod.luck} · Max ${rod.maxWeight || "?"} kg · Acc ${rod.accuracy ?? 50}%`, 100),
+      description: truncateText(`${rod.rarity || "Common"} · Speed ${getDisplayedRodSpeed(rod.speed)} · Luck ${rod.luck} · Max ${rod.maxWeight || "?"} kg · Acc ${rod.accuracy ?? 50}%`, 100),
       value: rod.id,
       default: rod.id === player.rodId
     }));
@@ -3409,72 +3431,6 @@ function makeInventoryEmbed(user, player, guildId = "") {
     ].join("\n\n"));
 }
 
-function makeStoreEmbed(player, status = "") {
-  const statusLine = status ? `\n\n${status}` : "";
-  const storeImageUrl = getPublicImageUrl(getSettings().rodStoreImageUrl);
-  const fishBag = getFishBag(player.fishBagId);
-  return new EmbedBuilder()
-    .setColor(0xf1c40f)
-    .setTitle("Toko Pancingan")
-    .setDescription(`Gold kamu: **${player.gold}**\nPancingan sekarang: **${getRod(player.rodId)?.name || "Belum ada"}**\nTas pancing sekarang: **${fishBag?.name || "Belum ada"}**${fishBag ? ` (${formatKg(getEffectiveFishBagCapacity(player))} Capacity)` : ""}${statusLine}`)
-    .setImage(storeImageUrl || (getSettings().rodStoreImageBase64 ? "attachment://rod-store-custom.png" : "attachment://rod-store.svg"));
-}
-
-function makeRodStoreImageAttachment(player) {
-  if (getPublicImageUrl(getSettings().rodStoreImageUrl)) {
-    return null;
-  }
-
-  const customImage = parseDataImage(getSettings().rodStoreImageBase64);
-  if (customImage) {
-    return new AttachmentBuilder(customImage.buffer, { name: "rod-store-custom.png" });
-  }
-
-  const width = 900;
-  const columns = 5;
-  const cardWidth = 164;
-  const cardHeight = 164;
-  const gap = 12;
-  const items = [
-    ...getStoreRods().sort(compareItemRarity).map((item) => ({ ...item, storeType: "rod" })),
-    ...[...gameData.fishBags].sort(compareItemRarity).map((item) => ({ ...item, storeType: "fishBag" }))
-  ];
-  const rows = Math.max(1, Math.ceil(items.length / columns));
-  const height = 24 + rows * cardHeight + (rows - 1) * gap + 24;
-  const cards = items.map((item, index) => {
-    const x = 24 + (index % columns) * (cardWidth + gap);
-    const y = 24 + Math.floor(index / columns) * (cardHeight + gap);
-    const isBag = item.storeType === "fishBag";
-    const owned = isBag ? (player.ownedFishBags || []).includes(item.id) : player.ownedRods.includes(item.id);
-    const equipped = isBag ? player.fishBagId === item.id : player.rodId === item.id;
-    const status = equipped ? "Equipped" : owned ? "Owned" : `${item.price} gold`;
-    const icon = makeIconAttachment(item, isBag ? "fish-bag" : "rod");
-    const image = icon
-      ? `<image href="${escapeXml(icon.url)}" x="${x + 46}" y="${y + 16}" width="72" height="72" preserveAspectRatio="xMidYMid meet" />`
-      : `<rect x="${x + 46}" y="${y + 16}" width="72" height="72" rx="10" fill="#30323a" /><text x="${x + 82}" y="${y + 59}" text-anchor="middle" font-size="16" font-weight="700" fill="#f1c40f">${isBag ? "BAG" : "ROD"}</text>`;
-    const statLine = isBag ? `Capacity ${item.spaceKg || 0} kg` : `SPD ${item.speed} · LUCK ${item.luck}`;
-    return `
-      <rect x="${x}" y="${y}" width="${cardWidth}" height="${cardHeight}" rx="8" fill="#272933" stroke="#444755" />
-      ${image}
-      <text x="${x + 12}" y="${y + 108}" font-size="16" font-weight="700" fill="#ffffff">${escapeXml(truncateText(item.name, 18))}</text>
-      <text x="${x + 12}" y="${y + 128}" font-size="12" fill="#f1c40f">${escapeXml(item.rarity || "Common")} · ${isBag ? "Bag" : "Rod"}</text>
-      <text x="${x + 12}" y="${y + 145}" font-size="13" fill="#c9cad3">${escapeXml(statLine)}</text>
-      <text x="${x + 12}" y="${y + 160}" font-size="13" fill="${equipped ? "#36c28a" : owned ? "#86a8ff" : "#f1c40f"}">${escapeXml(status)}</text>
-    `;
-  }).join("");
-  const svg = `
-    <svg xmlns="http://www.w3.org/2000/svg" width="${width}" height="${height}" viewBox="0 0 ${width} ${height}">
-      <rect width="100%" height="100%" fill="#1f2130" />
-      ${cards}
-    </svg>
-  `;
-
-  return {
-    attachment: Buffer.from(svg),
-    name: "rod-store.svg"
-  };
-}
-
 function makeRodSelectOptions(player) {
   return getStoreRods()
     .sort(compareItemPrice)
@@ -3482,11 +3438,11 @@ function makeRodSelectOptions(player) {
     .map((rod) => {
     const owned = player.ownedRods.includes(rod.id);
     const equipped = player.rodId === rod.id;
-    const status = equipped ? "[Equipped]" : owned ? "[Owned]" : "";
+    const status = equipped ? "[Terpasang]" : owned ? "[Dimiliki]" : "";
     const price = owned ? "-" : `${rod.price} gold`;
     return {
       label: truncateText(`${rod.name} ${status}`.trim(), 100),
-      description: truncateText(`${rod.rarity || "Common"} · Speed ${rod.speed} · Luck ${rod.luck} · Max ${rod.maxWeight || "?"} kg · Acc ${rod.accuracy ?? 50}% · Price ${price}`, 100),
+      description: truncateText(`${rod.rarity || "Common"} · Speed ${getDisplayedRodSpeed(rod.speed)} · Luck ${rod.luck} · Max ${rod.maxWeight || "?"} kg · Acc ${rod.accuracy ?? 50}% · Price ${price}`, 100),
       value: rod.id
     };
     });
@@ -3499,7 +3455,7 @@ function makeFishBagSelectOptions(player) {
     .map((bag) => {
     const owned = (player.ownedFishBags || []).includes(bag.id);
     const equipped = player.fishBagId === bag.id;
-    const status = equipped ? "[Equipped]" : owned ? "[Owned]" : "";
+    const status = equipped ? "[Terpasang]" : owned ? "[Dimiliki]" : "";
     const price = owned ? "-" : `${bag.price} gold`;
     return {
       label: truncateText(`${bag.name} ${status}`.trim(), 100),
@@ -3511,14 +3467,18 @@ function makeFishBagSelectOptions(player) {
 
 function makeStoreComponents(player, selectedRodId = null, selectedFishBagId = null) {
   const storeRods = getStoreRods();
-  const selectedRod = storeRods.find((rod) => rod.id === selectedRodId) || storeRods[0];
-  const selectedFishBag = gameData.fishBags.find((bag) => bag.id === selectedFishBagId) || gameData.fishBags[0];
+  const selectedRod = storeRods.find((rod) => rod.id === selectedRodId)
+    || storeRods.find((rod) => rod.id === player.rodId)
+    || storeRods[0];
+  const selectedFishBag = gameData.fishBags.find((bag) => bag.id === selectedFishBagId)
+    || gameData.fishBags.find((bag) => bag.id === player.fishBagId)
+    || gameData.fishBags[0];
   const owned = selectedRod ? player.ownedRods.includes(selectedRod.id) : false;
   const equipped = selectedRod ? player.rodId === selectedRod.id : false;
   const rodOptions = makeRodSelectOptions(player);
   const rodSelect = new StringSelectMenuBuilder()
     .setCustomId(`rod_select:${selectedRod?.id || ""}`)
-    .setPlaceholder(rodOptions.length ? "Pilih pancingan" : "Tidak ada pancingan di toko")
+    .setPlaceholder(rodOptions.length ? "🎣 Pilih pancingan" : "Tidak ada pancingan di toko")
     .setDisabled(!rodOptions.length)
     .addOptions((rodOptions.length ? rodOptions : [{ label: "Tidak ada pancingan tersedia", value: "unavailable" }]).map((option) => ({
       ...option,
@@ -3526,7 +3486,7 @@ function makeStoreComponents(player, selectedRodId = null, selectedFishBagId = n
     })));
   const button = new ButtonBuilder()
     .setCustomId(`rod_buy:${selectedRod?.id || ""}`)
-    .setLabel(equipped ? "Equipped" : owned ? "Equip" : "Buy")
+    .setLabel(equipped ? "✅ Terpasang" : owned ? "🎣 Pakai" : "🛒 Beli")
     .setStyle(owned ? ButtonStyle.Primary : ButtonStyle.Success)
     .setDisabled(!selectedRod || equipped);
   const components = [
@@ -3539,14 +3499,14 @@ function makeStoreComponents(player, selectedRodId = null, selectedFishBagId = n
     const bagEquipped = selectedFishBag ? player.fishBagId === selectedFishBag.id : false;
     const bagSelect = new StringSelectMenuBuilder()
       .setCustomId(`fishbag_select:${selectedFishBag?.id || ""}`)
-      .setPlaceholder("Pilih tas pancing")
+      .setPlaceholder("🎒 Pilih tas pancing")
       .addOptions(makeFishBagSelectOptions(player).map((option) => ({
         ...option,
         default: option.value === selectedFishBag?.id
       })));
     const bagButton = new ButtonBuilder()
       .setCustomId(`fishbag_buy:${selectedFishBag?.id || ""}`)
-      .setLabel(bagEquipped ? "Equipped" : bagOwned ? "Equip Fish Bag" : "Buy Fish Bag")
+      .setLabel(bagEquipped ? "✅ Terpasang" : bagOwned ? "🎒 Pakai" : "🛒 Beli Tas")
       .setStyle(bagOwned ? ButtonStyle.Primary : ButtonStyle.Success)
       .setDisabled(!selectedFishBag || bagEquipped);
     components.push(new ActionRowBuilder().addComponents(bagSelect));
@@ -3555,18 +3515,162 @@ function makeStoreComponents(player, selectedRodId = null, selectedFishBagId = n
   return components;
 }
 
-function makeStoreMessage(player, selectedRodId = null, status = "", selectedFishBagId = null) {
-  const imageAttachment = makeRodStoreImageAttachment(player);
+const storeAccentColors = {
+  overview: 0xd4a017,
+  info: 0xb8860b,
+  rod: 0xe0a82e,
+  bag: 0xa87513
+};
+
+function makeStoreContainer(title, text, components = [], accentColor = storeAccentColors.overview, icon = null) {
+  const container = new ContainerBuilder().setAccentColor(accentColor);
+  const textDisplay = makeTextDisplay(`### ${title}\n${text}`);
+  if (icon?.url) {
+    container.addSectionComponents(
+      new SectionBuilder()
+        .addTextDisplayComponents(textDisplay)
+        .setThumbnailAccessory(new ThumbnailBuilder().setURL(icon.url))
+    );
+  } else {
+    container.addTextDisplayComponents(textDisplay);
+  }
+  if (components.length) {
+    container.addSeparatorComponents(new SeparatorBuilder());
+    container.addActionRowComponents(components);
+  }
+  return container;
+}
+
+function makeStoreGuideContainer() {
+  return makeStoreContainer(
+    "Info Stat",
+    [
+      "-# **Speed**: memengaruhi kecepatan mendapatkan ikan saat memancing bebas.",
+      "-# **Luck**: memengaruhi peluang mendapatkan ikan dan ukuran ikan.",
+      "-# **Max Kg**: menentukan batas berat ikan yang dapat ditangkap.",
+      "-# **Accuracy**: memengaruhi peluang berhasil mendapatkan ikan saat Raid, Duel, atau Kompetisi.",
+      "-# **Capacity**: menentukan jumlah ikan yang harus dikumpulkan lawan saat Duel."
+    ].join("\n"),
+    [],
+    storeAccentColors.info
+  );
+}
+
+function formatStoreBonusValue(value) {
+  const number = Number(value || 0);
+  return Number.isInteger(number) ? String(number) : number.toFixed(2).replace(/0+$/, "").replace(/\.$/, "");
+}
+
+function formatStoreBonusScope(bonus) {
+  const mode = {
+    duel: "FishDuel",
+    raid: "FishRaid",
+    competition: "FishComp"
+  }[String(bonus?.mode || "").trim()];
+  const condition = {
+    opponent_higher_level: "lawan level lebih tinggi",
+    opponent_lower_level: "lawan level lebih rendah"
+  }[String(bonus?.condition || "").trim()];
+  return [mode, condition].filter(Boolean).join(", ");
+}
+
+function formatStoreBonus(bonus) {
+  const type = String(bonus?.type || "").trim();
+  const value = Number(bonus?.value || 0);
+  const sign = value >= 0 ? "+" : "";
+  const amount = formatStoreBonusValue(value);
+  const effect = {
+    accuracy: `Accuracy ${sign}${amount}%`,
+    luck: `Luck ${sign}${amount}`,
+    maxWeight: `Max Kg ${sign}${amount}`,
+    spaceKg: `Capacity ${sign}${amount} kg`
+  }[type] || `${type || "Bonus"} ${sign}${amount}`;
+  const scope = formatStoreBonusScope(bonus);
+  const description = truncateText(String(bonus?.description || "").trim(), 90);
+  const scopeText = scope ? ` (${scope})` : "";
+  return description ? `${effect}${scopeText} · ${description}` : `${effect}${scopeText}`;
+}
+
+function formatStoreBonuses(item) {
+  // The store describes the item itself, so show conditional bonuses too.
+  // Runtime calculations still use getItemBonuses(item, context) to filter them.
+  const bonuses = Array.isArray(item?.bonuses) ? item.bonuses.filter((bonus) => bonus?.type) : [];
+  return bonuses.length ? `**Bonus**: ${bonuses.map(formatStoreBonus).join(" · ")}` : "";
+}
+
+function makeStoreRodContainer(player, selectedRod, components, icon = null) {
+  if (!selectedRod) {
+    return makeStoreContainer("🎣 Pancingan", "Belum ada pancingan yang tersedia.", components, storeAccentColors.rod, icon);
+  }
+
+  const owned = player.ownedRods.includes(selectedRod.id);
+  const equipped = player.rodId === selectedRod.id;
+  const status = equipped ? "Terpasang" : owned ? "Dimiliki" : `${selectedRod.price} Gold`;
+  const effectiveRod = getEffectiveRod(selectedRod);
+  const effectiveAccuracy = getEffectiveRodAccuracy(selectedRod);
+  const details = [
+    `**${selectedRod.name}** · ${selectedRod.rarity || "Common"} · ${status}`,
+    `**Speed**: ${getDisplayedRodSpeed(selectedRod.speed)} · **Luck**: ${effectiveRod.luck} · **Max Kg**: ${effectiveRod.maxWeight || "?"} · **Accuracy**: ${effectiveAccuracy}%`,
+    formatStoreBonuses(selectedRod),
+    selectedRod.description ? `-# _${truncateText(selectedRod.description, 150)}_` : ""
+  ].filter(Boolean).join("\n");
+
+  return makeStoreContainer("🎣 Pancingan", details, components, storeAccentColors.rod, icon);
+}
+
+function makeStoreFishBagContainer(player, selectedFishBag, components, icon = null) {
+  if (!selectedFishBag) {
+    return makeStoreContainer("🎒 Tas Pancing", "Belum ada tas pancing yang tersedia.", components, storeAccentColors.bag, icon);
+  }
+
+  const owned = (player.ownedFishBags || []).includes(selectedFishBag.id);
+  const equipped = player.fishBagId === selectedFishBag.id;
+  const status = equipped ? "Terpasang" : owned ? "Dimiliki" : `${selectedFishBag.price} Gold`;
+  const details = [
+    `**${selectedFishBag.name}** · ${selectedFishBag.rarity || "Common"} · ${status}`,
+    `**Capacity**: ${getEffectiveFishBagCapacityForItem(selectedFishBag)} kg`,
+    formatStoreBonuses(selectedFishBag),
+    selectedFishBag.description ? `-# _${truncateText(selectedFishBag.description, 150)}_` : ""
+  ].filter(Boolean).join("\n");
+
+  return makeStoreContainer("🎒 Tas Pancing", details, components, storeAccentColors.bag, icon);
+}
+
+function makeStoreMessage(user, player, selectedRodId = null, status = "", selectedFishBagId = null) {
   const components = makeStoreComponents(player, selectedRodId, selectedFishBagId);
-  const componentBlocks = gameData.fishBags.length
-    ? [
-      { text: "**Pancingan**", components: components.slice(0, 2) },
-      { text: "**Tas Pancing**", components: components.slice(2) }
-    ]
-    : [{ text: "**Pancingan**", components }];
-  return makeEmbedPanelMessage(makeStoreEmbed(player, status), {
-    files: imageAttachment ? [imageAttachment] : [],
-    componentBlocks
+  const rod = getRod(player.rodId);
+  const fishBag = getFishBag(player.fishBagId);
+  const effectiveRod = getEffectiveRod(rod);
+  const effectiveRodAccuracy = getEffectiveRodAccuracy(rod);
+  const currentBag = fishBag ? fishBag.name : "Belum ada";
+  const safeUserName = truncateText(String(user?.globalName || user?.username || "Pemain").replace(/[\\*_~`|]/g, "").trim() || "Pemain", 64);
+  const overview = [
+    `💰 **Gold**: ${Math.max(0, Math.floor(Number(player.gold || 0))).toLocaleString("id-ID")}`,
+    `**Pancingan**: ${rod?.name || "Belum ada"}`,
+    rod ? `-# **Speed**: ${getDisplayedRodSpeed(rod.speed)} · **Luck**: ${effectiveRod.luck} · **Max Kg**: ${effectiveRod.maxWeight || "?"} · **Accuracy**: ${effectiveRodAccuracy}%` : "",
+    `**Tas Pancing**: ${currentBag}`,
+    fishBag ? `-# **Capacity**: ${getEffectiveFishBagCapacity(player)} kg` : "",
+    status ? `\n${status}` : ""
+  ].filter(Boolean).join("\n");
+  const storeRods = getStoreRods();
+  const selectedRod = storeRods.find((item) => item.id === selectedRodId)
+    || storeRods.find((item) => item.id === player.rodId)
+    || storeRods[0];
+  const selectedFishBag = gameData.fishBags.find((item) => item.id === selectedFishBagId)
+    || gameData.fishBags.find((item) => item.id === player.fishBagId)
+    || gameData.fishBags[0];
+  const rodIcon = selectedRod ? makeIconAttachment(selectedRod, "rod") : null;
+  const fishBagIcon = selectedFishBag ? makeIconAttachment(selectedFishBag, "fish-bag") : null;
+  const containers = [
+    makeStoreContainer(`🏪 Toko Pancingan · ${safeUserName}`, overview, [], storeAccentColors.overview),
+    makeStoreGuideContainer(),
+    makeStoreRodContainer(player, selectedRod, components.slice(0, 2), rodIcon)
+  ];
+  if (gameData.fishBags.length) {
+    containers.push(makeStoreFishBagContainer(player, selectedFishBag, components.slice(2), fishBagIcon));
+  }
+  return makeComponentsV2Message(containers, {
+    files: [rodIcon?.attachment, fishBagIcon?.attachment].filter(Boolean)
   });
 }
 
@@ -5495,7 +5599,7 @@ function makeFishGuideEmbed() {
       },
       {
         name: "Progress",
-        value: "Progress naik 1 setiap chat valid. Kalau progress sudah mencapai stat **Speed** pancingan kamu, bot akan otomatis mencoba mendapatkan ikan.",
+        value: "Progress naik 1 setiap chat valid. Kalau progress sudah mencapai batas internal rod, bot akan otomatis mencoba mendapatkan ikan. **Speed** yang tampil lebih tinggi berarti progress yang dibutuhkan lebih sedikit.",
         inline: false
       },
       {
@@ -5603,7 +5707,7 @@ function makeStoreGuideEmbed() {
       "",
       "━━━━━━━━━━━━━━━━━━━━",
       "## Kenapa Rod Penting",
-      "Rod memengaruhi cara kamu memancing. **Speed** menentukan berapa banyak progress yang dibutuhkan, **Luck** membantu peluang ikan lebih bagus, **Max Kg** menentukan batas berat ikan yang bisa ditangkap, dan **Accuracy** dipakai saat kompetisi.",
+      "Rod memengaruhi cara kamu memancing. **Speed** tampil lebih tinggi saat progress yang dibutuhkan lebih sedikit, **Luck** membantu peluang ikan bagus dan bobot lebih berat, **Max Kg** membatasi berat tangkapan, dan **Accuracy** dipakai saat kompetisi.",
       "",
       "## Cara Pakai",
       "Gunakan `/fishstore`, pilih rod atau fish bag dari menu, lalu beli atau gunakan item yang sudah kamu punya."
@@ -6451,7 +6555,7 @@ async function handleRoutineButton(interaction) {
   }
   if (button.action === "fishstore") {
     await interaction.deferReply({ flags: MessageFlags.Ephemeral });
-    await withPlayerReadOnly(interaction.user, async (player) => interaction.editReply(makeStoreMessage(player)));
+    await withPlayerReadOnly(interaction.user, async (player) => interaction.editReply(makeStoreMessage(interaction.user, player)));
     return;
   }
   if (button.action === "fishdex") {
@@ -6660,7 +6764,7 @@ client.on("interactionCreate", async (interaction) => {
       const selectedRodId = interaction.values[0];
       await interaction.deferUpdate();
       await withPlayerReadOnly(interaction.user, async (player) => {
-        await interaction.editReply(makeStoreMessage(player, selectedRodId));
+        await interaction.editReply(makeStoreMessage(interaction.user, player, selectedRodId));
       });
       return;
     }
@@ -6702,7 +6806,7 @@ client.on("interactionCreate", async (interaction) => {
       await interaction.deferUpdate();
       await withPlayer(interaction.user, async (player) => {
         const result = buyRod(player, selectedRodId);
-        await interaction.editReply(makeStoreMessage(player, selectedRodId, result.message));
+        await interaction.editReply(makeStoreMessage(interaction.user, player, selectedRodId, result.message));
         return result.ok ? undefined : { save: false };
       });
       return;
@@ -6712,7 +6816,7 @@ client.on("interactionCreate", async (interaction) => {
       const selectedFishBagId = interaction.values[0];
       await interaction.deferUpdate();
       await withPlayerReadOnly(interaction.user, async (player) => {
-        await interaction.editReply(makeStoreMessage(player, null, "", selectedFishBagId));
+        await interaction.editReply(makeStoreMessage(interaction.user, player, null, "", selectedFishBagId));
       });
       return;
     }
@@ -6726,7 +6830,7 @@ client.on("interactionCreate", async (interaction) => {
       await interaction.deferUpdate();
       await withPlayer(interaction.user, async (player) => {
         const result = buyFishBag(player, selectedFishBagId);
-        await interaction.editReply(makeStoreMessage(player, null, result.message, selectedFishBagId));
+        await interaction.editReply(makeStoreMessage(interaction.user, player, null, result.message, selectedFishBagId));
         return result.ok ? undefined : { save: false };
       });
       return;
@@ -7038,7 +7142,7 @@ client.on("interactionCreate", async (interaction) => {
     if (interaction.commandName === "fishstore") {
       await interaction.deferReply({ flags: MessageFlags.Ephemeral });
       await withPlayerReadOnly(interaction.user, async (player) => {
-        await interaction.editReply(makeStoreMessage(player));
+        await interaction.editReply(makeStoreMessage(interaction.user, player));
       });
       return;
     }

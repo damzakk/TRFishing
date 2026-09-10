@@ -28,6 +28,8 @@ const fishEntotRefreshSignalPath = path.join(runtimeDirectory, "fish-entot-refre
 const defaultFishingChannelsPath = path.join(runtimeDirectory, "default-fishing-channels.json");
 const fishRaidStatePath = path.join(runtimeDirectory, "fish-raid-state.json");
 const fishRaidSignalPath = path.join(runtimeDirectory, "fish-raid-signal.json");
+const massLuckSaturation = 20;
+const massLuckBiasScale = 3.85;
 
 function sendJson(response, statusCode, payload) {
   response.writeHead(statusCode, { "Content-Type": "application/json" });
@@ -249,7 +251,17 @@ function rollCatchWeight(fish, rod) {
   const fishMaxWeight = Math.max(minWeight, Number(fish.maxWeight || minWeight));
   const rodMaxWeight = Number(rod.maxWeight || fishMaxWeight);
   const maxWeight = Math.max(minWeight, Math.min(fishMaxWeight, rodMaxWeight));
-  return minWeight + Math.random() * (maxWeight - minWeight);
+  const weightRange = maxWeight - minWeight;
+  if (weightRange <= 0) {
+    return minWeight;
+  }
+
+  const luck = Math.max(0, Number(rod.luck || 0));
+  const luckFactor = luck / (luck + massLuckSaturation);
+  const massBias = 1 + massLuckBiasScale * luckFactor;
+  const randomValue = Math.random();
+  const weightedPosition = 1 - (1 - randomValue) ** massBias;
+  return minWeight + weightedPosition * weightRange;
 }
 
 function rollFishForManager(data, player, selectedFishId = "") {
@@ -3681,7 +3693,7 @@ const html = `<!doctype html>
         ? entries.map(({ item, index }) => rodGridCardTemplate(item, index)).join("")
         : '<div class="small">No rods yet.</div>';
       return \`
-        \${infoPanelTemplate("rods", "Rod Data", "Speed is how many valid chat progress points are needed before a catch roll. Luck changes fish odds through each fish Luck Scale. Max Kg limits which fish can be caught and caps rolled catch weight. Accuracy is stored for rod balance/display. Price is used by the rod store.")}
+        \${infoPanelTemplate("rods", "Rod Data", "Speed is stored as the internal number of valid chat progress points needed before a catch roll. The player-facing Speed is inverted and multiplied for display. Luck changes fish odds through each fish Luck Scale and biases rolled catch weight toward the heavier end. Max Kg limits which fish can be caught and caps rolled catch weight. Accuracy is stored for rod balance/display. Price is used by the rod store.")}
         <div class="fish-layout">
           <article class="item">
             <div class="fish-toolbar">
