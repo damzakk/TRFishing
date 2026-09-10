@@ -60,7 +60,7 @@ The manager also has:
 - Admin Control: add admin Discord IDs or usernames for testing commands.
 - Settings: split into General, FishComp, and FishRaid panels for command banners, competition banners, raid rewards, per-boss raid banners, boss quota data, raid controls, events, chat cooldown, EXP multipliers, and voice progress.
 - Event: list deployed events, create server-scoped timed events with start time and duration, add multiple bonus types, and stop running events.
-- Player Management: list and search players by Discord ID or username, edit profile and quest data through separate save actions, reset a player, delete a player from the PlayFab title, make a player admin, force one fishing catch, and reset or delete all loaded players.
+- Player Management: list and search players by Discord ID or username, edit profile and quest data through separate save actions, refresh Daily Quests for one player or every player, reset a player, delete a player from the PlayFab title, make a player admin, force one fishing catch, and reset or delete all loaded players.
 - Quest System: browse each quest category in a scrollable name list and edit the selected quest in a dedicated detail panel.
 
 ## Commands

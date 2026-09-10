@@ -1,7 +1,7 @@
 {
   "guilds": {
     "891474628122394634": {
-      "dateKey": "2026-09-09",
+      "dateKey": "2026-09-10",
       "boss": {
         "id": "mbg_hendrik",
         "name": "MBG HENDRIK",
@@ -63,8 +63,10 @@
           "contentType": "image/png"
         }
       },
-      "quotaKg": 500,
-      "filledKg": 368.60959817617464,
+      "baseQuotaKg": 500,
+      "quotaKg": 600,
+      "streak": 1,
+      "filledKg": 600,
       "participants": {
         "367669792993181697": {
           "id": "367669792993181697",
@@ -72,10 +74,10 @@
           "globalName": "PakTuki",
           "displayName": "<@367669792993181697>",
           "logName": "TR | Ebol Ebol",
-          "count": 27,
-          "totalWeight": 161.5248517779628,
-          "heaviestWeight": 32.607868547476315,
-          "heaviestName": "Hamim Jepang"
+          "count": 19,
+          "totalWeight": 72.2835170262052,
+          "heaviestWeight": 22.863497955596237,
+          "heaviestName": "Ikan Dikala Senja"
         },
         "281139082380312576": {
           "id": "281139082380312576",
@@ -83,39 +85,59 @@
           "globalName": "venomenom",
           "displayName": "<@281139082380312576>",
           "logName": "TR | Mereun",
-          "count": 9,
-          "totalWeight": 26.76356710037125,
-          "heaviestWeight": 7.081497340320489,
-          "heaviestName": "Ebem"
-        },
-        "451776326723174401": {
-          "id": "451776326723174401",
-          "username": "azaralea",
-          "globalName": "Azara",
-          "displayName": "<@451776326723174401>",
-          "logName": "TR | Aktor (Adam) (Awiwir)",
-          "count": 12,
-          "totalWeight": 151.80889796963527,
-          "heaviestWeight": 61.51372614385194,
+          "count": 17,
+          "totalWeight": 130.67596469526347,
+          "heaviestWeight": 59.06256807774851,
           "heaviestName": "Ikan Hell Rina"
         },
-        "275237881323454465": {
-          "id": "275237881323454465",
-          "username": "shera",
-          "globalName": "Delta",
-          "displayName": "<@275237881323454465>",
-          "logName": "᲼",
-          "count": 10,
-          "totalWeight": 28.512281328205436,
-          "heaviestWeight": 7.355868885335808,
+        "363275626662330369": {
+          "id": "363275626662330369",
+          "username": "fnadh",
+          "globalName": "Miradh",
+          "displayName": "<@363275626662330369>",
+          "logName": "TR | Celup (Adhiet)",
+          "count": 20,
+          "totalWeight": 166.37775658166146,
+          "heaviestWeight": 64.11349207084325,
+          "heaviestName": "Ikan Hell Rina"
+        },
+        "309140773176082452": {
+          "id": "309140773176082452",
+          "username": "dikaleo.",
+          "globalName": "Dikaleo",
+          "displayName": "<@309140773176082452>",
+          "logName": "TR | Pleset",
+          "count": 29,
+          "totalWeight": 139.7524764682487,
+          "heaviestWeight": 23.41680492018848,
+          "heaviestName": "Ikan Anjrotman"
+        },
+        "215382509851115520": {
+          "id": "215382509851115520",
+          "username": "zect52",
+          "globalName": "Zect",
+          "displayName": "<@215382509851115520>",
+          "logName": "Discord",
+          "count": 16,
+          "totalWeight": 54.198948160536716,
+          "heaviestWeight": 11.492334573419809,
+          "heaviestName": "Ikan Hiu"
+        },
+        "337858521771278338": {
+          "id": "337858521771278338",
+          "username": "truekakgeri",
+          "globalName": "KakGeri",
+          "displayName": "<@337858521771278338>",
+          "logName": "TR | Klepon (KakGeri)",
+          "count": 12,
+          "totalWeight": 43.30626861072006,
+          "heaviestWeight": 9.067136714721086,
           "heaviestName": "Adhiet"
         }
       },
-      "fulfilledAt": "",
-      "lastRaidEndedAt": 1788942041061,
-      "channelId": "891474628122394637",
-      "baseQuotaKg": 500,
-      "streak": 0
+      "fulfilledAt": "2026-09-09T20:45:35.768Z",
+      "lastRaidEndedAt": 1788986735768,
+      "channelId": "891474628122394637"
     }
   }
 }

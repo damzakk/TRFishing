@@ -1251,6 +1251,69 @@ async function handleApi(request, response) {
       return;
     }
 
+    if (request.method === "POST" && request.url === "/api/players/refresh-daily-quests") {
+      startProgressResponse(response);
+      sendProgress(response, { type: "progress", phase: "loading", message: "Loading players and Daily Quest settings…" });
+      try {
+        const [questData, settingsData, players] = await Promise.all([
+          adminGetManagerTabData("quests", { caller: "manager refresh daily quests for all players" }),
+          adminGetManagerTabData("settings", { caller: "manager refresh daily quests for all players" }),
+          adminListPlayers("", {
+            onProgress: ({ current, total }) => sendProgress(response, {
+              type: "progress",
+              phase: "loading",
+              current,
+              total,
+              message: `Loaded ${current} of ${total} players from PlayFab…`
+            })
+          })
+        ]);
+        const updatedPlayers = [];
+        let failedCount = 0;
+        let processed = 0;
+        sendProgress(response, {
+          type: "progress",
+          phase: "processing",
+          current: 0,
+          total: players.length,
+          message: `Preparing Daily Quests for ${players.length} player${players.length === 1 ? "" : "s"}…`
+        });
+        for (const record of players) {
+          try {
+            const player = cleanPlayer(record.player);
+            const assigned = forceRefreshDailyQuests({ quests: questData.quests, settings: settingsData.settings }, player);
+            const saved = mergeSavedPlayerRecord(record, await adminSavePlayerData(record.playFabId, player, {
+              refetch: false,
+              remember: false,
+              saveProfile: false,
+              saveQuestState: true
+            }));
+            updatedPlayers.push(saved);
+            const user = String(saved.displayName || saved.username || saved.player?.discordDisplayName || saved.player?.discordUsername || saved.player?.discordUserId || record.playFabId).trim();
+            logManagerAction("Daily quests refreshed", { user, playFabId: record.playFabId, extra: `assigned=${assigned.length} source=all-players` });
+          } catch (error) {
+            failedCount += 1;
+            console.error(`Could not refresh Daily Quests for ${record.playFabId}:`, error);
+          } finally {
+            processed += 1;
+            sendProgress(response, {
+              type: "progress",
+              phase: "processing",
+              current: processed,
+              total: players.length,
+              message: `Processed ${processed} of ${players.length} players…`
+            });
+          }
+        }
+        sendProgress(response, { type: "complete", ok: true, count: updatedPlayers.length, failedCount, players: updatedPlayers });
+        response.end();
+      } catch (error) {
+        sendProgress(response, { type: "error", error: error.message });
+        response.end();
+      }
+      return;
+    }
+
     if (request.method === "POST" && request.url === "/api/fishraid/reset") {
       const body = JSON.parse(await readBody(request));
       const guildId = String(body.guildId || "").trim();
@@ -2419,6 +2482,7 @@ const html = `<!doctype html>
               <button data-search-players>Search</button>
               <button data-open-enforce-all-fishing>Enforce Fishing To All Player</button>
               <button data-refresh-all-entot>Refresh Entot For All Players</button>
+              <button class="danger" data-refresh-all-daily-quests>Refresh Daily Quests For All Players</button>
               <button class="danger" data-reset-all-players>Reset All Player Data</button>
               <button class="danger" data-delete-all-players>Delete All Players</button>
             </div>
@@ -4357,6 +4421,19 @@ const html = `<!doctype html>
       });
     }
 
+    async function refreshDailyQuestsForAllPlayers() {
+      if (!confirm("Replace the current Daily Quests for every PlayFab player? All existing Daily Quest progress will be lost. Other player data will not be changed.")) return;
+      await runWithLoading("Refreshing Daily Quests…", async () => {
+        setStatus("Refreshing Daily Quests for all players...");
+        const response = await fetch("/api/players/refresh-daily-quests", { method: "POST" });
+        const payload = await readProgressResponse(response, showOperationProgress);
+        mergeUpdatedPlayers(payload.players);
+        state.catchNotice = \`Daily Quests refreshed for \${payload.count || 0} players. Failed: \${payload.failedCount || 0}.\`;
+        setStatus("Daily Quest refresh finished.");
+        render();
+      });
+    }
+
     async function deleteSelectedPlayer() {
       const selected = selectedPlayerRecord();
       if (!selected || !confirm("Delete this player account from the PlayFab title? This is queued by PlayFab and may take a few minutes.")) return;
@@ -5436,6 +5513,10 @@ const html = `<!doctype html>
       }
       if (event.target.closest("[data-refresh-all-entot]")) {
         refreshEntotForAllPlayers().catch((error) => setStatus(error.message, true));
+        return;
+      }
+      if (event.target.closest("[data-refresh-all-daily-quests]")) {
+        refreshDailyQuestsForAllPlayers().catch((error) => setStatus(error.message, true));
         return;
       }
       if (event.target.closest("[data-delete-player]")) {

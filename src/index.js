@@ -433,6 +433,13 @@ function compareItemRarity(left, right) {
     || String(left?.name || "").localeCompare(String(right?.name || ""));
 }
 
+function compareItemPrice(left, right) {
+  const leftPrice = Number(left?.price);
+  const rightPrice = Number(right?.price);
+  return (Number.isFinite(leftPrice) ? leftPrice : 0) - (Number.isFinite(rightPrice) ? rightPrice : 0)
+    || compareItemRarity(left, right);
+}
+
 function getStoreRods() {
   return gameData.rods.filter((rod) => rod.showInStore !== false);
 }
@@ -3438,7 +3445,7 @@ function makeRodStoreImageAttachment(player) {
 
 function makeRodSelectOptions(player) {
   return getStoreRods()
-    .sort(compareItemRarity)
+    .sort(compareItemPrice)
     .slice(0, 25)
     .map((rod) => {
     const owned = player.ownedRods.includes(rod.id);
@@ -3455,7 +3462,7 @@ function makeRodSelectOptions(player) {
 
 function makeFishBagSelectOptions(player) {
   return [...gameData.fishBags]
-    .sort(compareItemRarity)
+    .sort(compareItemPrice)
     .slice(0, 25)
     .map((bag) => {
     const owned = (player.ownedFishBags || []).includes(bag.id);
