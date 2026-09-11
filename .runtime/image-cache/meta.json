@@ -2793,5 +2793,1267 @@
     "extension": "jpg",
     "savedAt": "2026-09-10T03:50:31.597Z",
     "size": 34682
+  },
+  "a14934a574801efd8f289edc4bef6d5e631c7623a5abbeba47aafcfb49b205e9": {
+    "discordMessageUrl": "",
+    "discordRef": {
+      "storage": "discord_attachment",
+      "channelId": "1543874293258260550",
+      "messageId": "1547473023022665820",
+      "messageUrl": "",
+      "attachmentId": "1547473023206957206",
+      "fileName": "tas_ember_bocor.png",
+      "contentType": "image/png"
+    },
+    "fileName": "tas_ember_bocor.png",
+    "source": "discord_upload",
+    "contentType": "image/png",
+    "extension": "png",
+    "savedAt": "2026-09-10T05:05:18.630Z",
+    "size": 47937
+  },
+  "a431dd6d26abbbf5d840b7bd8ce701a0a8d9146eb9437b3a61930b19729b1dc6": {
+    "url": "https://cdn.discordapp.com/attachments/1543874293258260550/1547473023206957206/tas_ember_bocor.png?ex=6aa38c0f&is=6aa23a8f&hm=050781fcc642346e54d5c274d090082f323389ed17a82394c7bfcfdb62f90fed&",
+    "source": "discord_upload",
+    "fileName": "tas_ember_bocor.png",
+    "contentType": "image/png",
+    "extension": "png",
+    "savedAt": "2026-09-10T05:05:18.639Z",
+    "size": 47937
+  },
+  "bc98efbc41ee00640d94f51e5cb8779d3ebca67074d34710fdc66a0aad62e3f2": {
+    "discordMessageUrl": "",
+    "discordRef": {
+      "storage": "discord_attachment",
+      "channelId": "1543874293258260550",
+      "messageId": "1547473030060441600",
+      "messageUrl": "",
+      "attachmentId": "1547473029838274580",
+      "fileName": "tas_anyaman_pasar.png",
+      "contentType": "image/png"
+    },
+    "fileName": "tas_anyaman_pasar.png",
+    "source": "discord_upload",
+    "contentType": "image/png",
+    "extension": "png",
+    "savedAt": "2026-09-10T05:05:20.215Z",
+    "size": 50370
+  },
+  "b2888a9ec2e7bcd0d94ba3c14f9a6fc674ed5d4a8f9090c56633f5d09f877f3a": {
+    "url": "https://cdn.discordapp.com/attachments/1543874293258260550/1547473029838274580/tas_anyaman_pasar.png?ex=6aa38c10&is=6aa23a90&hm=e6a3a6d66e2b15da8b7a1528769f7952f77df171d3e5aa12268d64278a30a1a6&",
+    "source": "discord_upload",
+    "fileName": "tas_anyaman_pasar.png",
+    "contentType": "image/png",
+    "extension": "png",
+    "savedAt": "2026-09-10T05:05:20.224Z",
+    "size": 50370
+  },
+  "dfb68811c002e3372ac832d969a0a0212d0413c4316c84b5bcdc228ced57d794": {
+    "discordMessageUrl": "",
+    "discordRef": {
+      "storage": "discord_attachment",
+      "channelId": "1543874293258260550",
+      "messageId": "1547473036280725505",
+      "messageUrl": "",
+      "attachmentId": "1547473035886333962",
+      "fileName": "tas_cooler_mini.png",
+      "contentType": "image/png"
+    },
+    "fileName": "tas_cooler_mini.png",
+    "source": "discord_upload",
+    "contentType": "image/png",
+    "extension": "png",
+    "savedAt": "2026-09-10T05:05:21.618Z",
+    "size": 46544
+  },
+  "b908e0031e91e8933ddeab0f54504347890f602526cbe06599b891f3a3fca0f0": {
+    "url": "https://cdn.discordapp.com/attachments/1543874293258260550/1547473035886333962/tas_cooler_mini.png?ex=6aa38c12&is=6aa23a92&hm=19f83b4b4220c790e56737e19d7cb68e13e395ad44234751917ea6099e95c754&",
+    "source": "discord_upload",
+    "fileName": "tas_cooler_mini.png",
+    "contentType": "image/png",
+    "extension": "png",
+    "savedAt": "2026-09-10T05:05:21.629Z",
+    "size": 46544
+  },
+  "5a01b6a8d133dc92dbe02164b9eafae9a35014bd3cff575a8bc1b57397a1add1": {
+    "discordMessageUrl": "",
+    "discordRef": {
+      "storage": "discord_attachment",
+      "channelId": "1543874293258260550",
+      "messageId": "1547473041980919812",
+      "messageUrl": "",
+      "attachmentId": "1547473041787719680",
+      "fileName": "tas_box_baja.png",
+      "contentType": "image/png"
+    },
+    "fileName": "tas_box_baja.png",
+    "source": "discord_upload",
+    "contentType": "image/png",
+    "extension": "png",
+    "savedAt": "2026-09-10T05:05:23.140Z",
+    "size": 46664
+  },
+  "68075a9f714e3e00975ca44f5bd078e713174a3e409c8287453be530f7218d0b": {
+    "url": "https://cdn.discordapp.com/attachments/1543874293258260550/1547473041787719680/tas_box_baja.png?ex=6aa38c13&is=6aa23a93&hm=37af665aa33fdaf8a4699f70032b924b38fe377858b403b512b1f6b589a6242d&",
+    "source": "discord_upload",
+    "fileName": "tas_box_baja.png",
+    "contentType": "image/png",
+    "extension": "png",
+    "savedAt": "2026-09-10T05:05:23.154Z",
+    "size": 46664
+  },
+  "a376d5d171abe1fff02b22aba5ca69632be0d4db6c443830b89939347cb66e73": {
+    "discordMessageUrl": "",
+    "discordRef": {
+      "storage": "discord_attachment",
+      "channelId": "1543874293258260550",
+      "messageId": "1547473048066723892",
+      "messageUrl": "",
+      "attachmentId": "1547473048213651456",
+      "fileName": "tas_ransel_nelayan.png",
+      "contentType": "image/png"
+    },
+    "fileName": "tas_ransel_nelayan.png",
+    "source": "discord_upload",
+    "contentType": "image/png",
+    "extension": "png",
+    "savedAt": "2026-09-10T05:05:24.581Z",
+    "size": 51050
+  },
+  "d40e3c23771079263c1e5d2a4281729d7d82218a37ef93258f710768e645258f": {
+    "url": "https://cdn.discordapp.com/attachments/1543874293258260550/1547473048213651456/tas_ransel_nelayan.png?ex=6aa38c15&is=6aa23a95&hm=6fcdb909743fbf66aeeb9ff25b262cb9b14c3ad0b5208f610b48935644258328&",
+    "source": "discord_upload",
+    "fileName": "tas_ransel_nelayan.png",
+    "contentType": "image/png",
+    "extension": "png",
+    "savedAt": "2026-09-10T05:05:24.591Z",
+    "size": 51050
+  },
+  "269c593690fc2356c8bcf43f95dd2734bf883912ba65fdb1dfdef45d0e9385e7": {
+    "discordMessageUrl": "",
+    "discordRef": {
+      "storage": "discord_attachment",
+      "channelId": "1543874293258260550",
+      "messageId": "1547473054899114064",
+      "messageUrl": "",
+      "attachmentId": "1547473054542733372",
+      "fileName": "tas_peti_karang.png",
+      "contentType": "image/png"
+    },
+    "fileName": "tas_peti_karang.png",
+    "source": "discord_upload",
+    "contentType": "image/png",
+    "extension": "png",
+    "savedAt": "2026-09-10T05:05:26.536Z",
+    "size": 53697
+  },
+  "19e64e8c023622baf6fad9122967457fdc7998f6075b2fb8b129d97f73d0eba5": {
+    "url": "https://cdn.discordapp.com/attachments/1543874293258260550/1547473054542733372/tas_peti_karang.png?ex=6aa38c16&is=6aa23a96&hm=b9758983f297aaaed8f0c211453899e9b0415a463f84ccc3161dc93b131d3303&",
+    "source": "discord_upload",
+    "fileName": "tas_peti_karang.png",
+    "contentType": "image/png",
+    "extension": "png",
+    "savedAt": "2026-09-10T05:05:26.543Z",
+    "size": 53697
+  },
+  "156e7e17f0bbd98decf6bc71d3c4065bf6f99e2e2d0683f992d09ba34142ab19": {
+    "discordMessageUrl": "",
+    "discordRef": {
+      "storage": "discord_attachment",
+      "channelId": "1543874293258260550",
+      "messageId": "1547473062419632220",
+      "messageUrl": "",
+      "attachmentId": "1547473062541131816",
+      "fileName": "tas_kulkas_portabel.png",
+      "contentType": "image/png"
+    },
+    "fileName": "tas_kulkas_portabel.png",
+    "source": "discord_upload",
+    "contentType": "image/png",
+    "extension": "png",
+    "savedAt": "2026-09-10T05:05:28.021Z",
+    "size": 47874
+  },
+  "ecac8772a4f3f92903e1671cfc6e44cf58eab7cb98666df010a6ee8ef02d63ff": {
+    "url": "https://cdn.discordapp.com/attachments/1543874293258260550/1547473062541131816/tas_kulkas_portabel.png?ex=6aa38c18&is=6aa23a98&hm=0815f07d63036bb4a1ecfb2a2e0031a7f7453ff45a53ee7e582d6ee61a6e6fcc&",
+    "source": "discord_upload",
+    "fileName": "tas_kulkas_portabel.png",
+    "contentType": "image/png",
+    "extension": "png",
+    "savedAt": "2026-09-10T05:05:28.032Z",
+    "size": 47874
+  },
+  "f03ccfa9c3c8b58dacab405ac421e8fc0b3364d3eafdac4b94cb299416bb92b8": {
+    "discordMessageUrl": "",
+    "discordRef": {
+      "storage": "discord_attachment",
+      "channelId": "1543874293258260550",
+      "messageId": "1547473068182601769",
+      "messageUrl": "",
+      "attachmentId": "1547473068279074816",
+      "fileName": "tas_dimensi_pantai.png",
+      "contentType": "image/png"
+    },
+    "fileName": "tas_dimensi_pantai.png",
+    "source": "discord_upload",
+    "contentType": "image/png",
+    "extension": "png",
+    "savedAt": "2026-09-10T05:05:29.675Z",
+    "size": 52595
+  },
+  "cfd786f1781302d32fab961224db2b3936ced4d98774b5beb14bc2b968643377": {
+    "url": "https://cdn.discordapp.com/attachments/1543874293258260550/1547473068279074816/tas_dimensi_pantai.png?ex=6aa38c1a&is=6aa23a9a&hm=591b55594b2d23c42bb8a5fcb702abf1702291bdaa09611ea69d356ad2727c54&",
+    "source": "discord_upload",
+    "fileName": "tas_dimensi_pantai.png",
+    "contentType": "image/png",
+    "extension": "png",
+    "savedAt": "2026-09-10T05:05:29.683Z",
+    "size": 52595
+  },
+  "38453b30896ead3879f3c6b4f83804374e5716eed576096f85f33db57222f4c9": {
+    "discordMessageUrl": "",
+    "discordRef": {
+      "storage": "discord_attachment",
+      "channelId": "1543874293258260550",
+      "messageId": "1547473075132436541",
+      "messageUrl": "",
+      "attachmentId": "1547473075228901376",
+      "fileName": "tas_dermawan_legenda.png",
+      "contentType": "image/png"
+    },
+    "fileName": "tas_dermawan_legenda.png",
+    "source": "discord_upload",
+    "contentType": "image/png",
+    "extension": "png",
+    "savedAt": "2026-09-10T05:05:31.057Z",
+    "size": 52618
+  },
+  "1a00286ca9cb311291241c4ce8812147aec3acf917b430a8a12a2cf025e3a334": {
+    "url": "https://cdn.discordapp.com/attachments/1543874293258260550/1547473075228901376/tas_dermawan_legenda.png?ex=6aa38c1b&is=6aa23a9b&hm=9b652dd6901b66d1695c3115db6ba87dc5f31ef011c4876b11a0533c8f5d391c&",
+    "source": "discord_upload",
+    "fileName": "tas_dermawan_legenda.png",
+    "contentType": "image/png",
+    "extension": "png",
+    "savedAt": "2026-09-10T05:05:31.065Z",
+    "size": 52618
+  },
+  "fdaaeb63ccd80e2214491446daa2d292f5af70de72760985ff9c0c62dc7af471": {
+    "discordMessageUrl": "",
+    "discordRef": {
+      "storage": "discord_attachment",
+      "channelId": "1543874293258260550",
+      "messageId": "1547473081428348999",
+      "messageUrl": "",
+      "attachmentId": "1547473081579081758",
+      "fileName": "tas_void_berlapis_es.png",
+      "contentType": "image/png"
+    },
+    "fileName": "tas_void_berlapis_es.png",
+    "source": "discord_upload",
+    "contentType": "image/png",
+    "extension": "png",
+    "savedAt": "2026-09-10T05:05:32.507Z",
+    "size": 53443
+  },
+  "e37b7b107d067fb56ef13fb7dbe65dbc8b776fb0f2294382fc8cbdbaf469cc94": {
+    "url": "https://cdn.discordapp.com/attachments/1543874293258260550/1547473081579081758/tas_void_berlapis_es.png?ex=6aa38c1d&is=6aa23a9d&hm=28275d402a41f17028f206dfdfab981a2bd9971043f44f158d9b6e65fd0a9683&",
+    "source": "discord_upload",
+    "fileName": "tas_void_berlapis_es.png",
+    "contentType": "image/png",
+    "extension": "png",
+    "savedAt": "2026-09-10T05:05:32.526Z",
+    "size": 53443
+  },
+  "c342a2a890ebcb9ab13465807891e3321e0b00b09e7dab4bcf8445703e05748a": {
+    "discordMessageUrl": "",
+    "discordRef": {
+      "storage": "discord_attachment",
+      "channelId": "1543874293258260550",
+      "messageId": "1547473276421279805",
+      "messageUrl": "",
+      "attachmentId": "1547473276538855534",
+      "fileName": "tas_kahyangan_gotong_royong.png",
+      "contentType": "image/png"
+    },
+    "fileName": "tas_kahyangan_gotong_royong.png",
+    "source": "discord_upload",
+    "contentType": "image/png",
+    "extension": "png",
+    "savedAt": "2026-09-10T05:06:19.002Z",
+    "size": 53436
+  },
+  "c4bdbdce11f5b6dd03c5d723ee84547c9eea8dcfac4cac349b9028fb2cf3564f": {
+    "url": "https://cdn.discordapp.com/attachments/1543874293258260550/1547473276538855534/tas_kahyangan_gotong_royong.png?ex=6aa38c4b&is=6aa23acb&hm=356b37af45bf91141c345da18cc4406e45c96e11c05ccb29f9427a96ae7c72db&",
+    "source": "discord_upload",
+    "fileName": "tas_kahyangan_gotong_royong.png",
+    "contentType": "image/png",
+    "extension": "png",
+    "savedAt": "2026-09-10T05:06:19.010Z",
+    "size": 53436
+  },
+  "43d7287d348ba65061fc8df0881eaca60c93eb7ca8ba6a2d2a628ebcdd026aea": {
+    "discordMessageUrl": "",
+    "discordRef": {
+      "storage": "discord_attachment",
+      "channelId": "1543874293258260550",
+      "messageId": "1547473282230525953",
+      "messageUrl": "",
+      "attachmentId": "1547473282322796674",
+      "fileName": "tas_plastik_supermarket_import.png",
+      "contentType": "image/png"
+    },
+    "fileName": "tas_plastik_supermarket_import.png",
+    "source": "discord_upload",
+    "contentType": "image/png",
+    "extension": "png",
+    "savedAt": "2026-09-10T05:06:20.352Z",
+    "size": 50168
+  },
+  "3aa1f1d68e4c9fd0851f376072e09c46418adf5b904dd269f0fd8361587d5c1f": {
+    "url": "https://cdn.discordapp.com/attachments/1543874293258260550/1547473282322796674/tas_plastik_supermarket_import.png?ex=6aa38c4d&is=6aa23acd&hm=b7eebca700d0e55cac3d11333247f09e46da0b59e1bebc214d651b564626672d&",
+    "source": "discord_upload",
+    "fileName": "tas_plastik_supermarket_import.png",
+    "contentType": "image/png",
+    "extension": "png",
+    "savedAt": "2026-09-10T05:06:20.400Z",
+    "size": 50168
+  },
+  "310683d1f71e593daa314b81f14b6117fef5f05d52276894b0afdb9b19a95d57": {
+    "discordMessageUrl": "",
+    "discordRef": {
+      "storage": "discord_attachment",
+      "channelId": "1543874293258260550",
+      "messageId": "1547473288840880211",
+      "messageUrl": "",
+      "attachmentId": "1547473288501006437",
+      "fileName": "tas_pendingin_lipat.png",
+      "contentType": "image/png"
+    },
+    "fileName": "tas_pendingin_lipat.png",
+    "source": "discord_upload",
+    "contentType": "image/png",
+    "extension": "png",
+    "savedAt": "2026-09-10T05:06:22.372Z",
+    "size": 50403
+  },
+  "0d4e3d56fea2832ea9fa405cd573de5e286c29d81ff48ab4a475a7af741b0be3": {
+    "url": "https://cdn.discordapp.com/attachments/1543874293258260550/1547473288501006437/tas_pendingin_lipat.png?ex=6aa38c4e&is=6aa23ace&hm=e71b7225aef6a9c83513c8e9c633eabcb384efe12b7bdf445b1fccb72910ebc0&",
+    "source": "discord_upload",
+    "fileName": "tas_pendingin_lipat.png",
+    "contentType": "image/png",
+    "extension": "png",
+    "savedAt": "2026-09-10T05:06:22.381Z",
+    "size": 50403
+  },
+  "3e010cd0799d334a3b0f5ef2d57f0021771ff8ebe93feb39110f3d39bd4192d6": {
+    "discordMessageUrl": "",
+    "discordRef": {
+      "storage": "discord_attachment",
+      "channelId": "1543874293258260550",
+      "messageId": "1547473297225285702",
+      "messageUrl": "",
+      "attachmentId": "1547473296973504512",
+      "fileName": "tas_keranjang_dasar.png",
+      "contentType": "image/png"
+    },
+    "fileName": "tas_keranjang_dasar.png",
+    "source": "discord_upload",
+    "contentType": "image/png",
+    "extension": "png",
+    "savedAt": "2026-09-10T05:06:24.131Z",
+    "size": 52076
+  },
+  "4410f858855ab0176b6e1ad67c96d9bac589d5a60e82beb3ce20155afadc34fe": {
+    "url": "https://cdn.discordapp.com/attachments/1543874293258260550/1547473296973504512/tas_keranjang_dasar.png?ex=6aa38c50&is=6aa23ad0&hm=1975f6d99db8bf3fb4548466171102f9c1bb2b64f822b8bd1eca113d153a3627&",
+    "source": "discord_upload",
+    "fileName": "tas_keranjang_dasar.png",
+    "contentType": "image/png",
+    "extension": "png",
+    "savedAt": "2026-09-10T05:06:24.140Z",
+    "size": 52076
+  },
+  "e63b44c4dae7ec4635ebaaa2d0cdffd5e40849dcaa8ab99069c231a197771b47": {
+    "discordMessageUrl": "",
+    "discordRef": {
+      "storage": "discord_attachment",
+      "channelId": "1543874293258260550",
+      "messageId": "1547473303856353351",
+      "messageUrl": "",
+      "attachmentId": "1547473304041037904",
+      "fileName": "tas_koper_ombak.png",
+      "contentType": "image/png"
+    },
+    "fileName": "tas_koper_ombak.png",
+    "source": "discord_upload",
+    "contentType": "image/png",
+    "extension": "png",
+    "savedAt": "2026-09-10T05:06:25.504Z",
+    "size": 47814
+  },
+  "cd184020622d1c84645109d77aab5fc292342b011c5453fc1a3721b5ba7568b2": {
+    "url": "https://cdn.discordapp.com/attachments/1543874293258260550/1547473304041037904/tas_koper_ombak.png?ex=6aa38c52&is=6aa23ad2&hm=4489228145e83b0a5bdd3eb4b9f1d92a206c8376ead6531d87fb6afb20959b81&",
+    "source": "discord_upload",
+    "fileName": "tas_koper_ombak.png",
+    "contentType": "image/png",
+    "extension": "png",
+    "savedAt": "2026-09-10T05:06:25.516Z",
+    "size": 47814
+  },
+  "143c0dccf274054a0706896cf70caff2546e33dd76714cc72c94317b46bc62fd": {
+    "discordMessageUrl": "",
+    "discordRef": {
+      "storage": "discord_attachment",
+      "channelId": "1543874293258260550",
+      "messageId": "1547473310042947584",
+      "messageUrl": "",
+      "attachmentId": "1547473309774385152",
+      "fileName": "tas_drum_pelabuhan.png",
+      "contentType": "image/png"
+    },
+    "fileName": "tas_drum_pelabuhan.png",
+    "source": "discord_upload",
+    "contentType": "image/png",
+    "extension": "png",
+    "savedAt": "2026-09-10T05:06:27.728Z",
+    "size": 52809
+  },
+  "5f11626ee34e379db31fd9627405ec846d4dd70d6eaa28d7ab99d72a17c7423a": {
+    "url": "https://cdn.discordapp.com/attachments/1543874293258260550/1547473309774385152/tas_drum_pelabuhan.png?ex=6aa38c53&is=6aa23ad3&hm=bc15574238837c3668c864411ccdafa8466a2ad1dd5583d9bf1918ee52a553ac&",
+    "source": "discord_upload",
+    "fileName": "tas_drum_pelabuhan.png",
+    "contentType": "image/png",
+    "extension": "png",
+    "savedAt": "2026-09-10T05:06:27.741Z",
+    "size": 52809
+  },
+  "79b14831835993affc0f902b5b361d27d23e7d2ebc23f29d7cde9c07a84f83f0": {
+    "discordMessageUrl": "",
+    "discordRef": {
+      "storage": "discord_attachment",
+      "channelId": "1543874293258260550",
+      "messageId": "1547473318708379669",
+      "messageUrl": "",
+      "attachmentId": "1547473318838276106",
+      "fileName": "tas_kontainer_mini.png",
+      "contentType": "image/png"
+    },
+    "fileName": "tas_kontainer_mini.png",
+    "source": "discord_upload",
+    "contentType": "image/png",
+    "extension": "png",
+    "savedAt": "2026-09-10T05:06:29.100Z",
+    "size": 51179
+  },
+  "42316543a7ed1cdff505aa2ca7de3628ae685e42c2d5b713f3dcefe42d841f14": {
+    "url": "https://cdn.discordapp.com/attachments/1543874293258260550/1547473318838276106/tas_kontainer_mini.png?ex=6aa38c55&is=6aa23ad5&hm=15a8d95af5838920e7d08b9429a87dbc9bd17a219efa043325ce924e8b8dba42&",
+    "source": "discord_upload",
+    "fileName": "tas_kontainer_mini.png",
+    "contentType": "image/png",
+    "extension": "png",
+    "savedAt": "2026-09-10T05:06:29.112Z",
+    "size": 51179
+  },
+  "3f28149ebbdcc2fed31414de0d314bd9b10b40a55eb8b3c5f58cf28820fcead2": {
+    "discordMessageUrl": "",
+    "discordRef": {
+      "storage": "discord_attachment",
+      "channelId": "1543874293258260550",
+      "messageId": "1547473328040837171",
+      "messageUrl": "",
+      "attachmentId": "1547473327776600194",
+      "fileName": "tas_arca_pasang.png",
+      "contentType": "image/png"
+    },
+    "fileName": "tas_arca_pasang.png",
+    "source": "discord_upload",
+    "contentType": "image/png",
+    "extension": "png",
+    "savedAt": "2026-09-10T05:06:31.302Z",
+    "size": 52521
+  },
+  "ca0ecba07927bd4a909c252a42327ab785ecc71e05e7e7cd7f41263b28e4309d": {
+    "url": "https://cdn.discordapp.com/attachments/1543874293258260550/1547473327776600194/tas_arca_pasang.png?ex=6aa38c58&is=6aa23ad8&hm=65feed1bf6b8c7c736435b2c95a677440a713dea913e2d050fe8d2a8fd3e40f7&",
+    "source": "discord_upload",
+    "fileName": "tas_arca_pasang.png",
+    "contentType": "image/png",
+    "extension": "png",
+    "savedAt": "2026-09-10T05:06:31.362Z",
+    "size": 52521
+  },
+  "f9792454ee32e3e5e5e449050dca93aeedc9a31973f5a99aa08ef8d89bd175cc": {
+    "discordMessageUrl": "",
+    "discordRef": {
+      "storage": "discord_attachment",
+      "channelId": "1543874293258260550",
+      "messageId": "1547473334453805097",
+      "messageUrl": "",
+      "attachmentId": "1547473334210531408",
+      "fileName": "tas_laut_tak_bertepi.png",
+      "contentType": "image/png"
+    },
+    "fileName": "tas_laut_tak_bertepi.png",
+    "source": "discord_upload",
+    "contentType": "image/png",
+    "extension": "png",
+    "savedAt": "2026-09-10T05:06:32.754Z",
+    "size": 51433
+  },
+  "233a8f3f79c88ccfb7998c67960a6611c774c9f11daafddd5628969a3207ae0a": {
+    "url": "https://cdn.discordapp.com/attachments/1543874293258260550/1547473334210531408/tas_laut_tak_bertepi.png?ex=6aa38c59&is=6aa23ad9&hm=f4e9281e3a42ad097daf4e1e4413525f16e463d958a989af60f2744121d495a5&",
+    "source": "discord_upload",
+    "fileName": "tas_laut_tak_bertepi.png",
+    "contentType": "image/png",
+    "extension": "png",
+    "savedAt": "2026-09-10T05:06:32.776Z",
+    "size": 51433
+  },
+  "434c893d7e92c074f313374c171b6cb8776dadb2a8b41cb27fb0eaa000aeb598": {
+    "discordMessageUrl": "",
+    "discordRef": {
+      "storage": "discord_attachment",
+      "channelId": "1543874293258260550",
+      "messageId": "1547473340330020964",
+      "messageUrl": "",
+      "attachmentId": "1547473340103532565",
+      "fileName": "tas_palung_senja.png",
+      "contentType": "image/png"
+    },
+    "fileName": "tas_palung_senja.png",
+    "source": "discord_upload",
+    "contentType": "image/png",
+    "extension": "png",
+    "savedAt": "2026-09-10T05:06:34.152Z",
+    "size": 53027
+  },
+  "4103cf6a9119d6dcd70eb4477b83601f692d8fa1d9786b9aa1ac11fd22cc8099": {
+    "url": "https://cdn.discordapp.com/attachments/1543874293258260550/1547473340103532565/tas_palung_senja.png?ex=6aa38c5a&is=6aa23ada&hm=4e0567c14c02b036c81a9f5753dbfb99b2bea78fdadc349ca1bf375efb86a020&",
+    "source": "discord_upload",
+    "fileName": "tas_palung_senja.png",
+    "contentType": "image/png",
+    "extension": "png",
+    "savedAt": "2026-09-10T05:06:34.180Z",
+    "size": 53027
+  },
+  "33f58990bd10343b85302cea8e269e23b9fe46c059989c39d3657a0e29111edd": {
+    "discordMessageUrl": "",
+    "discordRef": {
+      "storage": "discord_attachment",
+      "channelId": "1543874293258260550",
+      "messageId": "1547473530189512704",
+      "messageUrl": "",
+      "attachmentId": "1547473529992253440",
+      "fileName": "tas_samudra_tersegel.png",
+      "contentType": "image/png"
+    },
+    "fileName": "tas_samudra_tersegel.png",
+    "source": "discord_upload",
+    "contentType": "image/png",
+    "extension": "png",
+    "savedAt": "2026-09-10T05:07:19.464Z",
+    "size": 54272
+  },
+  "9234a5524d716423be4fe0e0cc47e2036ef498a88e2af99974f160399bc874e8": {
+    "url": "https://cdn.discordapp.com/attachments/1543874293258260550/1547473529992253440/tas_samudra_tersegel.png?ex=6aa38c88&is=6aa23b08&hm=aaf6a1dc75fd22e81129e07a075893175f82d327420497f253833bb52926e17e&",
+    "source": "discord_upload",
+    "fileName": "tas_samudra_tersegel.png",
+    "contentType": "image/png",
+    "extension": "png",
+    "savedAt": "2026-09-10T05:07:19.475Z",
+    "size": 54272
+  },
+  "747bc71040fc0f9bb2e7b449b1433ba49a82e00c22eea1a713f3d4fd4416adc6": {
+    "discordMessageUrl": "",
+    "discordRef": {
+      "storage": "discord_attachment",
+      "channelId": "1543874293258260550",
+      "messageId": "1547473535591522335",
+      "messageUrl": "",
+      "attachmentId": "1547473535725867008",
+      "fileName": "tas_kain_pantai.png",
+      "contentType": "image/png"
+    },
+    "fileName": "tas_kain_pantai.png",
+    "source": "discord_upload",
+    "contentType": "image/png",
+    "extension": "png",
+    "savedAt": "2026-09-10T05:07:20.787Z",
+    "size": 50872
+  },
+  "ebda128f002f4d32cabf716e5706dd7f8dbc1d47106559c106e96b4423c15f57": {
+    "url": "https://cdn.discordapp.com/attachments/1543874293258260550/1547473535725867008/tas_kain_pantai.png?ex=6aa38c89&is=6aa23b09&hm=c9d297f7c0e343b76d79cd1722b2e0ca3aecef8996923d353ead1a3809879b6e&",
+    "source": "discord_upload",
+    "fileName": "tas_kain_pantai.png",
+    "contentType": "image/png",
+    "extension": "png",
+    "savedAt": "2026-09-10T05:07:20.797Z",
+    "size": 50872
+  },
+  "bb65758b65706525f54a2a6db09b01db63e2896ea8a81e0b70c5334f596e9053": {
+    "discordMessageUrl": "",
+    "discordRef": {
+      "storage": "discord_attachment",
+      "channelId": "1543874293258260550",
+      "messageId": "1547474451564855326",
+      "messageUrl": "",
+      "attachmentId": "1547474451195498526",
+      "fileName": "1789016988630.png",
+      "contentType": "image/png"
+    },
+    "fileName": "1789016988630.png",
+    "source": "discord_upload",
+    "contentType": "image/png",
+    "extension": "png",
+    "savedAt": "2026-09-10T05:10:59.168Z",
+    "size": 1515779
+  },
+  "1a84bbe861876c42b7879a2349a1905c22512e4eca77dd496a7fd88986a7026e": {
+    "url": "https://cdn.discordapp.com/attachments/1543874293258260550/1547474451195498526/1789016988630.png?ex=6aa38d63&is=6aa23be3&hm=49f8064ce9b3bc433b07798c18b1c616a67facad05595f12cc2e4ad1088b1ab2&",
+    "source": "discord_upload",
+    "fileName": "1789016988630.png",
+    "contentType": "image/png",
+    "extension": "png",
+    "savedAt": "2026-09-10T05:10:59.179Z",
+    "size": 1515779
+  },
+  "823c9087bca8430bb9539efb28d74d4e14430986a26c3398616e475920f0d977": {
+    "discordMessageUrl": "",
+    "discordRef": {
+      "storage": "discord_attachment",
+      "channelId": "1543874293258260550",
+      "messageId": "1547497798855823362",
+      "messageUrl": "",
+      "attachmentId": "1547497799023853608",
+      "fileName": "pancing_bambu.png",
+      "contentType": "image/png"
+    },
+    "fileName": "pancing_bambu.png",
+    "source": "discord_upload",
+    "contentType": "image/png",
+    "extension": "png",
+    "savedAt": "2026-09-10T06:43:46.788Z",
+    "size": 42471
+  },
+  "dc63ddf554c36a959574ac01dde8bb3bebbbd8108e07157a3f30fee844d3fe7a": {
+    "url": "https://cdn.discordapp.com/attachments/1543874293258260550/1547497799023853608/pancing_bambu.png?ex=6aa3a322&is=6aa251a2&hm=bdf645efab3bcbff85ec141957a576779e1dcf9dff66db6a06c4ab9fffbbf763&",
+    "source": "discord_upload",
+    "fileName": "pancing_bambu.png",
+    "contentType": "image/png",
+    "extension": "png",
+    "savedAt": "2026-09-10T06:43:46.801Z",
+    "size": 42471
+  },
+  "ed91e7bc5e1671ae93828307b7d6c0cbf93e7a46b3164815bce8300d611927fd": {
+    "discordMessageUrl": "",
+    "discordRef": {
+      "storage": "discord_attachment",
+      "channelId": "1543874293258260550",
+      "messageId": "1547497806728798239",
+      "messageUrl": "",
+      "attachmentId": "1547497806846099517",
+      "fileName": "pancing_plastik.png",
+      "contentType": "image/png"
+    },
+    "fileName": "pancing_plastik.png",
+    "source": "discord_upload",
+    "contentType": "image/png",
+    "extension": "png",
+    "savedAt": "2026-09-10T06:43:48.575Z",
+    "size": 43206
+  },
+  "d0fec79fa9e5b3b46301bd4fc8ee6da953e0140035b9cf820415bc8f73c53a7f": {
+    "url": "https://cdn.discordapp.com/attachments/1543874293258260550/1547497806846099517/pancing_plastik.png?ex=6aa3a324&is=6aa251a4&hm=caeb646eb2be73180136d0da108ee6a5426bddf4681204daf8a2129ca1c64d43&",
+    "source": "discord_upload",
+    "fileName": "pancing_plastik.png",
+    "contentType": "image/png",
+    "extension": "png",
+    "savedAt": "2026-09-10T06:43:48.598Z",
+    "size": 43206
+  },
+  "411d57793782408aedad846763f0e4adcfb479b1a04b8ad780cc48ef9ebe122e": {
+    "discordMessageUrl": "",
+    "discordRef": {
+      "storage": "discord_attachment",
+      "channelId": "1543874293258260550",
+      "messageId": "1547497812164349984",
+      "messageUrl": "",
+      "attachmentId": "1547497812248498257",
+      "fileName": "pancing_besi.png",
+      "contentType": "image/png"
+    },
+    "fileName": "pancing_besi.png",
+    "source": "discord_upload",
+    "contentType": "image/png",
+    "extension": "png",
+    "savedAt": "2026-09-10T06:43:49.881Z",
+    "size": 44526
+  },
+  "aa88edad42b269d50763680dfb1131a228f70efe096111b94d814d1b4f8566fb": {
+    "url": "https://cdn.discordapp.com/attachments/1543874293258260550/1547497812248498257/pancing_besi.png?ex=6aa3a325&is=6aa251a5&hm=f2d9ee98d4444b7aa639eb9d68ff4c8f75c2d4a1111b93d55c8be255a0f989a3&",
+    "source": "discord_upload",
+    "fileName": "pancing_besi.png",
+    "contentType": "image/png",
+    "extension": "png",
+    "savedAt": "2026-09-10T06:43:49.897Z",
+    "size": 44526
+  },
+  "91763422baf4734fab4b12c5d0673a89bdb507e2fc0344539891aeade8b00466": {
+    "discordMessageUrl": "",
+    "discordRef": {
+      "storage": "discord_attachment",
+      "channelId": "1543874293258260550",
+      "messageId": "1547497817956683826",
+      "messageUrl": "",
+      "attachmentId": "1547497817743040592",
+      "fileName": "pancing_amarah.png",
+      "contentType": "image/png"
+    },
+    "fileName": "pancing_amarah.png",
+    "source": "discord_upload",
+    "contentType": "image/png",
+    "extension": "png",
+    "savedAt": "2026-09-10T06:43:51.317Z",
+    "size": 44056
+  },
+  "19612b00071df0f9ac3b6d04615d56297d416e339ab0bc3d4023c2bc23421986": {
+    "url": "https://cdn.discordapp.com/attachments/1543874293258260550/1547497817743040592/pancing_amarah.png?ex=6aa3a326&is=6aa251a6&hm=0a710585e11246409c0ecb5807970bb7c449bd628d76269fa47c7f9b75f167e9&",
+    "source": "discord_upload",
+    "fileName": "pancing_amarah.png",
+    "contentType": "image/png",
+    "extension": "png",
+    "savedAt": "2026-09-10T06:43:51.328Z",
+    "size": 44056
+  },
+  "644708a86568f464dddf6e4600a855c31130b5b757b384a49c3dd181076042ad": {
+    "discordMessageUrl": "",
+    "discordRef": {
+      "storage": "discord_attachment",
+      "channelId": "1543874293258260550",
+      "messageId": "1547497824625754213",
+      "messageUrl": "",
+      "attachmentId": "1547497824248406076",
+      "fileName": "pancing_elemental.png",
+      "contentType": "image/png"
+    },
+    "fileName": "pancing_elemental.png",
+    "source": "discord_upload",
+    "contentType": "image/png",
+    "extension": "png",
+    "savedAt": "2026-09-10T06:43:52.914Z",
+    "size": 46605
+  },
+  "6a647ed5c3fb1eabda166d6ffc44be6077fe6fa648b0a4e383dc95dee32f8045": {
+    "url": "https://cdn.discordapp.com/attachments/1543874293258260550/1547497824248406076/pancing_elemental.png?ex=6aa3a328&is=6aa251a8&hm=bbf80176f5619ee063294192fdc155bcf55cd4fe326bcf1dcc2e520e31cbcb22&",
+    "source": "discord_upload",
+    "fileName": "pancing_elemental.png",
+    "contentType": "image/png",
+    "extension": "png",
+    "savedAt": "2026-09-10T06:43:52.927Z",
+    "size": 46605
+  },
+  "2f39506ea8e1b1e7d9e1e0ee2e4e365dbf948b09ece91230038080456ebb94c3": {
+    "discordMessageUrl": "",
+    "discordRef": {
+      "storage": "discord_attachment",
+      "channelId": "1543874293258260550",
+      "messageId": "1547497830485201058",
+      "messageUrl": "",
+      "attachmentId": "1547497830585729074",
+      "fileName": "pancing_legenda.png",
+      "contentType": "image/png"
+    },
+    "fileName": "pancing_legenda.png",
+    "source": "discord_upload",
+    "contentType": "image/png",
+    "extension": "png",
+    "savedAt": "2026-09-10T06:43:54.273Z",
+    "size": 46244
+  },
+  "664822033a070b979748c4e40fc958cfbf26ea96c2983d8768b0475b7edefe78": {
+    "url": "https://cdn.discordapp.com/attachments/1543874293258260550/1547497830585729074/pancing_legenda.png?ex=6aa3a329&is=6aa251a9&hm=08b59bb6fe66a80c94c8e130eb5d5a1b53941e6bcf0d588650965aea94a8fab7&",
+    "source": "discord_upload",
+    "fileName": "pancing_legenda.png",
+    "contentType": "image/png",
+    "extension": "png",
+    "savedAt": "2026-09-10T06:43:54.292Z",
+    "size": 46244
+  },
+  "335097dd4c0de94ab9c44ac31bf69b7f6010e13fbdf6cb6685693b4183fc795a": {
+    "discordMessageUrl": "",
+    "discordRef": {
+      "storage": "discord_attachment",
+      "channelId": "1543874293258260550",
+      "messageId": "1547497836600631426",
+      "messageUrl": "",
+      "attachmentId": "1547497836357230603",
+      "fileName": "pancing_mistis_abadi.png",
+      "contentType": "image/png"
+    },
+    "fileName": "pancing_mistis_abadi.png",
+    "source": "discord_upload",
+    "contentType": "image/png",
+    "extension": "png",
+    "savedAt": "2026-09-10T06:43:55.619Z",
+    "size": 47673
+  },
+  "9db674897b1ce1c7f7a29d55d3fd724765f5a5287a199ab07a0f9aec5d5e0ee9": {
+    "url": "https://cdn.discordapp.com/attachments/1543874293258260550/1547497836357230603/pancing_mistis_abadi.png?ex=6aa3a32b&is=6aa251ab&hm=8ef9d3aa57b3599102b41f1973d3d50a565af5076b5151ac9e53d3a460b48beb&",
+    "source": "discord_upload",
+    "fileName": "pancing_mistis_abadi.png",
+    "contentType": "image/png",
+    "extension": "png",
+    "savedAt": "2026-09-10T06:43:55.628Z",
+    "size": 47673
+  },
+  "a2417d085a412f8121eb5a9c15a4f24679ffbc071873a74617fb2d8567b5d4db": {
+    "discordMessageUrl": "",
+    "discordRef": {
+      "storage": "discord_attachment",
+      "channelId": "1543874293258260550",
+      "messageId": "1547497841667350551",
+      "messageUrl": "",
+      "attachmentId": "1547497841814143016",
+      "fileName": "pancing_pembelah_kahyangan.png",
+      "contentType": "image/png"
+    },
+    "fileName": "pancing_pembelah_kahyangan.png",
+    "source": "discord_upload",
+    "contentType": "image/png",
+    "extension": "png",
+    "savedAt": "2026-09-10T06:43:56.949Z",
+    "size": 47635
+  },
+  "678d4a06eed5dfd49d97206f2d3691e6c91f2d2258bf59edeaeced8b334ae920": {
+    "url": "https://cdn.discordapp.com/attachments/1543874293258260550/1547497841814143016/pancing_pembelah_kahyangan.png?ex=6aa3a32c&is=6aa251ac&hm=747988deb1ffe96040c41e780942ebcc2a4f0e95a2a700ab3279890a928f8d5e&",
+    "source": "discord_upload",
+    "fileName": "pancing_pembelah_kahyangan.png",
+    "contentType": "image/png",
+    "extension": "png",
+    "savedAt": "2026-09-10T06:43:56.968Z",
+    "size": 47635
+  },
+  "468eaf4071a3aea136bf1c467bef7bff07c9861917f0cad711f149f92bc6eaba": {
+    "discordMessageUrl": "",
+    "discordRef": {
+      "storage": "discord_attachment",
+      "channelId": "1543874293258260550",
+      "messageId": "1547497847174209628",
+      "messageUrl": "",
+      "attachmentId": "1547497847396630538",
+      "fileName": "pancing_keraton_jawa_keramat_surgawi.png",
+      "contentType": "image/png"
+    },
+    "fileName": "pancing_keraton_jawa_keramat_surgawi.png",
+    "source": "discord_upload",
+    "contentType": "image/png",
+    "extension": "png",
+    "savedAt": "2026-09-10T06:43:58.324Z",
+    "size": 45946
+  },
+  "b7179ccfe9ecde3f45c8ddf318bd1be1609cab3b8225add3ac929ad6ff66ad0c": {
+    "url": "https://cdn.discordapp.com/attachments/1543874293258260550/1547497847396630538/pancing_keraton_jawa_keramat_surgawi.png?ex=6aa3a32d&is=6aa251ad&hm=69a73af7682d6fd2c04c64185aaff5283a53e9090722abf09cd2b146da67b8e3&",
+    "source": "discord_upload",
+    "fileName": "pancing_keraton_jawa_keramat_surgawi.png",
+    "contentType": "image/png",
+    "extension": "png",
+    "savedAt": "2026-09-10T06:43:58.340Z",
+    "size": 45946
+  },
+  "2098ccc1ea565a05bbe48f47115bdbe922eac394afc78438afb2e0a2aed7d8f8": {
+    "discordMessageUrl": "",
+    "discordRef": {
+      "storage": "discord_attachment",
+      "channelId": "1543874293258260550",
+      "messageId": "1547497852979384406",
+      "messageUrl": "",
+      "attachmentId": "1547497853088309268",
+      "fileName": "pancing_kosmik.png",
+      "contentType": "image/png"
+    },
+    "fileName": "pancing_kosmik.png",
+    "source": "discord_upload",
+    "contentType": "image/png",
+    "extension": "png",
+    "savedAt": "2026-09-10T06:43:59.705Z",
+    "size": 49724
+  },
+  "d6d115975f811c95a560acaceab1da61f464a1b106683e1994adb5010af36c2f": {
+    "url": "https://cdn.discordapp.com/attachments/1543874293258260550/1547497853088309268/pancing_kosmik.png?ex=6aa3a32f&is=6aa251af&hm=db02d54d845eaeae321f4659e2a33e7e4b627ed620f686478fdda33728fcfbd1&",
+    "source": "discord_upload",
+    "fileName": "pancing_kosmik.png",
+    "contentType": "image/png",
+    "extension": "png",
+    "savedAt": "2026-09-10T06:43:59.718Z",
+    "size": 49724
+  },
+  "f90ea5f9cb08bec5e5f08f1608caf2f3b374436ad7732d598e35fda40082d840": {
+    "discordMessageUrl": "",
+    "discordRef": {
+      "storage": "discord_attachment",
+      "channelId": "1543874293258260550",
+      "messageId": "1547498053026717718",
+      "messageUrl": "",
+      "attachmentId": "1547498052770594836",
+      "fileName": "pancing_duelis.png",
+      "contentType": "image/png"
+    },
+    "fileName": "pancing_duelis.png",
+    "source": "discord_upload",
+    "contentType": "image/png",
+    "extension": "png",
+    "savedAt": "2026-09-10T06:44:47.435Z",
+    "size": 47511
+  },
+  "04a4f17e5a9788d70f14ec4ad26b38b2acca094af036f798bad9b89e7fc1711f": {
+    "url": "https://cdn.discordapp.com/attachments/1543874293258260550/1547498052770594836/pancing_duelis.png?ex=6aa3a35e&is=6aa251de&hm=09a3839857ace78027019f5d5c0695f12b18e93aaf682d734735700be0b36892&",
+    "source": "discord_upload",
+    "fileName": "pancing_duelis.png",
+    "contentType": "image/png",
+    "extension": "png",
+    "savedAt": "2026-09-10T06:44:47.445Z",
+    "size": 47511
+  },
+  "4c067e50081f448b709c2d5805dd9011ef9a4a8f0838d7445eacab550eae3e7a": {
+    "discordMessageUrl": "",
+    "discordRef": {
+      "storage": "discord_attachment",
+      "channelId": "1543874293258260550",
+      "messageId": "1547498240180617269",
+      "messageUrl": "",
+      "attachmentId": "1547498240386277426",
+      "fileName": "pancing_master_duelis.png",
+      "contentType": "image/png"
+    },
+    "fileName": "pancing_master_duelis.png",
+    "source": "discord_upload",
+    "contentType": "image/png",
+    "extension": "png",
+    "savedAt": "2026-09-10T06:45:32.068Z",
+    "size": 48570
+  },
+  "5b576eef649d69ea90424e9ecb76c90608766b5e8b57a0d968616d6b351dc461": {
+    "url": "https://cdn.discordapp.com/attachments/1543874293258260550/1547498240386277426/pancing_master_duelis.png?ex=6aa3a38b&is=6aa2520b&hm=27377784afd1c127adea5066b63c6ba9718c14fd1d42380b441bda86eb23b607&",
+    "source": "discord_upload",
+    "fileName": "pancing_master_duelis.png",
+    "contentType": "image/png",
+    "extension": "png",
+    "savedAt": "2026-09-10T06:45:32.082Z",
+    "size": 48570
+  },
+  "6a4d2608fc120ec2de5168b266a2ed195092a7de79618b22a790321850b5532b": {
+    "discordMessageUrl": "",
+    "discordRef": {
+      "storage": "discord_attachment",
+      "channelId": "1543874293258260550",
+      "messageId": "1547502194494939159",
+      "messageUrl": "",
+      "attachmentId": "1547502194675290122",
+      "fileName": "pancing_kompetisi.png",
+      "contentType": "image/png"
+    },
+    "fileName": "pancing_kompetisi.png",
+    "source": "discord_upload",
+    "contentType": "image/png",
+    "extension": "png",
+    "savedAt": "2026-09-10T07:01:16.734Z",
+    "size": 49312
+  },
+  "17ca93d5a76caeef797efd821505ff0d80c450facd837e364d62644b5b59b502": {
+    "url": "https://cdn.discordapp.com/attachments/1543874293258260550/1547502194675290122/pancing_kompetisi.png?ex=6aa3a73a&is=6aa255ba&hm=8ddc9c1718f947696306c5e2951a15b5a38ddba539540a855b525d6e5c93b207&",
+    "source": "discord_upload",
+    "fileName": "pancing_kompetisi.png",
+    "contentType": "image/png",
+    "extension": "png",
+    "savedAt": "2026-09-10T07:01:16.744Z",
+    "size": 49312
+  },
+  "8c63da5c83745d9a84eab161c6cada74b93d81240224d6be3b8cb3469e5e9e72": {
+    "discordMessageUrl": "",
+    "discordRef": {
+      "storage": "discord_attachment",
+      "channelId": "1543874293258260550",
+      "messageId": "1547502208449380443",
+      "messageUrl": "",
+      "attachmentId": "1547502208554115132",
+      "fileName": "pancing_master_kompetisi.png",
+      "contentType": "image/png"
+    },
+    "fileName": "pancing_master_kompetisi.png",
+    "source": "discord_upload",
+    "contentType": "image/png",
+    "extension": "png",
+    "savedAt": "2026-09-10T07:01:18.025Z",
+    "size": 51923
+  },
+  "49f3064bf98aca2d421a267e3d303b1f5aec51233fbaac3056dd9ea1e53d963e": {
+    "url": "https://cdn.discordapp.com/attachments/1543874293258260550/1547502208554115132/pancing_master_kompetisi.png?ex=6aa3a73d&is=6aa255bd&hm=44f952704f8f6c53035226b023d51651bf80403ba4a02d4a63f4806370b7abd5&",
+    "source": "discord_upload",
+    "fileName": "pancing_master_kompetisi.png",
+    "contentType": "image/png",
+    "extension": "png",
+    "savedAt": "2026-09-10T07:01:18.035Z",
+    "size": 51923
+  },
+  "5d08d8f258bce8990f72b108731767fe436a1ae851d50557b8c1744fd0adcf92": {
+    "discordMessageUrl": "",
+    "discordRef": {
+      "storage": "discord_attachment",
+      "channelId": "1543874293258260550",
+      "messageId": "1547502214594039830",
+      "messageUrl": "",
+      "attachmentId": "1547502214380126279",
+      "fileName": "pancing_raid.png",
+      "contentType": "image/png"
+    },
+    "fileName": "pancing_raid.png",
+    "source": "discord_upload",
+    "contentType": "image/png",
+    "extension": "png",
+    "savedAt": "2026-09-10T07:01:20.088Z",
+    "size": 49979
+  },
+  "fcc9ef650ca6866318d448a62d5dfd11196587f3ef2a3b61af40b5346a2634a7": {
+    "url": "https://cdn.discordapp.com/attachments/1543874293258260550/1547502214380126279/pancing_raid.png?ex=6aa3a73f&is=6aa255bf&hm=0c2fd970de220106fcfc4c6d3758197075a4e9267b6a573aad0f931f2319b80f&",
+    "source": "discord_upload",
+    "fileName": "pancing_raid.png",
+    "contentType": "image/png",
+    "extension": "png",
+    "savedAt": "2026-09-10T07:01:20.098Z",
+    "size": 49979
+  },
+  "6c3d7a0230ae44c7f1603ea2cc2936fb308d265e71cc693485c837a437114b07": {
+    "discordMessageUrl": "",
+    "discordRef": {
+      "storage": "discord_attachment",
+      "channelId": "1543874293258260550",
+      "messageId": "1547502222776991815",
+      "messageUrl": "",
+      "attachmentId": "1547502222869528626",
+      "fileName": "pancing_master_raid.png",
+      "contentType": "image/png"
+    },
+    "fileName": "pancing_master_raid.png",
+    "source": "discord_upload",
+    "contentType": "image/png",
+    "extension": "png",
+    "savedAt": "2026-09-10T07:01:21.462Z",
+    "size": 52446
+  },
+  "5db0248423e35448f2f0f366f042fad9b7918fb149f4458750ff5100888d6818": {
+    "url": "https://cdn.discordapp.com/attachments/1543874293258260550/1547502222869528626/pancing_master_raid.png?ex=6aa3a741&is=6aa255c1&hm=efc33e09cb3bc8e13897cba8c429a8f332be3aaf2f77ad5afd9ef0bbe42d098d&",
+    "source": "discord_upload",
+    "fileName": "pancing_master_raid.png",
+    "contentType": "image/png",
+    "extension": "png",
+    "savedAt": "2026-09-10T07:01:21.470Z",
+    "size": 52446
+  },
+  "cd4458cc3718cb6087745a945a610811d7464170b1dcfd0e94026ea6181f214a": {
+    "discordMessageUrl": "",
+    "discordRef": {
+      "storage": "discord_attachment",
+      "channelId": "1543874293258260550",
+      "messageId": "1547516074935713842",
+      "messageUrl": "",
+      "attachmentId": "1547516074667409408",
+      "fileName": "ikan_atmin_cina.png",
+      "contentType": "image/png"
+    },
+    "fileName": "ikan_atmin_cina.png",
+    "source": "discord_upload",
+    "contentType": "image/png",
+    "extension": "png",
+    "savedAt": "2026-09-10T07:56:24.033Z",
+    "size": 46299
+  },
+  "32c7863d5fc565771cfcc52908d642fd1a495b86cf55fa15e64838affefb1b97": {
+    "url": "https://cdn.discordapp.com/attachments/1543874293258260550/1547516074667409408/ikan_atmin_cina.png?ex=6aa3b427&is=6aa262a7&hm=fcc0e80712642ad315c43a64bda91f4ae36e224838faaa60a9cad32e27f70eca&",
+    "source": "discord_upload",
+    "fileName": "ikan_atmin_cina.png",
+    "contentType": "image/png",
+    "extension": "png",
+    "savedAt": "2026-09-10T07:56:24.052Z",
+    "size": 46299
+  },
+  "25957fd94eb49ecdfb88b166a9ee8ae5b39d6a38f98d6a1a9218c0b0d588f319": {
+    "discordMessageUrl": "",
+    "discordRef": {
+      "storage": "discord_attachment",
+      "channelId": "1543874293258260550",
+      "messageId": "1547518817750618183",
+      "messageUrl": "",
+      "attachmentId": "1547518817561870377",
+      "fileName": "ikan_kelinci_imut.png",
+      "contentType": "image/png"
+    },
+    "fileName": "ikan_kelinci_imut.png",
+    "source": "discord_upload",
+    "contentType": "image/png",
+    "extension": "png",
+    "savedAt": "2026-09-10T08:07:17.939Z",
+    "size": 49196
+  },
+  "e53a387e49634087b863896388df4d50e974b0bd48ca15cfd46086d675ab722c": {
+    "url": "https://cdn.discordapp.com/attachments/1543874293258260550/1547518817561870377/ikan_kelinci_imut.png?ex=6aa3b6b5&is=6aa26535&hm=9ef61d61481e1d0c3ff09b83dedb1dd4051e3cca638dc4193e6486deeb12cc59&",
+    "source": "discord_upload",
+    "fileName": "ikan_kelinci_imut.png",
+    "contentType": "image/png",
+    "extension": "png",
+    "savedAt": "2026-09-10T08:07:17.963Z",
+    "size": 49196
+  },
+  "0a8aab73f7515a80ded08c452658e28298a2aaa48ad00a0ec1c1e451bdcaf77f": {
+    "discordMessageUrl": "",
+    "discordRef": {
+      "storage": "discord_attachment",
+      "channelId": "1543874293258260550",
+      "messageId": "1547522008516923473",
+      "messageUrl": "",
+      "attachmentId": "1547522008735158322",
+      "fileName": "ikan_atmin_ya_rabbal_alamin.png",
+      "contentType": "image/png"
+    },
+    "fileName": "ikan_atmin_ya_rabbal_alamin.png",
+    "source": "discord_upload",
+    "contentType": "image/png",
+    "extension": "png",
+    "savedAt": "2026-09-10T08:19:59.068Z",
+    "size": 47034
+  },
+  "fe95efee516ec7687c38e20a88ee2fbeeff48593d1620b64a91b7578ea88ba6d": {
+    "url": "https://cdn.discordapp.com/attachments/1543874293258260550/1547522008735158322/ikan_atmin_ya_rabbal_alamin.png?ex=6aa3b9ae&is=6aa2682e&hm=c1db6556633ecc14967a64ebdb52c29313b6606bc3dea7075e2fd834d7c0b7f7&",
+    "source": "discord_upload",
+    "fileName": "ikan_atmin_ya_rabbal_alamin.png",
+    "contentType": "image/png",
+    "extension": "png",
+    "savedAt": "2026-09-10T08:19:59.085Z",
+    "size": 47034
+  },
+  "57cef1f7e69d2663da3f3d48f9fa715513180a7a33c25ecffd3e2d5df0948dee": {
+    "discordMessageUrl": "",
+    "discordRef": {
+      "storage": "discord_attachment",
+      "channelId": "1543874293258260550",
+      "messageId": "1547530811518099468",
+      "messageUrl": "",
+      "attachmentId": "1547530811639730176",
+      "fileName": "ikan_atmin_warga.png",
+      "contentType": "image/png"
+    },
+    "fileName": "ikan_atmin_warga.png",
+    "source": "discord_upload",
+    "contentType": "image/png",
+    "extension": "png",
+    "savedAt": "2026-09-10T08:54:57.495Z",
+    "size": 47804
+  },
+  "4f346984d54068f652f22a74c9139318d514e204899cd1bb4d1ef6b28d600f1d": {
+    "url": "https://cdn.discordapp.com/attachments/1543874293258260550/1547530811639730176/ikan_atmin_warga.png?ex=6aa3c1e1&is=6aa27061&hm=2582e470401d21562e87a5c14b2d17398461aa0296d3908586155566ea58472d&",
+    "source": "discord_upload",
+    "fileName": "ikan_atmin_warga.png",
+    "contentType": "image/png",
+    "extension": "png",
+    "savedAt": "2026-09-10T08:54:57.517Z",
+    "size": 47804
+  },
+  "a8c173f8b372f6b0be15dd722b8875613536c249e50a7ea22c0d6f49c3d91010": {
+    "discordMessageUrl": "",
+    "discordRef": {
+      "storage": "discord_attachment",
+      "channelId": "1543874293258260550",
+      "messageId": "1547530817817944145",
+      "messageUrl": "",
+      "attachmentId": "1547530817960542280",
+      "fileName": "ikan_atmin_sultan.png",
+      "contentType": "image/png"
+    },
+    "fileName": "ikan_atmin_sultan.png",
+    "source": "discord_upload",
+    "contentType": "image/png",
+    "extension": "png",
+    "savedAt": "2026-09-10T08:54:58.978Z",
+    "size": 51683
+  },
+  "1626a9c1a567e4dbf5291ed5b8a33bff625de635084b56f2a0d81b2859e50994": {
+    "url": "https://cdn.discordapp.com/attachments/1543874293258260550/1547530817960542280/ikan_atmin_sultan.png?ex=6aa3c1e2&is=6aa27062&hm=12fb0fb5cc36244ec63d2b5ab9f0de974e6aaa6752b9f9771866b0e2f76073c3&",
+    "source": "discord_upload",
+    "fileName": "ikan_atmin_sultan.png",
+    "contentType": "image/png",
+    "extension": "png",
+    "savedAt": "2026-09-10T08:54:58.996Z",
+    "size": 51683
+  },
+  "b336d7a1a3a47c15be8bd36fc5a06075ac16dc19aaaad8b7eed19a523b180748": {
+    "discordMessageUrl": "",
+    "discordRef": {
+      "storage": "discord_attachment",
+      "channelId": "1543874293258260550",
+      "messageId": "1547530824449261598",
+      "messageUrl": "",
+      "attachmentId": "1547530824012791808",
+      "fileName": "new_fish_1789030384614.png",
+      "contentType": "image/png"
+    },
+    "fileName": "new_fish_1789030384614.png",
+    "source": "discord_upload",
+    "contentType": "image/png",
+    "extension": "png",
+    "savedAt": "2026-09-10T08:55:01.094Z",
+    "size": 50938
+  },
+  "bf8f7124871b0586d2bdcf8e1bd7a31421b06c75ba5058c4635080cf15ca4b1b": {
+    "url": "https://cdn.discordapp.com/attachments/1543874293258260550/1547530824012791808/new_fish_1789030384614.png?ex=6aa3c1e4&is=6aa27064&hm=09262d04d3a6915d3f3bd6e7ba41767dce2087f8ae07a86397376b92979a5184&",
+    "source": "discord_upload",
+    "fileName": "new_fish_1789030384614.png",
+    "contentType": "image/png",
+    "extension": "png",
+    "savedAt": "2026-09-10T08:55:01.110Z",
+    "size": 50938
+  },
+  "0a7506abf7882ee5759192c9403ca23b7d93e248df96e7734447c72b01c4f251": {
+    "discordMessageUrl": "",
+    "discordRef": {
+      "storage": "discord_attachment",
+      "channelId": "1543874293258260550",
+      "messageId": "1547532590293061713",
+      "messageUrl": "",
+      "attachmentId": "1547532589898932244",
+      "fileName": "1789030546116.png",
+      "contentType": "image/png"
+    },
+    "fileName": "1789030546116.png",
+    "source": "discord_upload",
+    "contentType": "image/png",
+    "extension": "png",
+    "savedAt": "2026-09-10T09:02:01.577Z",
+    "size": 1550268
+  },
+  "4c06cad8517f8eaf51b061c1beb164def0a8d77593c67bc5c97b6c8304ad3fff": {
+    "url": "https://cdn.discordapp.com/attachments/1543874293258260550/1547532589898932244/1789030546116.png?ex=6aa3c389&is=6aa27209&hm=cb9eaec8b552e6933f5553159bdb1e4d89c984a19e234e462c379ab4fcbdce74&",
+    "source": "discord_upload",
+    "fileName": "1789030546116.png",
+    "contentType": "image/png",
+    "extension": "png",
+    "savedAt": "2026-09-10T09:02:01.606Z",
+    "size": 1550268
+  },
+  "24de4cf9673e59ac03a41fe14163ebc0b25aacf4972028469334c50506325861": {
+    "itemId": "ikan_butiran_debu_kosmik",
+    "itemName": "Ikan Butiran Debu Kosmik",
+    "iconUrl": "https://cdn.discordapp.com/attachments/1543874293258260550/1545017078526902282/ikan_butiran_debu_kosmik.png?ex=6a9c9708&is=6a9b4588&hm=f9ada9d45fed40a3d2ab2078094f038bc3f42562099bb58f69828cbf93febf5b&",
+    "iconRef": {
+      "storage": "discord_attachment",
+      "channelId": "1543874293258260550",
+      "messageId": "1545017078686421064",
+      "attachmentId": "1545017078526902282",
+      "fileName": "ikan_butiran_debu_kosmik.png",
+      "contentType": "image/png"
+    },
+    "fileName": "fish-ikan_butiran_debu_kosmik.png",
+    "namePrefix": "fish",
+    "source": "url_cache",
+    "contentType": "image/png",
+    "extension": "png",
+    "savedAt": "2026-09-10T11:26:56.863Z",
+    "size": 48765
   }
 }
