@@ -6,6 +6,7 @@ const { defaultFish, defaultRods, defaultFishBags } = require("./defaultData");
 const defaultFishCompEvents = require("../fishCompEvents.json");
 const defaultFishRaidEvents = require("../fishRaidEvents.json");
 const defaultFishDuelEvents = require("../fishDuelEvents.json");
+const { defaultFishEntotSettings, cleanFishEntotEvents } = require("./fishEntotConfig");
 const { getDiscordImageUrl, uploadDiscordImageFromUrl, uploadDiscordImageWithRef } = require("./discordStorage");
 
 const titleId = process.env.PLAYFAB_TITLE_ID;
@@ -33,6 +34,7 @@ const titleDataKeys = {
 };
 
 const defaultSettings = {
+  ...defaultFishEntotSettings,
   rodStoreImageBase64: "",
   rodStoreImageUrl: "",
   fishCompBannerBase64: "",
@@ -300,6 +302,7 @@ function makeDefaultPlayer() {
     fishDex: {},
     showcasedFishId: "",
     fishEntotLastUsedAt: 0,
+    fishEntotNegativeStreak: 0,
     dailyLastClaimedAt: 0,
     dailyStreak: 0,
     totalFishCaught: 0,
@@ -367,6 +370,7 @@ function normalizePlayer(rawPlayer) {
     fishDex,
     showcasedFishId: String(rawPlayer?.showcasedFishId || "").trim(),
     fishEntotLastUsedAt: Math.max(0, cleanNumber(rawPlayer?.fishEntotLastUsedAt, 0)),
+    fishEntotNegativeStreak: Math.max(0, Math.floor(cleanNumber(rawPlayer?.fishEntotNegativeStreak, 0))),
     dailyLastClaimedAt: Math.max(0, cleanNumber(rawPlayer?.dailyLastClaimedAt, 0)),
     dailyStreak: Math.max(0, Math.floor(cleanNumber(rawPlayer?.dailyStreak, 0))),
     dailyReminderMessageId: undefined,
@@ -868,6 +872,11 @@ function cleanSettings(settings) {
     sellFishBannerUrl,
     sellFishBannerRef: source.sellFishBannerRef && typeof source.sellFishBannerRef === "object" ? source.sellFishBannerRef : null,
     sellFishBannerUrlNeedsRehost: imageNeedsRehost(source, "sellFishBannerUrl"),
+    fishEntotEvents: cleanFishEntotEvents(source.fishEntotEvents, defaultSettings.fishEntotEvents),
+    fishEntotCooldownMinutes: Math.max(1, cleanNumber(source.fishEntotCooldownMinutes ?? defaultSettings.fishEntotCooldownMinutes, defaultSettings.fishEntotCooldownMinutes)),
+    fishEntotMessageTtlMinutes: Math.max(1, cleanNumber(source.fishEntotMessageTtlMinutes ?? defaultSettings.fishEntotMessageTtlMinutes, defaultSettings.fishEntotMessageTtlMinutes)),
+    fishEntotPityEnabled: source.fishEntotPityEnabled !== false,
+    fishEntotPityThreshold: Math.max(1, Math.floor(cleanNumber(source.fishEntotPityThreshold ?? defaultSettings.fishEntotPityThreshold, defaultSettings.fishEntotPityThreshold))),
     fishCompEvents: cleanFishCompEvents(source.fishCompEvents),
     fishRaidEvents: cleanFishCompEvents(source.fishRaidEvents, defaultSettings.fishRaidEvents),
     fishDuelEvents: cleanFishCompEvents(source.fishDuelEvents, defaultSettings.fishDuelEvents),

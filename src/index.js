@@ -33,6 +33,7 @@ const {
 const { adminListPlayers, adminSaveEventData, adminSaveRoutineState, getGameData, getPlayer, savePlayer } = require("./playfab");
 const { makeFishShowoffBanner } = require("./fishShowoffBanner");
 const { makeIconAttachment, parseDataImage } = require("./imageUtils");
+const { defaultFishEntotSettings, cleanFishEntotEvents } = require("./fishEntotConfig");
 
 const token = process.env.DISCORD_TOKEN;
 const prefix = process.env.PREFIX || "!";
@@ -55,8 +56,6 @@ const announcementStatePath = path.join(runtimeDirectory, "announcement-state.js
 const processStartedAt = Date.now();
 const voiceTickMs = 60_000;
 const fishDuelPendingTtlMs = 5 * 60_000;
-const fishEntotCooldownMs = 30 * 60_000;
-const fishEntotMessageTtlMs = 15 * 60_000;
 const publicShowoffTtlMs = 30 * 60_000;
 const fishDailyResetHour = 12;
 const fishDailyWindowMs = 24 * 60 * 60 * 1000;
@@ -95,6 +94,7 @@ let gameData = {
   fishBags: [],
   adminDiscordIds: [],
   settings: {
+    ...defaultFishEntotSettings,
     rodStoreImageBase64: "",
     rodStoreImageUrl: "",
     fishCompBannerBase64: "",
@@ -475,6 +475,7 @@ function hasEquippedFishBag(player) {
 
 function getSettings() {
   return gameData.settings || {
+    ...defaultFishEntotSettings,
     rodStoreImageBase64: "",
     rodStoreImageUrl: "",
     fishCompBannerBase64: "",
@@ -534,6 +535,14 @@ function getSettings() {
     voiceExpIntervalMinutes: 15,
     dailyQuestCount: 3
   };
+}
+
+function getFishEntotCooldownMs() {
+  return Math.max(60_000, Number(getSettings().fishEntotCooldownMinutes || 30) * 60_000);
+}
+
+function getFishEntotMessageTtlMs() {
+  return Math.max(60_000, Number(getSettings().fishEntotMessageTtlMinutes || 15) * 60_000);
 }
 
 function getVoiceExpIntervalMs() {
@@ -2445,12 +2454,7 @@ function makeEventImage(event) {
 }
 
 function makeEventEmbed(event) {
-  const typeLines = normalizeEventBonuses(event).map((bonus) => ({
-    gold_multiplier: `Gold ${formatEventMultiplier(bonus.value)}`,
-    exp_multiplier: `EXP ${formatEventMultiplier(bonus.value)}`,
-    fish_chance: `${bonus.fishId || "Ikan tertentu"} chance ${formatEventMultiplier(bonus.value)}`,
-    fishing_speed: `Fishing speed ${formatEventMultiplier(bonus.value)}`
-  }[bonus.type] || `Multiplier ${formatEventMultiplier(bonus.value)}`)).join("\n");
+  const typeLines = normalizeEventBonuses(event).map(describeEventBonus).join("\n");
   const endsAt = event.endsAt ? `<t:${Math.floor(Date.parse(event.endsAt) / 1000)}:R>` : "Belum ditentukan";
   const description = [
     event.description || "",
@@ -2672,10 +2676,12 @@ function formatBonusNotice(label, eventInfo, total = null, base = null) {
 }
 
 function describeEventBonus(bonus) {
+  const fish = gameData.fish.find((fishEntry) => fishEntry.id === bonus.fishId || fishEntry.name === bonus.fishId);
+  const fishName = fish?.name || bonus.fishId || "Ikan tertentu";
   return {
     gold_multiplier: `Gold ${formatEventMultiplier(bonus.value)}`,
     exp_multiplier: `EXP ${formatEventMultiplier(bonus.value)}`,
-    fish_chance: `${bonus.fishId || "Ikan tertentu"} chance ${formatEventMultiplier(bonus.value)}`,
+    fish_chance: `${fishName} chance ${formatEventMultiplier(bonus.value)}`,
     fishing_speed: `Fishing speed ${formatEventMultiplier(bonus.value)}`
   }[bonus.type] || `Multiplier ${formatEventMultiplier(bonus.value)}`;
 }
@@ -5364,11 +5370,19 @@ function randomInteger(min, max) {
   return Math.floor(Math.random() * (safeMax - safeMin + 1)) + safeMin;
 }
 
-function removeRandomInventoryFish(player, maximumCount = 3) {
+function randomNumber(min, max) {
+  const safeMin = Number.isFinite(Number(min)) ? Number(min) : 0;
+  const safeMax = Math.max(safeMin, Number.isFinite(Number(max)) ? Number(max) : safeMin);
+  return safeMin + Math.random() * (safeMax - safeMin);
+}
+
+function removeRandomInventoryFish(player, maximumCount = 3, minimumCount = 1) {
   player.inventory = player.inventory && typeof player.inventory === "object" ? player.inventory : {};
   const totalFish = Object.values(player.inventory)
     .reduce((sum, quantity) => sum + Math.max(0, Math.floor(Number(quantity || 0))), 0);
-  const removeCount = Math.min(totalFish, randomInteger(1, maximumCount));
+  const safeMaximum = Math.max(0, Math.floor(Number(maximumCount || 0)));
+  const safeMinimum = Math.max(0, Math.min(safeMaximum, Math.floor(Number(minimumCount || 0))));
+  const removeCount = Math.min(totalFish, randomInteger(safeMinimum, safeMaximum));
 
   for (let removed = 0; removed < removeCount; removed += 1) {
     const inventoryEntries = Object.entries(player.inventory)
@@ -5392,40 +5406,111 @@ function removeRandomInventoryFish(player, maximumCount = 3) {
   return removeCount;
 }
 
+function chooseWeightedFishEntotEvent(events) {
+  const totalWeight = events.reduce((sum, event) => sum + Math.max(0, Number(event.weight || 0)), 0);
+  if (totalWeight <= 0) return null;
+  let cursor = Math.random() * totalWeight;
+  return events.find((event) => {
+    cursor -= Math.max(0, Number(event.weight || 0));
+    return cursor < 0;
+  }) || events[events.length - 1];
+}
+
+function fishEntotMessage(event, values) {
+  const messages = Array.isArray(event?.messages) ? event.messages.filter(Boolean) : [];
+  const template = messages.length ? messages[randomInteger(0, messages.length - 1)] : "";
+  const replacements = {
+    user: values.user,
+    fish: values.fish,
+    event: values.event,
+    gold: values.gold,
+    goldamount: values.goldAmount,
+    fishcount: values.fishCount,
+    catchcount: values.catchCount,
+    progress: values.progress
+  };
+  return String(template || "").replace(/\{(user|fish|event|gold|goldAmount|fishCount|catchCount|progress)\}/gi, (match, key) => {
+    const value = replacements[key.toLowerCase()];
+    return value === undefined || value === null ? match : String(value);
+  });
+}
+
 function runFishEntotEvent(player, user, showcasedFish, guildId = "") {
   const mention = formatDiscordMention(user.id);
-  const eventType = randomInteger(0, 5);
+  const settings = getSettings();
+  const events = cleanFishEntotEvents(settings.fishEntotEvents);
+  const eligibleEvents = events.filter((event) => event.enabled !== false && Number(event.weight || 0) > 0);
+  if (!eligibleEvents.length) {
+    return { message: "Belum ada event Fishentot yang aktif. Minta manager mengaktifkan minimal satu event." };
+  }
 
-  if (eventType === 0) {
-    const gold = Math.max(0, Math.ceil(Number(showcasedFish.gold || 0) * randomInteger(1, 40) / 100));
-    player.gold = Math.max(0, Number(player.gold || 0)) + gold;
-    return { message: `${mention} adalah pengentot yang handal, ${showcasedFish.name} senang dan membayar ${formatGoldAmount(gold)}.` };
+  const negativeStreak = Math.max(0, Math.floor(Number(player.fishEntotNegativeStreak || 0)));
+  const pityThreshold = Math.max(1, Math.floor(Number(settings.fishEntotPityThreshold || 3)));
+  const pityReady = settings.fishEntotPityEnabled !== false && negativeStreak >= pityThreshold;
+  const positiveEvents = eligibleEvents.filter((event) => event.positive === true);
+  const event = chooseWeightedFishEntotEvent(pityReady && positiveEvents.length ? positiveEvents : eligibleEvents);
+  if (!event) {
+    return { message: "Belum ada event Fishentot dengan chance weight yang valid." };
   }
-  if (eventType === 1) {
-    const requestedGold = Math.max(0, Math.ceil(Number(showcasedFish.gold || 0) * randomInteger(1, 30) / 100));
-    const gold = Math.min(Math.max(0, Math.floor(Number(player.gold || 0))), requestedGold);
-    player.gold = Math.max(0, Number(player.gold || 0) - gold);
-    return { message: `${mention} adalah pengentot yang payah, ${showcasedFish.name} meminta ${formatGoldAmount(gold)} ganti rugi.` };
-  }
-  if (eventType === 2) {
-    const gainedFishCount = 1;
+
+  const reward = event.reward || {};
+  const outcome = String(event.outcome || "gold_gain");
+  const values = {
+    user: mention,
+    fish: showcasedFish.name,
+    event: event.name,
+    gold: formatGoldAmount(0),
+    goldAmount: 0,
+    fishCount: 0,
+    catchCount: 0,
+    progress: Math.max(0, Number(player.progress || 0))
+  };
+  const minPercent = Math.max(0, Number(reward.minPercent || 0));
+  const maxPercent = Math.max(minPercent, Number(reward.maxPercent ?? minPercent));
+  const minAmount = Math.max(0, Math.floor(Number(reward.minAmount || 0)));
+  const maxAmount = Math.max(minAmount, Math.floor(Number(reward.maxAmount ?? minAmount)));
+  let catchResults = [];
+
+  if (outcome === "gold_gain" || outcome === "gold_loss") {
+    const percent = randomNumber(minPercent, maxPercent);
+    const requestedGold = Math.max(0, Math.ceil(Number(showcasedFish.gold || 0) * percent / 100));
+    const gold = outcome === "gold_loss"
+      ? Math.min(Math.max(0, Math.floor(Number(player.gold || 0))), requestedGold)
+      : requestedGold;
+    player.gold = Math.max(0, Number(player.gold || 0) + (outcome === "gold_loss" ? -gold : gold));
+    values.goldAmount = gold;
+    values.gold = formatGoldAmount(gold);
+  } else if (outcome === "fish_gain") {
+    const fishCount = randomInteger(minAmount, maxAmount);
     player.inventory = player.inventory && typeof player.inventory === "object" ? player.inventory : {};
-    player.inventory[showcasedFish.id] = Math.max(0, Math.floor(Number(player.inventory[showcasedFish.id] || 0))) + gainedFishCount;
-    return { message: `${mention} menghamili ${showcasedFish.name}, ${mention} mendapatkan ${gainedFishCount} anak.` };
-  }
-  if (eventType === 3) {
-    const loseFishCount = removeRandomInventoryFish(player, 3);
-    return { message: `${mention} gagal menjadi seorang pengentot, ${loseFishCount} ikan pergi meninggalkan inventory.` };
-  }
-  if (eventType === 4) {
-    player.progress = 0;
-    return { message: `Pengentotan yang tidak nikmat ini membuat ${mention} kehilangan progres memancingnya.` };
+    player.inventory[showcasedFish.id] = Math.max(0, Math.floor(Number(player.inventory[showcasedFish.id] || 0))) + fishCount;
+    values.fishCount = fishCount;
+  } else if (outcome === "fish_loss") {
+    const fishCount = removeRandomInventoryFish(player, maxAmount, minAmount);
+    values.fishCount = fishCount;
+  } else if (outcome === "progress_reset") {
+    player.progress = Math.max(0, Number(reward.progressTarget || 0));
+    values.progress = player.progress;
+  } else if (outcome === "fish_catch") {
+    const minCatches = Math.max(1, Math.floor(Number(reward.minCatches || 1)));
+    const maxCatches = Math.max(minCatches, Math.floor(Number(reward.maxCatches ?? minCatches)));
+    const catchCount = randomInteger(minCatches, maxCatches);
+    for (let index = 0; index < catchCount; index += 1) {
+      const catchResult = fishNow(player, guildId);
+      if (!catchResult.ok) break;
+      catchResults.push(catchResult);
+    }
+    values.catchCount = catchResults.length;
   }
 
-  const catchResult = fishNow(player, guildId);
+  player.fishEntotNegativeStreak = event.positive === true ? 0 : negativeStreak + 1;
   return {
-    message: `Pengentotan yang nikmat memberi semangat untuk ${mention} memancing.`,
-    catchResult: catchResult.ok ? catchResult : null
+    eventId: event.id,
+    eventName: event.name,
+    message: fishEntotMessage(event, values),
+    catchResults,
+    catchResult: catchResults[0] || null,
+    pityTriggered: pityReady
   };
 }
 
@@ -5521,7 +5606,7 @@ function makeHelpEmbed(showAdminCommands = false) {
       },
       {
         name: "/fishentot",
-        value: "Memicu satu event acak bersama ikan yang tampil di profil kamu. Cooldown 30 menit.",
+        value: `Memicu satu event acak bersama ikan yang tampil di profil kamu. Cooldown ${getSettings().fishEntotCooldownMinutes || 30} menit.`,
         inline: false
       },
       {
@@ -7075,7 +7160,7 @@ client.on("interactionCreate", async (interaction) => {
       await interaction.deferReply();
       const now = Date.now();
       const result = await withPlayer(interaction.user, async (player) => {
-        const cooldownRemainingMs = Math.max(0, Number(player.fishEntotLastUsedAt || 0) + fishEntotCooldownMs - now);
+        const cooldownRemainingMs = Math.max(0, Number(player.fishEntotLastUsedAt || 0) + getFishEntotCooldownMs() - now);
         if (cooldownRemainingMs > 0) {
           return { ok: false, cooldownRemainingMs, save: false };
         }
@@ -7108,9 +7193,8 @@ client.on("interactionCreate", async (interaction) => {
       await interaction.editReply({ content: openingMessage, allowedMentions });
       await new Promise((resolve) => setTimeout(resolve, 3000));
       const fishEntotMessage = await interaction.editReply({ content: `${openingMessage} ${result.event.message}`, allowedMentions });
-      scheduleMessageDelete(fishEntotMessage, fishEntotMessageTtlMs, "Fishentot message cleanup");
-      if (result.event.catchResult) {
-        const caught = result.event.catchResult;
+      scheduleMessageDelete(fishEntotMessage, getFishEntotMessageTtlMs(), "Fishentot message cleanup");
+      for (const caught of (result.event.catchResults || (result.event.catchResult ? [result.event.catchResult] : []))) {
         const popupChannel = await fetchFishingMessageChannel({ lastFishingChannelId: result.lastFishingChannelId }, interaction.guildId)
           || interaction.channel;
         await popupChannel?.send(makeCatchMessage(interaction.user, caught.caughtFish, caught.catchWeight, caught.expGain, {

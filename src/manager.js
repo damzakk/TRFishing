@@ -15,6 +15,7 @@ const {
   makeDefaultPlayer
 } = require("./playfab");
 const { defaultFish, defaultRods, defaultFishBags } = require("./defaultData");
+const { defaultFishEntotSettings, cleanFishEntotEvents } = require("./fishEntotConfig");
 const { extensionFromContentType, getCachedImageForUrl, rememberCachedImageForUrl } = require("./imageUtils");
 const { resolveDiscordStoredImage } = require("./discordStorage");
 
@@ -225,6 +226,7 @@ function cleanPlayer(player) {
     fishDex,
     showcasedFishId: String(source.showcasedFishId || "").trim(),
     fishEntotLastUsedAt: Math.max(0, cleanNumber(source.fishEntotLastUsedAt, 0)),
+    fishEntotNegativeStreak: Math.max(0, Math.floor(cleanNumber(source.fishEntotNegativeStreak, 0))),
     totalFishCaught: Math.max(0, Math.floor(cleanNumber(source.totalFishCaught, Object.values(inventory).reduce((sum, quantity) => sum + quantity, 0)))),
     fishCompWins: Math.max(0, Math.floor(cleanNumber(source.fishCompWins, 0))),
     heaviestFish: source.heaviestFish && typeof source.heaviestFish === "object" ? source.heaviestFish : null,
@@ -515,6 +517,11 @@ function cleanSettings(settings) {
     sellFishBannerUrl,
     sellFishBannerRef: source.sellFishBannerRef && typeof source.sellFishBannerRef === "object" ? source.sellFishBannerRef : null,
     sellFishBannerUrlNeedsRehost: imageNeedsRehost(source, "sellFishBannerUrl"),
+    fishEntotEvents: cleanFishEntotEvents(source.fishEntotEvents, defaultFishEntotSettings.fishEntotEvents),
+    fishEntotCooldownMinutes: Math.max(1, cleanNumber(source.fishEntotCooldownMinutes ?? defaultFishEntotSettings.fishEntotCooldownMinutes, defaultFishEntotSettings.fishEntotCooldownMinutes)),
+    fishEntotMessageTtlMinutes: Math.max(1, cleanNumber(source.fishEntotMessageTtlMinutes ?? defaultFishEntotSettings.fishEntotMessageTtlMinutes, defaultFishEntotSettings.fishEntotMessageTtlMinutes)),
+    fishEntotPityEnabled: source.fishEntotPityEnabled !== false,
+    fishEntotPityThreshold: Math.max(1, Math.floor(cleanNumber(source.fishEntotPityThreshold ?? defaultFishEntotSettings.fishEntotPityThreshold, defaultFishEntotSettings.fishEntotPityThreshold))),
     fishCompEvents: cleanFishCompEvents(source.fishCompEvents),
     fishRaidEvents: cleanFishCompEvents(source.fishRaidEvents),
     fishDuelEvents: cleanFishCompEvents(source.fishDuelEvents),
@@ -1949,6 +1956,65 @@ const html = `<!doctype html>
     .raid-boss-panel .fish-gallery {
       max-height: 74vh;
     }
+    .fishentot-settings-layout {
+      display: grid;
+      grid-template-columns: minmax(240px, 0.7fr) minmax(420px, 1.3fr);
+      gap: 14px;
+      align-items: start;
+    }
+    .fishentot-event-browser,
+    .fishentot-event-detail {
+      min-width: 0;
+    }
+    .fishentot-event-list {
+      display: grid;
+      gap: 8px;
+      max-height: 70vh;
+      overflow-y: auto;
+      padding-right: 4px;
+    }
+    .fishentot-event-card {
+      width: 100%;
+      display: grid;
+      gap: 5px;
+      text-align: left;
+      padding: 11px;
+    }
+    .fishentot-event-card.active {
+      border-color: var(--accent);
+      box-shadow: 0 0 0 1px var(--accent);
+    }
+    .fishentot-event-card .event-card-meta {
+      color: var(--muted);
+      font-size: 12px;
+      line-height: 1.35;
+    }
+    .fishentot-event-card .event-card-badges {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 5px;
+    }
+    .fishentot-reward-panel,
+    .fishentot-messages-panel {
+      display: grid;
+      gap: 10px;
+    }
+    .fishentot-message-list {
+      display: grid;
+      gap: 8px;
+    }
+    .fishentot-message-row {
+      display: grid;
+      grid-template-columns: minmax(0, 1fr) auto;
+      gap: 8px;
+      align-items: start;
+    }
+    .fishentot-message-row textarea {
+      min-height: 76px;
+    }
+    .fishentot-settings-layout .item {
+      margin: 0;
+    }
     .fish-toolbar {
       display: flex;
       flex-wrap: wrap;
@@ -2050,6 +2116,7 @@ const html = `<!doctype html>
       .fish-layout { grid-template-columns: 1fr; }
       .settings-panel > .fields { grid-template-columns: 1fr; }
       .fishraid-settings-layout { grid-template-columns: 1fr; }
+      .fishentot-settings-layout { grid-template-columns: 1fr; }
       .raid-boss-layout { grid-template-columns: 1fr; }
       .fish-detail { position: static; }
       .image-grid { grid-template-columns: 1fr; }
@@ -2104,7 +2171,7 @@ const html = `<!doctype html>
       rods: [],
       fishBags: [],
       adminDiscordIds: [],
-      settings: { rodStoreImageBase64: "", rodStoreImageUrl: "", fishCompBannerBase64: "", fishCompBannerUrl: "", fishCompRegistrationBannerBase64: "", fishCompRegistrationBannerUrl: "", fishCompRunningBannerBase64: "", fishCompRunningBannerUrl: "", fishCompResultBannerBase64: "", fishCompResultBannerUrl: "", fishRaidBannerBase64: "", fishRaidBannerUrl: "", fishRaidRegistrationBannerBase64: "", fishRaidRegistrationBannerUrl: "", fishRaidRunningBannerBase64: "", fishRaidRunningBannerUrl: "", fishRaidResultBannerBase64: "", fishRaidResultBannerUrl: "", fishDuelRegistrationBannerBase64: "", fishDuelRegistrationBannerUrl: "", fishDuelRunningBannerBase64: "", fishDuelRunningBannerUrl: "", fishDuelResultBannerBase64: "", fishDuelResultBannerUrl: "", fishGuideBannerBase64: "", fishGuideBannerUrl: "", fishHelpBannerBase64: "", fishHelpBannerUrl: "", sellFishBannerBase64: "", sellFishBannerUrl: "", fishCompEvents: [], fishRaidEvents: [], fishDuelEvents: [], fishRaidBosses: [{ id: "big_order", name: "Big Fish Order", quotaKg: 100, description: "Pesanan ikan besar hari ini sudah menunggu.", registrationBannerBase64: "", registrationBannerUrl: "", runningBannerBase64: "", runningBannerUrl: "", resultBannerBase64: "", resultBannerUrl: "", fulfilledBannerBase64: "", fulfilledBannerUrl: "", failedBannerBase64: "", failedBannerUrl: "" }], fishCompLogIntervalMs: 2500, fishCompHistoryLogHours: 24, fishCompExpReward: 50, fishCompGoldReward: 0, fishDuelExpReward: 40, fishDuelLogIntervalMs: 2500, fishRaidLogIntervalMs: 2500, fishRaidParticipantExpReward: 25, fishRaidParticipantGoldReward: 0, fishRaidMvpExpReward: 75, fishRaidMvpGoldReward: 0, fishRaidClearParticipantExpReward: 50, fishRaidClearParticipantGoldReward: 0, fishRaidClearMvpExpReward: 150, fishRaidClearMvpGoldReward: 0, allowActivity: true, chatCooldownMs: 20000, expMultiplier: 1, levelExpMultiplier: 1, voiceExpAmount: 1, voiceExpIntervalMinutes: 15, dailyQuestCount: 3 },
+      settings: { fishEntotEvents: ${JSON.stringify(defaultFishEntotSettings.fishEntotEvents)}, fishEntotCooldownMinutes: ${defaultFishEntotSettings.fishEntotCooldownMinutes}, fishEntotMessageTtlMinutes: ${defaultFishEntotSettings.fishEntotMessageTtlMinutes}, fishEntotPityEnabled: ${defaultFishEntotSettings.fishEntotPityEnabled}, fishEntotPityThreshold: ${defaultFishEntotSettings.fishEntotPityThreshold}, rodStoreImageBase64: "", rodStoreImageUrl: "", fishCompBannerBase64: "", fishCompBannerUrl: "", fishCompRegistrationBannerBase64: "", fishCompRegistrationBannerUrl: "", fishCompRunningBannerBase64: "", fishCompRunningBannerUrl: "", fishCompResultBannerBase64: "", fishCompResultBannerUrl: "", fishRaidBannerBase64: "", fishRaidBannerUrl: "", fishRaidRegistrationBannerBase64: "", fishRaidRegistrationBannerUrl: "", fishRaidRunningBannerBase64: "", fishRaidRunningBannerUrl: "", fishRaidResultBannerBase64: "", fishRaidResultBannerUrl: "", fishDuelRegistrationBannerBase64: "", fishDuelRegistrationBannerUrl: "", fishDuelRunningBannerBase64: "", fishDuelRunningBannerUrl: "", fishDuelResultBannerBase64: "", fishDuelResultBannerUrl: "", fishCompEvents: [], fishRaidEvents: [], fishDuelEvents: [], fishRaidBosses: [{ id: "big_order", name: "Big Fish Order", quotaKg: 100, description: "Pesanan ikan besar hari ini sudah menunggu.", registrationBannerBase64: "", registrationBannerUrl: "", runningBannerBase64: "", runningBannerUrl: "", resultBannerBase64: "", resultBannerUrl: "", fulfilledBannerBase64: "", fulfilledBannerUrl: "", failedBannerBase64: "", failedBannerUrl: "" }], fishCompLogIntervalMs: 2500, fishCompHistoryLogHours: 24, fishCompExpReward: 50, fishCompGoldReward: 0, fishDuelExpReward: 40, fishDuelLogIntervalMs: 2500, fishRaidLogIntervalMs: 2500, fishRaidParticipantExpReward: 25, fishRaidParticipantGoldReward: 0, fishRaidMvpExpReward: 75, fishRaidMvpGoldReward: 0, fishRaidClearParticipantExpReward: 50, fishRaidClearParticipantGoldReward: 0, fishRaidClearMvpExpReward: 150, fishRaidClearMvpGoldReward: 0, allowActivity: true, chatCooldownMs: 20000, expMultiplier: 1, levelExpMultiplier: 1, voiceExpAmount: 1, voiceExpIntervalMinutes: 15, dailyQuestCount: 3 },
       activeEvent: null,
       events: [],
       quests: { main: [], event: [], daily: [], fish: [] },
@@ -2128,6 +2195,7 @@ const html = `<!doctype html>
       calcServerId: "",
       calcSort: "chance",
       selectedRaidBossId: "big_order",
+      selectedFishEntotEventId: "gold_gain",
       createModal: null,
       createItemDraft: null,
       createItemType: "",
@@ -2804,13 +2872,15 @@ const html = `<!doctype html>
           <button class="\${state.settingsTab === "general" ? "active" : ""}" data-settings-tab="general" type="button">General</button>
           <button class="\${state.settingsTab === "fishcomp" ? "active" : ""}" data-settings-tab="fishcomp" type="button">FishComp</button>
           <button class="\${state.settingsTab === "fishduel" ? "active" : ""}" data-settings-tab="fishduel" type="button">FishDuel</button>
-          <button class="\${state.settingsTab === "fishraid" ? "active" : ""}" data-settings-tab="fishraid" type="button">FishRaid</button>
+           <button class="\${state.settingsTab === "fishraid" ? "active" : ""}" data-settings-tab="fishraid" type="button">FishRaid</button>
+           <button class="\${state.settingsTab === "fishentot" ? "active" : ""}" data-settings-tab="fishentot" type="button">Fishentot</button>
         </div>\`;
       const body = {
         general: settingsGeneralTemplate,
         fishcomp: settingsFishCompTemplate,
         fishduel: settingsFishDuelTemplate,
-        fishraid: settingsFishRaidTemplate
+        fishraid: settingsFishRaidTemplate,
+        fishentot: settingsFishEntotTemplate
       }[state.settingsTab]?.() || settingsGeneralTemplate();
       return \`
         <div class="topline">
@@ -2898,6 +2968,137 @@ const html = `<!doctype html>
             <div class="wide small">Raid events use the same format as Fish Comp Events, but only affect FishRaid turns.</div>
           </div>
           \${fishRaidBossGridTemplate()}
+        </div>\`;
+    }
+
+    function fishEntotOutcomeLabel(outcome) {
+      return {
+        gold_gain: "Gain gold",
+        gold_loss: "Lose gold",
+        fish_gain: "Add showcased fish",
+        fish_loss: "Remove random fish",
+        progress_reset: "Set fishing progress",
+        fish_catch: "Trigger fishing catch"
+      }[outcome] || "Custom outcome";
+    }
+
+    function makeEmptyFishEntotEvent() {
+      return {
+        id: "fishentot_event_" + Date.now(),
+        name: "New Fishentot Event",
+        enabled: true,
+        positive: true,
+        weight: 1,
+        outcome: "fish_gain",
+        reward: { minPercent: 0, maxPercent: 0, minAmount: 1, maxAmount: 1, progressTarget: 0, minCatches: 1, maxCatches: 1 },
+        messages: ["{user} mendapat {fishCount} ikan dari {fish}."]
+      };
+    }
+
+    function selectedFishEntotEventEntry() {
+      const events = Array.isArray(state.settings.fishEntotEvents) ? state.settings.fishEntotEvents : [];
+      const selected = events.map((event, index) => ({ event, index })).find((entry) => String(entry.event.id || "") === state.selectedFishEntotEventId);
+      if (selected) return selected;
+      if (events[0]) {
+        state.selectedFishEntotEventId = String(events[0].id || "");
+        return { event: events[0], index: 0 };
+      }
+      return null;
+    }
+
+    function fishEntotEventCard(event, index) {
+      const active = String(event.id || "") === state.selectedFishEntotEventId;
+      const status = event.enabled === false ? "Disabled" : event.positive === true ? "Positive" : "Negative";
+      return \`
+        <button class="fishentot-event-card \${active ? "active" : ""}" data-select-fish-entot-event="\${escapeHtml(String(event.id || ""))}" type="button">
+          <div class="topline"><strong>\${escapeHtml(event.name || event.id || "Unnamed event")}</strong><span class="badge">\${escapeHtml(status)}</span></div>
+          <div class="event-card-meta">\${escapeHtml(fishEntotOutcomeLabel(event.outcome))} · Weight \${Number(event.weight || 0)}</div>
+          <div class="event-card-badges"><span class="badge">\${Array.isArray(event.messages) ? event.messages.length : 0} message\${Array.isArray(event.messages) && event.messages.length === 1 ? "" : "s"}</span></div>
+        </button>\`;
+    }
+
+    function fishEntotEventField(label, key, value, type = "text", step = "") {
+      if (type === "checkbox") {
+        return \`<label class="toggle-row"><input type="checkbox" data-fish-entot-event-bool-key="\${key}" \${value ? "checked" : ""}> \${label}</label>\`;
+      }
+      return \`<label>\${label}<input type="\${type}" step="\${step}" data-fish-entot-event-key="\${key}" value="\${escapeHtml(String(value ?? ""))}"></label>\`;
+    }
+
+    function fishEntotRewardField(label, key, value, step = "1") {
+      const max = key.endsWith("Percent") ? ' max="100"' : "";
+      return \`<label>\${label}<input type="number" min="0"\${max} step="\${step}" data-fish-entot-reward-key="\${key}" value="\${escapeHtml(String(value ?? 0))}"></label>\`;
+    }
+
+    function fishEntotEventDetailTemplate(entry) {
+      if (!entry) {
+        return '<div class="small">Add an event to start configuring Fishentot.</div>';
+      }
+      const event = entry.event;
+      const reward = event.reward || {};
+      const messageEntries = Array.isArray(event.messages) && event.messages.length ? event.messages : [""];
+      let rewardFields = '<div class="wide small">This outcome has no extra numeric reward settings.</div>';
+      if (event.outcome === "gold_gain" || event.outcome === "gold_loss") {
+        rewardFields = fishEntotRewardField("Minimum fish gold percentage", "minPercent", reward.minPercent, "0.1") + fishEntotRewardField("Maximum fish gold percentage", "maxPercent", reward.maxPercent, "0.1");
+      } else if (event.outcome === "fish_gain" || event.outcome === "fish_loss") {
+        rewardFields = fishEntotRewardField(event.outcome === "fish_gain" ? "Minimum fish given" : "Minimum fish removed", "minAmount", reward.minAmount, "1") + fishEntotRewardField(event.outcome === "fish_gain" ? "Maximum fish given" : "Maximum fish removed", "maxAmount", reward.maxAmount, "1");
+      } else if (event.outcome === "progress_reset") {
+        rewardFields = fishEntotRewardField("Set fishing progress to", "progressTarget", reward.progressTarget, "1");
+      } else if (event.outcome === "fish_catch") {
+        rewardFields = fishEntotRewardField("Minimum catches", "minCatches", reward.minCatches, "1") + fishEntotRewardField("Maximum catches", "maxCatches", reward.maxCatches, "1");
+      }
+      return \`
+        <div class="topline">
+          <div><strong>Event details</strong><div class="small">Edit the selected event’s chance, classification, reward, and messages.</div></div>
+          <button class="danger" data-remove-fish-entot-event="\${entry.index}" type="button">Remove</button>
+        </div>
+        <div class="fields">
+          \${fishEntotEventField("Event ID", "id", event.id)}
+          \${fishEntotEventField("Event name", "name", event.name)}
+          \${fishEntotEventField("Chance weight", "weight", event.weight, "number", "0.1")}
+          \${fishEntotEventField("Enabled", "enabled", event.enabled !== false, "checkbox")}
+          \${fishEntotEventField("Positive event (eligible for pity guarantee)", "positive", event.positive === true, "checkbox")}
+          <label>Outcome<select data-fish-entot-event-key="outcome">
+            <option value="gold_gain" \${event.outcome === "gold_gain" ? "selected" : ""}>Gain gold from fish value</option>
+            <option value="gold_loss" \${event.outcome === "gold_loss" ? "selected" : ""}>Lose gold based on fish value</option>
+            <option value="fish_gain" \${event.outcome === "fish_gain" ? "selected" : ""}>Give showcased fish</option>
+            <option value="fish_loss" \${event.outcome === "fish_loss" ? "selected" : ""}>Remove random inventory fish</option>
+            <option value="progress_reset" \${event.outcome === "progress_reset" ? "selected" : ""}>Set fishing progress</option>
+            <option value="fish_catch" \${event.outcome === "fish_catch" ? "selected" : ""}>Trigger fishing catch</option>
+          </select></label>
+          <section class="wide item fishentot-reward-panel">
+            <div class="topline"><strong>Reward settings</strong><span class="badge">\${escapeHtml(fishEntotOutcomeLabel(event.outcome))}</span></div>
+            <div class="fields">\${rewardFields}</div>
+            <div class="small wide">Gold percentages use the showcased fish’s configured gold value. Fish loss is capped by the player’s inventory.</div>
+          </section>
+          <section class="wide item fishentot-messages-panel">
+            <div class="topline"><div><strong>Messages</strong><div class="small">One message is chosen at random each time. Placeholders: {user}, {fish}, {gold}, {fishCount}, {catchCount}, {progress}, {event}.</div></div><button data-add-fish-entot-message="\${entry.index}" type="button">Add Message</button></div>
+            <div class="fishentot-message-list">
+              \${messageEntries.map((message, messageIndex) => \`<div class="fishentot-message-row"><textarea data-fish-entot-message-index="\${messageIndex}">\${escapeHtml(message)}</textarea><button class="danger" data-remove-fish-entot-message="\${messageIndex}" type="button" \${messageEntries.length <= 1 ? "disabled" : ""}>Remove</button></div>\`).join("")}
+            </div>
+          </section>
+        </div>\`;
+    }
+
+    function settingsFishEntotTemplate() {
+      const events = Array.isArray(state.settings.fishEntotEvents) ? state.settings.fishEntotEvents : [];
+      const entry = selectedFishEntotEventEntry();
+      return \`
+        <div class="fishentot-settings-layout wide">
+          <article class="item fishentot-event-browser">
+            <div class="fish-toolbar"><div><strong>Fishentot event library</strong><div class="small">Each event has its own weighted chance, reward, and message pool.</div></div><button data-add-fish-entot-event type="button">Add Event</button></div>
+            <div class="fishentot-event-list">\${events.length ? events.map(fishEntotEventCard).join("") : '<div class="small">No Fishentot events yet.</div>'}</div>
+          </article>
+          <article class="item fishentot-event-detail fish-detail">\${fishEntotEventDetailTemplate(entry)}</article>
+          <article class="item wide">
+            <div class="topline"><div><strong>Fishentot rules</strong><div class="small">These settings apply to every player using /fishentot.</div></div></div>
+            <div class="fields">
+              \${field("Cooldown, minutes", "fishEntotCooldownMinutes", state.settings.fishEntotCooldownMinutes ?? 30, 0, "number", "1")}
+              \${field("Message lifetime, minutes", "fishEntotMessageTtlMinutes", state.settings.fishEntotMessageTtlMinutes ?? 15, 0, "number", "1")}
+              \${field("Pity threshold: negative events before guarantee", "fishEntotPityThreshold", state.settings.fishEntotPityThreshold ?? 3, 0, "number", "1")}
+              <label class="wide toggle-row"><input type="checkbox" data-key="fishEntotPityEnabled" \${state.settings.fishEntotPityEnabled !== false ? "checked" : ""}> Enable pity guarantee</label>
+              <div class="wide small">When enabled, a player who reaches the threshold gets a weighted positive event on their next Fishentot use. The negative streak resets after any positive event.</div>
+            </div>
+          </article>
         </div>\`;
     }
 
@@ -3105,7 +3306,10 @@ const html = `<!doctype html>
       return (normalizeEvent(event).bonuses || []).map((bonus) => {
         if (bonus.type === "gold_multiplier") return \`Gold x\${bonus.value}\`;
         if (bonus.type === "exp_multiplier") return \`EXP x\${bonus.value}\`;
-        if (bonus.type === "fish_chance") return \`\${bonus.fishId || "Fish"} chance x\${bonus.value}\`;
+        if (bonus.type === "fish_chance") {
+          const fishName = state.fish.find((fish) => fish.id === bonus.fishId || fish.name === bonus.fishId)?.name || bonus.fishId || "Fish";
+          return \`\${fishName} chance x\${bonus.value}\`;
+        }
         if (bonus.type === "fishing_speed") return \`Fishing speed x\${bonus.value}\`;
         return \`Bonus x\${bonus.value}\`;
       }).join(", ") || "No bonus";
@@ -4201,6 +4405,7 @@ const html = `<!doctype html>
       state.selectedRodId = state.rods.some((item) => item.id === state.selectedRodId) ? state.selectedRodId : state.rods[0]?.id || "";
       state.selectedFishBagId = state.fishBags.some((item) => item.id === state.selectedFishBagId) ? state.selectedFishBagId : state.fishBags[0]?.id || "";
       state.selectedRaidBossId = state.settings.fishRaidBosses?.some((boss) => boss.id === state.selectedRaidBossId) ? state.selectedRaidBossId : state.settings.fishRaidBosses?.[0]?.id || "";
+      state.selectedFishEntotEventId = state.settings.fishEntotEvents?.some((event) => event.id === state.selectedFishEntotEventId) ? state.selectedFishEntotEventId : state.settings.fishEntotEvents?.[0]?.id || "";
       state.calcRodId = state.rods.some((rod) => rod.id === state.calcRodId) ? state.calcRodId : state.rods[0]?.id || "";
       state.lastAnnouncementChannelId = state.activeEvent?.announcementChannelId || state.events[0]?.announcementChannelId || state.lastAnnouncementChannelId;
       if (state.lastAnnouncementChannelId) localStorage.setItem("trfishing:lastAnnouncementChannelId", state.lastAnnouncementChannelId);
@@ -4884,6 +5089,64 @@ const html = `<!doctype html>
         return;
       }
       if (state.tab === "settings") {
+        if (target.dataset.fishEntotEventKey) {
+          const entry = selectedFishEntotEventEntry();
+          if (!entry) return;
+          const key = target.dataset.fishEntotEventKey;
+          const previousOutcome = entry.event.outcome;
+          entry.event[key] = target.type === "number" ? Number(target.value) : target.value;
+          if (key === "id") state.selectedFishEntotEventId = String(entry.event.id || "");
+          if (key === "outcome") {
+            entry.event.reward = entry.event.reward || {};
+            const defaults = {
+              gold_gain: { minPercent: 1, maxPercent: 40 },
+              gold_loss: { minPercent: 1, maxPercent: 30 },
+              fish_gain: { minAmount: 1, maxAmount: 1 },
+              fish_loss: { minAmount: 1, maxAmount: 3 },
+              progress_reset: { progressTarget: 0 },
+              fish_catch: { minCatches: 1, maxCatches: 1 }
+            }[target.value] || {};
+            for (const [rewardKey, defaultValue] of Object.entries(defaults)) {
+              const currentValue = entry.event.reward[rewardKey];
+              const shouldUseDefault = currentValue === undefined
+                || (previousOutcome !== target.value && Number(currentValue) === 0 && defaultValue !== 0);
+              if (shouldUseDefault) entry.event.reward[rewardKey] = defaultValue;
+            }
+            if (target.value === "gold_gain" || target.value === "gold_loss") {
+              entry.event.reward.minPercent = entry.event.reward.minPercent ?? 1;
+              entry.event.reward.maxPercent = entry.event.reward.maxPercent ?? 40;
+            }
+            if (target.value === "fish_gain" || target.value === "fish_loss") {
+              entry.event.reward.minAmount = entry.event.reward.minAmount ?? 1;
+              entry.event.reward.maxAmount = entry.event.reward.maxAmount ?? (target.value === "fish_loss" ? 3 : 1);
+            }
+            if (target.value === "fish_catch") {
+              entry.event.reward.minCatches = entry.event.reward.minCatches ?? 1;
+              entry.event.reward.maxCatches = entry.event.reward.maxCatches ?? 1;
+            }
+            render();
+          }
+          return;
+        }
+        if (target.dataset.fishEntotEventBoolKey) {
+          const entry = selectedFishEntotEventEntry();
+          if (entry) entry.event[target.dataset.fishEntotEventBoolKey] = target.checked;
+          return;
+        }
+        if (target.dataset.fishEntotRewardKey) {
+          const entry = selectedFishEntotEventEntry();
+          if (!entry) return;
+          entry.event.reward = entry.event.reward || {};
+          entry.event.reward[target.dataset.fishEntotRewardKey] = Number(target.value);
+          return;
+        }
+        if (target.dataset.fishEntotMessageIndex !== undefined) {
+          const entry = selectedFishEntotEventEntry();
+          if (!entry) return;
+          if (!Array.isArray(entry.event.messages)) entry.event.messages = [];
+          entry.event.messages[Number(target.dataset.fishEntotMessageIndex)] = target.value;
+          return;
+        }
         if (target.dataset.fishraidControl) {
           if (target.dataset.fishraidControl === "guildId") {
             state.fishRaidControlGuildId = target.value;
@@ -5248,6 +5511,51 @@ const html = `<!doctype html>
       if (settingsTabButton) {
         state.settingsTab = settingsTabButton.dataset.settingsTab;
         render();
+        return;
+      }
+      const selectFishEntotEventButton = event.target.closest("[data-select-fish-entot-event]");
+      if (selectFishEntotEventButton) {
+        state.selectedFishEntotEventId = selectFishEntotEventButton.dataset.selectFishEntotEvent;
+        render();
+        return;
+      }
+      if (event.target.closest("[data-add-fish-entot-event]")) {
+        if (!Array.isArray(state.settings.fishEntotEvents)) state.settings.fishEntotEvents = [];
+        const fishEntotEvent = makeEmptyFishEntotEvent();
+        state.settings.fishEntotEvents.push(fishEntotEvent);
+        state.selectedFishEntotEventId = fishEntotEvent.id;
+        setStatus("New Fishentot event added locally. Press Save This Tab to store changes.");
+        render();
+        return;
+      }
+      const removeFishEntotEventButton = event.target.closest("[data-remove-fish-entot-event]");
+      if (removeFishEntotEventButton) {
+        const events = Array.isArray(state.settings.fishEntotEvents) ? state.settings.fishEntotEvents : [];
+        const removedIndex = Number(removeFishEntotEventButton.dataset.removeFishEntotEvent);
+        events.splice(removedIndex, 1);
+        state.selectedFishEntotEventId = events[Math.min(removedIndex, events.length - 1)]?.id || "";
+        setStatus("Fishentot event removed locally. Press Save This Tab to store changes.");
+        render();
+        return;
+      }
+      const addFishEntotMessageButton = event.target.closest("[data-add-fish-entot-message]");
+      if (addFishEntotMessageButton) {
+        const entry = selectedFishEntotEventEntry();
+        if (entry) {
+          if (!Array.isArray(entry.event.messages)) entry.event.messages = [];
+          entry.event.messages.push("{user} and {fish} share a strange moment.");
+          render();
+        }
+        return;
+      }
+      const removeFishEntotMessageButton = event.target.closest("[data-remove-fish-entot-message]");
+      if (removeFishEntotMessageButton) {
+        const entry = selectedFishEntotEventEntry();
+        const messageIndex = Number(removeFishEntotMessageButton.dataset.removeFishEntotMessage);
+        if (entry && Array.isArray(entry.event.messages) && entry.event.messages.length > 1) {
+          entry.event.messages.splice(messageIndex, 1);
+          render();
+        }
         return;
       }
       const selectRaidBossButton = event.target.closest("[data-select-raid-boss]");

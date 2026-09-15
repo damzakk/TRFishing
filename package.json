@@ -8,7 +8,7 @@
     "start": "node src/index.js",
     "start:bot": "node src/index.js",
     "start:manager": "node src/manager.js",
-    "check": "node --check src/index.js && node --check src/playfab.js && node --check src/manager.js && node --check src/imageUtils.js && node --check src/discordStorage.js && node --check src/fishShowoffBanner.js"
+    "check": "node --check src/index.js && node --check src/playfab.js && node --check src/manager.js && node --check src/fishEntotConfig.js && node --check src/imageUtils.js && node --check src/discordStorage.js && node --check src/fishShowoffBanner.js"
   },
   "dependencies": {
     "@discordjs/voice": "^0.18.0",
