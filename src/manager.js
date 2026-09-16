@@ -18,6 +18,19 @@ const { defaultFish, defaultRods, defaultFishBags } = require("./defaultData");
 const { defaultFishEntotSettings, cleanFishEntotEvents } = require("./fishEntotConfig");
 const { extensionFromContentType, getCachedImageForUrl, rememberCachedImageForUrl } = require("./imageUtils");
 const { resolveDiscordStoredImage } = require("./discordStorage");
+const { makeMutationIconAttachment } = require("./mutationVisuals");
+const {
+  getMutationDefinitions,
+  getMutationChoices,
+  mutationMotionPresets,
+  mutationVisualPresets,
+  normalizeFishDex,
+  normalizeMutationId,
+  normalizeMutationInventory,
+  normalizeMutationSettings,
+  recordCatch,
+  resolveMutationCatch
+} = require("./mutationSystem");
 
 const port = Number(process.env.MANAGER_PORT || 3000);
 const prefix = process.env.PREFIX || "!";
@@ -58,12 +71,12 @@ function sendBinary(response, statusCode, buffer, contentType, cacheSeconds = 86
   response.end(buffer);
 }
 
-function readBody(request) {
+function readBody(request, maxLength = 5_000_000) {
   return new Promise((resolve, reject) => {
     let body = "";
     request.on("data", (chunk) => {
       body += chunk;
-      if (body.length > 5_000_000) {
+      if (body.length > maxLength) {
         request.destroy();
         reject(new Error("Request body is too large. Use image URLs for big store/event images instead of uploading a large file through the manager."));
       }
@@ -203,6 +216,20 @@ function cleanPlayer(player) {
   const fishDex = source.fishDex && typeof source.fishDex === "object" && !Array.isArray(source.fishDex)
     ? source.fishDex
     : {};
+  const mutationInventory = normalizeMutationInventory(source.mutationInventory);
+  const normalizedFishDex = normalizeFishDex(fishDex);
+  for (const [fishId, mutations] of Object.entries(mutationInventory)) {
+    const entry = normalizedFishDex[fishId] || { count: 0, heaviestWeight: 0, mutations: {} };
+    entry.mutations = entry.mutations || {};
+    for (const [mutationId, quantity] of Object.entries(mutations)) {
+      entry.mutations[mutationId] = {
+        count: Math.max(quantity, Math.floor(cleanNumber(entry.mutations[mutationId]?.count, 0))),
+        heaviestWeight: Math.max(0, cleanNumber(entry.mutations[mutationId]?.heaviestWeight, 0))
+      };
+    }
+    entry.count = Math.max(entry.count, Object.values(mutations).reduce((sum, quantity) => sum + quantity, 0));
+    normalizedFishDex[fishId] = entry;
+  }
   const ownedRods = Array.isArray(source.ownedRods) && source.ownedRods.length
     ? source.ownedRods.map((rodId) => String(rodId || "").trim()).filter(Boolean)
     : [starterRodId];
@@ -223,11 +250,12 @@ function cleanPlayer(player) {
     fishBagId: String(source.fishBagId || "").trim(),
     ownedFishBags,
     inventory,
-    fishDex,
+    mutationInventory,
+    fishDex: normalizedFishDex,
     showcasedFishId: String(source.showcasedFishId || "").trim(),
     fishEntotLastUsedAt: Math.max(0, cleanNumber(source.fishEntotLastUsedAt, 0)),
     fishEntotNegativeStreak: Math.max(0, Math.floor(cleanNumber(source.fishEntotNegativeStreak, 0))),
-    totalFishCaught: Math.max(0, Math.floor(cleanNumber(source.totalFishCaught, Object.values(inventory).reduce((sum, quantity) => sum + quantity, 0)))),
+    totalFishCaught: Math.max(0, Math.floor(cleanNumber(source.totalFishCaught, Object.values(inventory).reduce((sum, quantity) => sum + quantity, 0) + Object.values(mutationInventory).reduce((sum, mutations) => sum + Object.values(mutations).reduce((mutationSum, quantity) => mutationSum + quantity, 0), 0)))),
     fishCompWins: Math.max(0, Math.floor(cleanNumber(source.fishCompWins, 0))),
     heaviestFish: source.heaviestFish && typeof source.heaviestFish === "object" ? source.heaviestFish : null,
     luckiestFish: source.luckiestFish && typeof source.luckiestFish === "object" ? source.luckiestFish : null,
@@ -333,37 +361,37 @@ function getManagerEventMultiplier(data, type, guildId = "", fishId = "") {
   }, 1);
 }
 
-function addManagerCatch(data, player, caughtFish, catchWeight) {
+function addManagerCatch(data, player, caughtFish, catchWeight, options = {}) {
   const settings = data.settings || {};
   const guildId = String(player.lastFishingGuildId || "").trim();
-  const expBase = Math.max(0, Math.round(Number(caughtFish.exp || 0) * Number(settings.expMultiplier || 1)));
+  const mutationCatch = resolveMutationCatch(caughtFish, catchWeight, options.forceMutation ? normalizeMutationId(options.mutationId) : "", settings.mutations);
+  const expBase = Math.max(0, Math.round(Number(caughtFish.exp || 0) * Number(settings.expMultiplier || 1) * mutationCatch.expMultiplier));
   const expMultiplier = getManagerEventMultiplier(data, "exp_multiplier", guildId);
   const expGain = Math.max(0, Math.round(expBase * expMultiplier));
   const luckScore = formatFishLuckScore(caughtFish, data.fish);
-  player.inventory[caughtFish.id] = (player.inventory[caughtFish.id] || 0) + 1;
-  player.fishDex = player.fishDex && typeof player.fishDex === "object" && !Array.isArray(player.fishDex) ? player.fishDex : {};
-  const dexEntry = player.fishDex[caughtFish.id] && typeof player.fishDex[caughtFish.id] === "object"
-    ? player.fishDex[caughtFish.id]
-    : {};
-  player.fishDex[caughtFish.id] = {
-    count: Math.max(0, Math.floor(cleanNumber(dexEntry.count, 0))) + 1,
-    heaviestWeight: Math.max(0, cleanNumber(dexEntry.heaviestWeight, 0), Number(catchWeight || 0))
-  };
-  player.totalFishCaught = Math.max(0, Number(player.totalFishCaught || 0)) + 1;
-  if (!player.heaviestFish || Number(catchWeight || 0) > Number(player.heaviestFish.weight || 0)) {
-    player.heaviestFish = { fishId: caughtFish.id, name: caughtFish.name, weight: Number(catchWeight || 0) };
+  if (options.testOnly !== true) {
+    recordCatch(player, caughtFish, mutationCatch.catchWeight, mutationCatch.mutationId);
+    player.totalFishCaught = Math.max(0, Number(player.totalFishCaught || 0)) + 1;
+    if (!player.heaviestFish || Number(mutationCatch.catchWeight || 0) > Number(player.heaviestFish.weight || 0)) {
+      player.heaviestFish = {
+        fishId: caughtFish.id,
+        name: caughtFish.name,
+        weight: Number(mutationCatch.catchWeight || 0),
+        mutationId: mutationCatch.mutationId
+      };
+    }
+    const currentLuckiestFish = findFishEntryByRecord(data.fish, player.luckiestFish);
+    const currentLuckiestScore = currentLuckiestFish
+      ? formatFishLuckScore(currentLuckiestFish, data.fish)
+      : Number(player.luckiestFish?.score || 0);
+    if (!player.luckiestFish || luckScore > currentLuckiestScore) {
+      player.luckiestFish = makeLuckiestFishRecord(caughtFish, data.fish);
+    } else if (currentLuckiestFish) {
+      player.luckiestFish = makeLuckiestFishRecord(currentLuckiestFish, data.fish);
+    }
+    player.exp += expGain;
+    player.progress = 0;
   }
-  const currentLuckiestFish = findFishEntryByRecord(data.fish, player.luckiestFish);
-  const currentLuckiestScore = currentLuckiestFish
-    ? formatFishLuckScore(currentLuckiestFish, data.fish)
-    : Number(player.luckiestFish?.score || 0);
-  if (!player.luckiestFish || luckScore > currentLuckiestScore) {
-    player.luckiestFish = makeLuckiestFishRecord(caughtFish, data.fish);
-  } else if (currentLuckiestFish) {
-    player.luckiestFish = makeLuckiestFishRecord(currentLuckiestFish, data.fish);
-  }
-  player.exp += expGain;
-  player.progress = 0;
   return {
     expGain,
     expBase,
@@ -371,7 +399,12 @@ function addManagerCatch(data, player, caughtFish, catchWeight) {
       multiplier: expMultiplier,
       active: Math.abs(expMultiplier - 1) > 0.000001
     },
-    luckScore
+    luckScore,
+    mutationId: mutationCatch.mutationId,
+    mutation: mutationCatch.mutation,
+    catchWeight: mutationCatch.catchWeight,
+    sellGold: mutationCatch.sellGold,
+    testOnly: options.testOnly === true
   };
 }
 
@@ -457,6 +490,7 @@ function cleanSettings(settings) {
   const fishHelpBannerUrl = String(source.fishHelpBannerUrl || "").trim();
   const sellFishBannerUrl = String(source.sellFishBannerUrl || "").trim();
   return {
+    mutations: normalizeMutationSettings(source.mutations),
     rodStoreImageBase64: String(source.rodStoreImageBase64 || ""),
     rodStoreImageUrl,
     rodStoreImageRef: source.rodStoreImageRef && typeof source.rodStoreImageRef === "object" ? source.rodStoreImageRef : null,
@@ -646,8 +680,9 @@ function cleanEventBonus(bonus) {
   const source = bonus && typeof bonus === "object" ? bonus : {};
   return {
     type: String(source.type || "gold_multiplier").trim(),
-    value: Math.max(0, cleanNumber(source.value, 1)),
-    fishId: String(source.fishId || "").trim()
+    value: Math.max(0, cleanNumber(source.value ?? 1, 1)),
+    fishId: String(source.fishId || "").trim(),
+    mutationId: normalizeMutationId(source.mutationId)
   };
 }
 
@@ -679,6 +714,7 @@ function cleanEvent(event) {
     type: bonuses[0]?.type || "gold_multiplier",
     value: bonuses[0]?.value ?? 1,
     fishId: bonuses[0]?.fishId || "",
+    mutationId: bonuses[0]?.mutationId || "",
     announcementChannelId: String(event.announcementChannelId || "").trim(),
     guildId: String(event.guildId || "").trim(),
     isAnnounced: event.isAnnounced === true,
@@ -951,6 +987,7 @@ function normalizeEnforceFishRequests(body) {
     : [{ fishId: body.fishId || "", quantity: 1 }];
   return entries.map((entry) => ({
     fishId: String(entry?.fishId || "").trim(),
+    mutationId: normalizeMutationId(entry?.mutationId),
     quantity: Math.max(1, Math.min(99, Math.floor(cleanNumber(entry?.quantity, 1))))
   })).filter((entry) => entry.quantity > 0);
 }
@@ -960,6 +997,19 @@ async function handleApi(request, response) {
     const requestUrl = new URL(request.url, `http://${request.headers.host || "localhost"}`);
     if (request.method === "GET" && requestUrl.pathname === "/api/image-cache") {
       await serveCachedImage(requestUrl, response);
+      return;
+    }
+
+    if (request.method === "POST" && requestUrl.pathname === "/api/mutation-preview") {
+      const body = JSON.parse(await readBody(request, 15_000_000) || "{}");
+      const fish = body.fish && typeof body.fish === "object" ? body.fish : { id: "preview", name: "Preview Fish" };
+      const mutation = body.mutation && typeof body.mutation === "object" ? body.mutation : { id: "" };
+      const preview = await makeMutationIconAttachment(fish, mutation.id, "mutation-preview", mutation.id ? [mutation] : null);
+      const buffer = preview?.buffer || preview?.cache?.buffer;
+      if (!buffer?.length) {
+        throw new Error("Select a fish with an icon before generating a preview.");
+      }
+      sendBinary(response, 200, buffer, preview.contentType || "image/png", 0);
       return;
     }
 
@@ -1060,37 +1110,45 @@ async function handleApi(request, response) {
       const current = await adminGetPlayerRecord(playFabId);
       const player = cleanPlayer(current.player);
       const fishRequests = normalizeEnforceFishRequests(body);
+      const testOnly = body.testOnly === true;
       const catches = [];
       for (const fishRequest of fishRequests.length ? fishRequests : [{ fishId: "", quantity: 1 }]) {
         for (let index = 0; index < fishRequest.quantity; index += 1) {
           const catchResult = rollFishForManager(data, player, fishRequest.fishId);
-          const gain = addManagerCatch(data, player, catchResult.fish, catchResult.catchWeight);
+          const gain = addManagerCatch(data, player, catchResult.fish, catchResult.catchWeight, {
+            forceMutation: true,
+            mutationId: fishRequest.mutationId,
+            testOnly
+          });
           catches.push({
             fish: catchResult.fish,
-            catchWeight: catchResult.catchWeight,
+            catchWeight: gain.catchWeight,
             expGain: gain.expGain,
             expBase: gain.expBase,
             expEventInfo: gain.expEventInfo,
-            luckScore: gain.luckScore
+            luckScore: gain.luckScore,
+            mutationId: gain.mutationId,
+            sellGold: gain.sellGold,
+            testOnly
           });
         }
       }
       const messageChannel = resolveFishingMessageChannel(player, player);
-      logManagerAction("Enforce Fishing save started", {
+      logManagerAction(testOnly ? "Test Enforce Fishing started" : "Enforce Fishing save started", {
         user: player.discordDisplayName || player.discordGlobalName || player.discordUsername || player.discordUserId,
         guildId: messageChannel.guildId,
         channelId: messageChannel.channelId,
         playFabId,
         extra: `catches=${catches.length}`
       });
-      const saved = await adminSavePlayerData(playFabId, player, { refetch: false });
+      const saved = testOnly ? current : await adminSavePlayerData(playFabId, player, { refetch: false });
       const discordUserId = String(saved.player?.discordUserId || player.discordUserId || "").trim();
-      logManagerAction("Enforce Fishing data saved", {
+      logManagerAction(testOnly ? "Test Enforce Fishing data not saved" : "Enforce Fishing data saved", {
         user: saved.displayName || saved.username || discordUserId,
         guildId: messageChannel.guildId,
         channelId: messageChannel.channelId,
         playFabId,
-        extra: `catches=${catches.length}`
+        extra: `catches=${catches.length}${testOnly ? ",testOnly=true" : ""}`
       });
       if (discordUserId && messageChannel.channelId) {
         logManagerAction("Enforce Fishing queued for Discord", {
@@ -1112,12 +1170,16 @@ async function handleApi(request, response) {
             catchWeight: entry.catchWeight,
             expGain: entry.expGain,
             expBase: entry.expBase,
-            expEventInfo: entry.expEventInfo
+            expEventInfo: entry.expEventInfo,
+            mutationId: entry.mutationId,
+            sellGold: entry.sellGold,
+            testOnly
           }))
         });
       }
       sendJson(response, 200, {
         ok: true,
+        testOnly,
         messageQueued: Boolean(discordUserId && messageChannel.channelId),
         player: saved,
         catch: catches[0] || null,
@@ -1130,6 +1192,7 @@ async function handleApi(request, response) {
       const body = JSON.parse(await readBody(request) || "{}");
       const targetGuildId = String(body.guildId || "").trim();
       const fishRequests = normalizeEnforceFishRequests(body);
+      const testOnly = body.testOnly === true;
       startProgressResponse(response);
       sendProgress(response, { type: "progress", phase: "loading", message: "Loading players from PlayFab…" });
       try {
@@ -1161,11 +1224,17 @@ async function handleApi(request, response) {
             for (const fishRequest of fishRequests.length ? fishRequests : [{ fishId: "", quantity: 1 }]) {
               for (let index = 0; index < fishRequest.quantity; index += 1) {
                 const catchResult = rollFishForManager(data, player, fishRequest.fishId);
-                const gain = addManagerCatch(data, player, catchResult.fish, catchResult.catchWeight);
+                const gain = addManagerCatch(data, player, catchResult.fish, catchResult.catchWeight, {
+                  forceMutation: true,
+                  mutationId: fishRequest.mutationId,
+                  testOnly
+                });
                 playerCatches.push({ catchResult, gain });
               }
             }
-            const saved = mergeSavedPlayerRecord(record, await adminSavePlayerData(record.playFabId, player, { refetch: false, remember: false }));
+            const saved = testOnly
+              ? record
+              : mergeSavedPlayerRecord(record, await adminSavePlayerData(record.playFabId, player, { refetch: false, remember: false }));
             updatedPlayers.push(saved);
             const discordUserId = String(saved.player?.discordUserId || player.discordUserId || record.discordUserId || "").trim();
             const messageChannel = resolveFishingMessageChannel(player, saved.player);
@@ -1176,10 +1245,13 @@ async function handleApi(request, response) {
                   guildId: messageChannel.guildId,
                   channelId: messageChannel.channelId,
                   fish: catchResult.fish,
-                  catchWeight: catchResult.catchWeight,
+                    catchWeight: gain.catchWeight,
                   expGain: gain.expGain,
-                  expBase: gain.expBase,
-                  expEventInfo: gain.expEventInfo
+                    expBase: gain.expBase,
+                    expEventInfo: gain.expEventInfo,
+                    mutationId: gain.mutationId,
+                    sellGold: gain.sellGold,
+                    testOnly
                 });
               }
               queuedCount += playerCatches.length;
@@ -1201,7 +1273,7 @@ async function handleApi(request, response) {
           }
         }
 
-        if (catches.length) signalEnforcedFishing({ catches });
+        if (catches.length) signalEnforcedFishing({ catches, testOnly });
         sendProgress(response, {
           type: "complete",
           ok: true,
@@ -1211,6 +1283,7 @@ async function handleApi(request, response) {
           queuedCount,
           noChannelCount,
           failedCount,
+          testOnly,
           players: updatedPlayers
         });
         response.end();
@@ -1905,7 +1978,7 @@ const html = `<!doctype html>
     }
     .enforce-row {
       display: grid;
-      grid-template-columns: minmax(0, 1fr) 110px auto;
+      grid-template-columns: minmax(0, 1fr) minmax(0, 1fr) 90px auto;
       gap: 8px;
       align-items: end;
     }
@@ -1924,6 +1997,15 @@ const html = `<!doctype html>
       gap: 8px;
       flex-wrap: wrap;
     }
+    .checkbox-row {
+      display: flex;
+      align-items: flex-start;
+      gap: 8px;
+    }
+    .checkbox-row input {
+      width: auto;
+      margin-top: 3px;
+    }
     .fish-layout {
       grid-column: 1 / -1;
       display: grid;
@@ -1936,6 +2018,101 @@ const html = `<!doctype html>
     }
     .settings-panel > .fields {
       grid-template-columns: repeat(4, minmax(160px, 1fr));
+    }
+    .mutation-settings-list {
+      grid-template-columns: 1fr;
+    }
+    .mutation-setting-card {
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      padding: 12px;
+      background: var(--panel-2);
+    }
+    .mutation-setting-layout {
+      display: grid;
+      grid-template-columns: minmax(0, 1fr) minmax(220px, 270px);
+      gap: 14px;
+      align-items: start;
+    }
+    .mutation-parameter-fields {
+      min-width: 0;
+      grid-template-columns: repeat(4, minmax(140px, 1fr));
+    }
+    .mutation-parameter-fields input[type="color"] {
+      min-height: 38px;
+      padding: 3px;
+    }
+    .mutation-total {
+      color: var(--accent);
+    }
+    .mutation-preview-toolbar,
+    .mutation-preview-panel,
+    .mutation-overlay-editor {
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      padding: 12px;
+      background: #0b0f13;
+      display: grid;
+      gap: 10px;
+    }
+    .mutation-preview-toolbar {
+      grid-template-columns: minmax(220px, 360px) minmax(0, 1fr);
+      align-items: end;
+    }
+    .mutation-preview-toolbar .small {
+      align-self: center;
+    }
+    .mutation-preview-stage {
+      min-height: 190px;
+      display: grid;
+      place-items: center;
+      gap: 8px;
+      border: 1px dashed var(--line);
+      border-radius: 8px;
+      padding: 10px;
+      background: #070a0d;
+    }
+    .mutation-preview-stage img {
+      width: min(180px, 100%);
+      height: 180px;
+      object-fit: contain;
+      image-rendering: auto;
+    }
+   .mutation-overlay-editor {
+     gap: 8px;
+   }
+    .mutation-overlay-list {
+      display: grid;
+      gap: 10px;
+    }
+    .mutation-overlay-card {
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      padding: 10px;
+      background: var(--panel-2);
+    }
+    .mutation-overlay-fields {
+      grid-template-columns: repeat(2, minmax(120px, 1fr));
+      min-width: 0;
+    }
+   .mutation-overlay-layout {
+     display: grid;
+      grid-template-columns: minmax(120px, 180px) minmax(0, 1fr);
+     gap: 10px;
+     align-items: center;
+   }
+    .mutation-overlay-image {
+      min-width: 0;
+   }
+   .mutation-overlay-preview {
+     width: 100%;
+      max-width: 180px;
+      aspect-ratio: 1;
+     height: auto;
+     object-fit: contain;
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      background: #070a0d;
     }
     .fishraid-settings-layout {
       display: grid;
@@ -2115,12 +2292,18 @@ const html = `<!doctype html>
       .player-layout, .quest-layout { grid-template-columns: 1fr; }
       .fish-layout { grid-template-columns: 1fr; }
       .settings-panel > .fields { grid-template-columns: 1fr; }
+     .mutation-setting-layout { grid-template-columns: 1fr; }
+     .mutation-parameter-fields { grid-template-columns: 1fr; }
+      .mutation-overlay-fields { grid-template-columns: 1fr; }
+     .mutation-preview-toolbar { grid-template-columns: 1fr; }
+      .mutation-overlay-layout { grid-template-columns: 1fr; }
       .fishraid-settings-layout { grid-template-columns: 1fr; }
       .fishentot-settings-layout { grid-template-columns: 1fr; }
       .raid-boss-layout { grid-template-columns: 1fr; }
       .fish-detail { position: static; }
       .image-grid { grid-template-columns: 1fr; }
       .calc-table { display: block; overflow-x: auto; }
+      .enforce-row { grid-template-columns: 1fr 1fr; }
     }
   </style>
 </head>
@@ -2171,11 +2354,14 @@ const html = `<!doctype html>
       rods: [],
       fishBags: [],
       adminDiscordIds: [],
-      settings: { fishEntotEvents: ${JSON.stringify(defaultFishEntotSettings.fishEntotEvents)}, fishEntotCooldownMinutes: ${defaultFishEntotSettings.fishEntotCooldownMinutes}, fishEntotMessageTtlMinutes: ${defaultFishEntotSettings.fishEntotMessageTtlMinutes}, fishEntotPityEnabled: ${defaultFishEntotSettings.fishEntotPityEnabled}, fishEntotPityThreshold: ${defaultFishEntotSettings.fishEntotPityThreshold}, rodStoreImageBase64: "", rodStoreImageUrl: "", fishCompBannerBase64: "", fishCompBannerUrl: "", fishCompRegistrationBannerBase64: "", fishCompRegistrationBannerUrl: "", fishCompRunningBannerBase64: "", fishCompRunningBannerUrl: "", fishCompResultBannerBase64: "", fishCompResultBannerUrl: "", fishRaidBannerBase64: "", fishRaidBannerUrl: "", fishRaidRegistrationBannerBase64: "", fishRaidRegistrationBannerUrl: "", fishRaidRunningBannerBase64: "", fishRaidRunningBannerUrl: "", fishRaidResultBannerBase64: "", fishRaidResultBannerUrl: "", fishDuelRegistrationBannerBase64: "", fishDuelRegistrationBannerUrl: "", fishDuelRunningBannerBase64: "", fishDuelRunningBannerUrl: "", fishDuelResultBannerBase64: "", fishDuelResultBannerUrl: "", fishCompEvents: [], fishRaidEvents: [], fishDuelEvents: [], fishRaidBosses: [{ id: "big_order", name: "Big Fish Order", quotaKg: 100, description: "Pesanan ikan besar hari ini sudah menunggu.", registrationBannerBase64: "", registrationBannerUrl: "", runningBannerBase64: "", runningBannerUrl: "", resultBannerBase64: "", resultBannerUrl: "", fulfilledBannerBase64: "", fulfilledBannerUrl: "", failedBannerBase64: "", failedBannerUrl: "" }], fishCompLogIntervalMs: 2500, fishCompHistoryLogHours: 24, fishCompExpReward: 50, fishCompGoldReward: 0, fishDuelExpReward: 40, fishDuelLogIntervalMs: 2500, fishRaidLogIntervalMs: 2500, fishRaidParticipantExpReward: 25, fishRaidParticipantGoldReward: 0, fishRaidMvpExpReward: 75, fishRaidMvpGoldReward: 0, fishRaidClearParticipantExpReward: 50, fishRaidClearParticipantGoldReward: 0, fishRaidClearMvpExpReward: 150, fishRaidClearMvpGoldReward: 0, allowActivity: true, chatCooldownMs: 20000, expMultiplier: 1, levelExpMultiplier: 1, voiceExpAmount: 1, voiceExpIntervalMinutes: 15, dailyQuestCount: 3 },
+      settings: { mutations: ${JSON.stringify(normalizeMutationSettings())}, fishEntotEvents: ${JSON.stringify(defaultFishEntotSettings.fishEntotEvents)}, fishEntotCooldownMinutes: ${defaultFishEntotSettings.fishEntotCooldownMinutes}, fishEntotMessageTtlMinutes: ${defaultFishEntotSettings.fishEntotMessageTtlMinutes}, fishEntotPityEnabled: ${defaultFishEntotSettings.fishEntotPityEnabled}, fishEntotPityThreshold: ${defaultFishEntotSettings.fishEntotPityThreshold}, rodStoreImageBase64: "", rodStoreImageUrl: "", fishCompBannerBase64: "", fishCompBannerUrl: "", fishCompRegistrationBannerBase64: "", fishCompRegistrationBannerUrl: "", fishCompRunningBannerBase64: "", fishCompRunningBannerUrl: "", fishCompResultBannerBase64: "", fishCompResultBannerUrl: "", fishRaidBannerBase64: "", fishRaidBannerUrl: "", fishRaidRegistrationBannerBase64: "", fishRaidRegistrationBannerUrl: "", fishRaidRunningBannerBase64: "", fishRaidRunningBannerUrl: "", fishRaidResultBannerBase64: "", fishRaidResultBannerUrl: "", fishDuelRegistrationBannerBase64: "", fishDuelRegistrationBannerUrl: "", fishDuelRunningBannerBase64: "", fishDuelRunningBannerUrl: "", fishDuelResultBannerBase64: "", fishDuelResultBannerUrl: "", fishCompEvents: [], fishRaidEvents: [], fishDuelEvents: [], fishRaidBosses: [{ id: "big_order", name: "Big Fish Order", quotaKg: 100, description: "Pesanan ikan besar hari ini sudah menunggu.", registrationBannerBase64: "", registrationBannerUrl: "", runningBannerBase64: "", runningBannerUrl: "", resultBannerBase64: "", resultBannerUrl: "", fulfilledBannerBase64: "", fulfilledBannerUrl: "", failedBannerBase64: "", failedBannerUrl: "" }], fishCompLogIntervalMs: 2500, fishCompHistoryLogHours: 24, fishCompExpReward: 50, fishCompGoldReward: 0, fishDuelExpReward: 40, fishDuelLogIntervalMs: 2500, fishRaidLogIntervalMs: 2500, fishRaidParticipantExpReward: 25, fishRaidParticipantGoldReward: 0, fishRaidMvpExpReward: 75, fishRaidMvpGoldReward: 0, fishRaidClearParticipantExpReward: 50, fishRaidClearMvpExpReward: 150, fishRaidClearParticipantGoldReward: 0, fishRaidClearMvpGoldReward: 0, allowActivity: true, chatCooldownMs: 20000, expMultiplier: 1, levelExpMultiplier: 1, voiceExpAmount: 1, voiceExpIntervalMinutes: 15, dailyQuestCount: 3 },
       activeEvent: null,
       events: [],
       quests: { main: [], event: [], daily: [], fish: [] },
       routineMessages: [],
+      mutationChoices: ${JSON.stringify(getMutationChoices())},
+      mutationVisualPresets: ${JSON.stringify(mutationVisualPresets)},
+      mutationMotionPresets: ${JSON.stringify(mutationMotionPresets)},
       loadedTabs: {},
       processing: false,
       eventDraft: null,
@@ -2191,7 +2377,10 @@ const html = `<!doctype html>
       fishSearch: "",
       rodSearch: "",
       fishBagSearch: "",
-      calcRodId: "",
+     mutationPreviewFishId: "",
+     mutationPreviewBusy: false,
+      mutationVisualClipboard: null,
+     calcRodId: "",
       calcServerId: "",
       calcSort: "chance",
       selectedRaidBossId: "big_order",
@@ -2209,10 +2398,12 @@ const html = `<!doctype html>
       playerSearch: "",
       selectedPlayerId: "",
       enforceModalOpen: false,
-      enforceFishSelections: [{ fishId: "", quantity: 1 }],
+      enforceFishSelections: [{ fishId: "", mutationId: "", quantity: 1 }],
+      enforceTestOnly: false,
       enforceAllModalOpen: false,
       enforceAllGuildId: "",
-      enforceAllFishSelections: [{ fishId: "", quantity: 1 }],
+      enforceAllFishSelections: [{ fishId: "", mutationId: "", quantity: 1 }],
+      enforceAllTestOnly: false,
       catchNotice: "",
       giveMoneyAmount: 0,
       uploadNames: {}
@@ -2225,6 +2416,91 @@ const html = `<!doctype html>
     function setStatus(message, isError = false) {
       statusEl.textContent = message;
       statusEl.style.color = isError ? "var(--danger)" : "var(--muted)";
+    }
+
+    function normalizeMutationSettings(rawMutations) {
+      const numberOr = (value, fallback) => {
+        const number = Number(value);
+        return Number.isFinite(number) ? number : fallback;
+      };
+      const source = Array.isArray(rawMutations)
+        ? rawMutations
+        : rawMutations && typeof rawMutations === "object"
+          ? Object.entries(rawMutations).map(([id, mutation]) => ({
+            ...(mutation && typeof mutation === "object" ? mutation : {}),
+            id: mutation?.id || id
+          }))
+          : [];
+      const normalized = [];
+      const seenMutationIds = new Set();
+      const motions = Array.isArray(state.mutationMotionPresets) ? state.mutationMotionPresets : ["static"];
+      const visuals = Array.isArray(state.mutationVisualPresets) ? state.mutationVisualPresets : ["none"];
+      for (const rawMutation of source) {
+        const mutation = rawMutation && typeof rawMutation === "object" ? rawMutation : {};
+        const id = String(mutation.id || "").trim().toLowerCase().replace(/[^a-z0-9_]+/g, "_").replace(/^_+|_+$/g, "");
+        if (!id || seenMutationIds.has(id)) continue;
+        seenMutationIds.add(id);
+        const legacyOverlayPresent = Boolean(mutation.customOverlayBase64 || mutation.customOverlayUrl || mutation.customOverlayRef);
+        const rawOverlays = Array.isArray(mutation.customOverlays)
+          ? mutation.customOverlays
+          : legacyOverlayPresent
+            ? [{
+              id: "overlay_1",
+              name: "Overlay 1",
+              customOverlayBase64: mutation.customOverlayBase64,
+              customOverlayUrl: mutation.customOverlayUrl,
+              customOverlayRef: mutation.customOverlayRef,
+              customOverlayUrlNeedsRehost: mutation.customOverlayUrlNeedsRehost,
+              customOverlayScale: mutation.customOverlayScale,
+              customOverlayX: mutation.customOverlayX,
+              customOverlayY: mutation.customOverlayY,
+              customOverlayOpacity: mutation.customOverlayOpacity,
+              customOverlayMotion: mutation.customOverlayMotion,
+              customOverlayMotionSpeed: mutation.customOverlayMotionSpeed
+            }]
+            : [];
+        const usedOverlayIds = new Set();
+        const customOverlays = rawOverlays.map((rawOverlay, overlayIndex) => {
+          const overlay = rawOverlay && typeof rawOverlay === "object" ? rawOverlay : {};
+          const fallbackId = "overlay_" + (overlayIndex + 1);
+          const baseId = String(overlay.id || fallbackId).trim().toLowerCase().replace(/[^a-z0-9_]+/g, "_").replace(/^_+|_+$/g, "") || fallbackId;
+          let overlayId = baseId;
+          let suffix = 2;
+          while (usedOverlayIds.has(overlayId)) overlayId = baseId + "_" + suffix++;
+          usedOverlayIds.add(overlayId);
+          const motion = String(overlay.motion ?? overlay.customOverlayMotion ?? "static");
+          return {
+            id: overlayId,
+            name: String(overlay.name ?? "Overlay " + (overlayIndex + 1)).trim() || "Overlay " + (overlayIndex + 1),
+            base64: String(overlay.base64 ?? overlay.customOverlayBase64 ?? ""),
+            url: String(overlay.url ?? overlay.customOverlayUrl ?? "").trim(),
+            ref: overlay.ref && typeof overlay.ref === "object" ? overlay.ref : overlay.customOverlayRef && typeof overlay.customOverlayRef === "object" ? overlay.customOverlayRef : null,
+            urlNeedsRehost: overlay.urlNeedsRehost === true || overlay.customOverlayUrlNeedsRehost === true,
+            scale: Math.max(0.05, Math.min(2, numberOr(overlay.scale ?? overlay.customOverlayScale, 0.35))),
+            x: Math.max(0, Math.min(100, numberOr(overlay.x ?? overlay.customOverlayX, 75))),
+            y: Math.max(0, Math.min(100, numberOr(overlay.y ?? overlay.customOverlayY, 25))),
+            opacity: Math.max(0, Math.min(1, numberOr(overlay.opacity ?? overlay.customOverlayOpacity, 1))),
+            motion: motions.includes(motion) ? motion : "static",
+            motionSpeed: Math.max(0.1, Math.min(5, numberOr(overlay.motionSpeed ?? overlay.customOverlayMotionSpeed, 1))),
+            enabled: overlay.enabled !== false
+          };
+        });
+        const visual = String(mutation.visual || "none").trim().toLowerCase();
+        normalized.push({
+          ...mutation,
+          id,
+          name: String(mutation.name || id.replace(/_/g, " ")).trim() || id,
+          chance: Math.max(0, numberOr(mutation.chance, 0)),
+          goldMultiplier: Math.max(0, numberOr(mutation.goldMultiplier, 1)),
+          expMultiplier: Math.max(0, numberOr(mutation.expMultiplier, 1)),
+          sizeMultiplier: Math.max(0.01, numberOr(mutation.sizeMultiplier, 1)),
+          color: mutation.color ?? 0xffffff,
+          visual: visual === "custom" ? "none" : visuals.includes(visual) ? visual : "none",
+          enabled: mutation.enabled !== false,
+          customOverlays
+        });
+      }
+      return normalized;
     }
 
     const editableTabs = new Set(["fish", "rods", "fishBags", "admin", "settings", "event", "quests", "routine"]);
@@ -2439,6 +2715,7 @@ const html = `<!doctype html>
       const finishRender = () => {
         restoreScrollState(scrollState);
         restoreFocusState(focusState);
+        if (state.tab === "settings" && state.settingsTab === "mutations") scheduleMutationPreview();
       };
       document.querySelectorAll("[data-tab]").forEach((button) => {
         button.classList.toggle("active", button.dataset.tab === state.tab);
@@ -2615,6 +2892,7 @@ const html = `<!doctype html>
           <label class="wide">Owned Rod IDs JSON<textarea data-player-json="ownedRods">\${escapeHtml(JSON.stringify(player.ownedRods || [], null, 2))}</textarea></label>
           <label class="wide">Owned Fish Bag IDs JSON<textarea data-player-json="ownedFishBags">\${escapeHtml(JSON.stringify(player.ownedFishBags || [], null, 2))}</textarea></label>
           <label class="wide">Inventory JSON<textarea data-player-json="inventory">\${escapeHtml(JSON.stringify(player.inventory || {}, null, 2))}</textarea></label>
+          <label class="wide">Mutation Inventory JSON<textarea data-player-json="mutationInventory">\${escapeHtml(JSON.stringify(player.mutationInventory || {}, null, 2))}</textarea></label>
           <label class="wide">FishDex JSON<textarea data-player-json="fishDex">\${escapeHtml(JSON.stringify(player.fishDex || {}, null, 2))}</textarea></label>
           <label class="wide">Heaviest Fish JSON<textarea data-player-json="heaviestFish">\${escapeHtml(JSON.stringify(player.heaviestFish || null, null, 2))}</textarea></label>
           <label class="wide">Luckiest Fish JSON<textarea data-player-json="luckiestFish">\${escapeHtml(JSON.stringify(player.luckiestFish || null, null, 2))}</textarea></label>
@@ -2658,6 +2936,7 @@ const html = `<!doctype html>
             <div class="button-row">
               <button class="icon-button" data-add-enforce-fish type="button" aria-label="Add fish">+</button>
             </div>
+            <label class="checkbox-row"><input type="checkbox" data-enforce-test-toggle="single" \${state.enforceTestOnly ? "checked" : ""}> <span><strong>Test Enforce</strong><br><span class="small">Show the popup without recording the fish, EXP, or progress.</span></span></label>
             <div class="modal-actions">
               <button data-close-enforce-modal type="button">Cancel</button>
               <button class="primary" data-enforce-fishing type="button">Enforce Fishing</button>
@@ -2686,6 +2965,7 @@ const html = `<!doctype html>
               <button class="icon-button" data-add-enforce-fish data-enforce-scope="all" type="button" aria-label="Add fish">+</button>
             </div>
             <div class="small">Each targeted player receives the complete fish list and quantities configured above.</div>
+            <label class="checkbox-row"><input type="checkbox" data-enforce-test-toggle="all" \${state.enforceAllTestOnly ? "checked" : ""}> <span><strong>Test Enforce</strong><br><span class="small">Show the popups without recording fish, EXP, or progress.</span></span></label>
             <div class="modal-actions">
               <button data-close-enforce-modal type="button">Cancel</button>
               <button class="primary" data-enforce-all-fishing type="button">Enforce Fishing</button>
@@ -2697,9 +2977,29 @@ const html = `<!doctype html>
     function getEnforceFishSelections(scope = "single") {
       const key = scope === "all" ? "enforceAllFishSelections" : "enforceFishSelections";
       if (!Array.isArray(state[key]) || !state[key].length) {
-        state[key] = [{ fishId: "", quantity: 1 }];
+        state[key] = [{ fishId: "", mutationId: "", quantity: 1 }];
       }
       return state[key];
+    }
+
+    function currentMutationChoices() {
+      const mutations = Array.isArray(state.settings.mutations)
+        ? state.settings.mutations
+        : state.mutationChoices.slice(1);
+      return [
+        { id: "", name: "No Mutation" },
+        ...mutations.filter((mutation) => mutation.enabled !== false).map((mutation) => ({ id: mutation.id, name: mutation.name }))
+      ];
+    }
+
+    function mutationName(mutationId) {
+      return currentMutationChoices().find((mutation) => mutation.id === mutationId)?.name || "No Mutation";
+    }
+
+    function mutationOptions(selectedId) {
+      return currentMutationChoices().map((mutation) => 
+        \`<option value="\${escapeHtml(mutation.id)}" \${mutation.id === String(selectedId || "") ? "selected" : ""}>\${escapeHtml(mutation.name)}</option>\`
+      ).join("");
     }
 
     function enforceFishRowTemplate(selection, index, scope = "single") {
@@ -2712,6 +3012,7 @@ const html = `<!doctype html>
               return \`<option value="\${escapeHtml(fishId)}" \${String(selection.fishId || "") === fishId ? "selected" : ""}>\${escapeHtml(fish.name || fish.id || "Unnamed Fish")}</option>\`;
             }).join("")}
           </select></label>
+          <label>Mutation<select data-enforce-mutation-index="\${index}" data-enforce-scope="\${scope}">\${mutationOptions(selection.mutationId)}</select></label>
           <label>Qty<input type="number" min="1" max="99" step="1" data-enforce-quantity-index="\${index}" data-enforce-scope="\${scope}" value="\${escapeHtml(String(selection.quantity || 1))}"></label>
           <button class="icon-button danger" data-remove-enforce-fish="\${index}" data-enforce-scope="\${scope}" type="button" aria-label="Remove fish" \${getEnforceFishSelections(scope).length <= 1 ? "disabled" : ""}>x</button>
         </div>\`;
@@ -2874,13 +3175,15 @@ const html = `<!doctype html>
           <button class="\${state.settingsTab === "fishduel" ? "active" : ""}" data-settings-tab="fishduel" type="button">FishDuel</button>
            <button class="\${state.settingsTab === "fishraid" ? "active" : ""}" data-settings-tab="fishraid" type="button">FishRaid</button>
            <button class="\${state.settingsTab === "fishentot" ? "active" : ""}" data-settings-tab="fishentot" type="button">Fishentot</button>
+           <button class="\${state.settingsTab === "mutations" ? "active" : ""}" data-settings-tab="mutations" type="button">Mutations</button>
         </div>\`;
       const body = {
         general: settingsGeneralTemplate,
         fishcomp: settingsFishCompTemplate,
         fishduel: settingsFishDuelTemplate,
         fishraid: settingsFishRaidTemplate,
-        fishentot: settingsFishEntotTemplate
+        fishentot: settingsFishEntotTemplate,
+        mutations: settingsMutationsTemplate
       }[state.settingsTab]?.() || settingsGeneralTemplate();
       return \`
         <div class="topline">
@@ -2912,6 +3215,168 @@ const html = `<!doctype html>
             \${settingsImageFields("Sell Fish Banner", "sellFishBanner")}
           </div>
         </div>\`;
+    }
+
+    function mutationColorInput(value) {
+      const text = String(value ?? "").trim().replace(/^#/, "").replace(/^0x/i, "");
+      const parsed = Number.parseInt(text, 16);
+      return Number.isFinite(parsed) ? "#" + Math.max(0, Math.min(0xffffff, parsed)).toString(16).padStart(6, "0") : "#ffffff";
+    }
+
+    function mutationVisualLabel(value) {
+      return String(value || "none").replace(/_/g, " ").replace(/\\b\\w/g, (letter) => letter.toUpperCase());
+    }
+
+    function mutationVisualOptions(selectedId) {
+      return state.mutationVisualPresets.map((visual) =>
+        \`<option value="\${escapeHtml(visual)}" \${visual === String(selectedId || "none") ? "selected" : ""}>\${escapeHtml(mutationVisualLabel(visual))}</option>\`
+      ).join("");
+    }
+
+    function mutationMotionOptions(selectedId) {
+      return state.mutationMotionPresets.map((motion) =>
+        \`<option value="\${escapeHtml(motion)}" \${motion === String(selectedId || "static") ? "selected" : ""}>\${escapeHtml(mutationVisualLabel(motion))}</option>\`
+      ).join("");
+    }
+
+    function mutationOverlayTemplate(mutation, mutationIndex) {
+      const overlays = Array.isArray(mutation.customOverlays) ? mutation.customOverlays : [];
+      if (!overlays.length) return \`<div class="small">No custom overlays. Add one when this mutation needs an image layer.</div>\`;
+      return overlays.map((overlay, overlayIndex) => {
+        const source = overlay.base64 || overlay.url || "";
+        const uploadName = state.uploadNames["mutation-overlay:" + mutation.id + ":" + overlay.id] || "";
+        const size = overlay.base64 ? Math.round(overlay.base64.length / 1024) : 0;
+        const status = uploadName
+          ? "Selected file: " + uploadName + " · " + size + " KB"
+          : source ? "Preview loaded from the saved image or URL." : "No image selected.";
+        return \`
+          <article class="mutation-overlay-card">
+            <div class="topline"><strong>\${escapeHtml(overlay.name || "Overlay " + (overlayIndex + 1))}</strong><button class="danger" data-remove-mutation-overlay-index="\${mutationIndex}" data-remove-mutation-overlay-overlay-index="\${overlayIndex}" type="button">Remove</button></div>
+            <div class="mutation-overlay-layout">
+              <div class="mutation-overlay-image">\${imageOrEmptyTemplate(source, "mutation-overlay-preview", overlay.name || "Mutation overlay", "No overlay image", overlay.ref?.messageUrl || "", "mutation-overlay-" + (mutation.id || mutationIndex) + "-" + (overlay.id || overlayIndex))}</div>
+              <div class="fields mutation-overlay-fields">
+                <label>Name<input type="text" data-mutation-index="\${mutationIndex}" data-mutation-overlay-index="\${overlayIndex}" data-mutation-overlay-key="name" value="\${escapeHtml(overlay.name || "Overlay " + (overlayIndex + 1))}"></label>
+                <label>Image URL<input type="url" data-mutation-index="\${mutationIndex}" data-mutation-overlay-index="\${overlayIndex}" data-mutation-overlay-key="url" value="\${escapeHtml(overlay.url || "")}"></label>
+                <label>Scale ×<input type="number" min="0.05" max="2" step="0.01" data-mutation-index="\${mutationIndex}" data-mutation-overlay-index="\${overlayIndex}" data-mutation-overlay-key="scale" value="\${escapeHtml(String(overlay.scale ?? 0.35))}"></label>
+                <label>X %<input type="number" min="0" max="100" step="1" data-mutation-index="\${mutationIndex}" data-mutation-overlay-index="\${overlayIndex}" data-mutation-overlay-key="x" value="\${escapeHtml(String(overlay.x ?? 75))}"></label>
+                <label>Y %<input type="number" min="0" max="100" step="1" data-mutation-index="\${mutationIndex}" data-mutation-overlay-index="\${overlayIndex}" data-mutation-overlay-key="y" value="\${escapeHtml(String(overlay.y ?? 25))}"></label>
+                <label>Opacity<input type="number" min="0" max="1" step="0.01" data-mutation-index="\${mutationIndex}" data-mutation-overlay-index="\${overlayIndex}" data-mutation-overlay-key="opacity" value="\${escapeHtml(String(overlay.opacity ?? 1))}"></label>
+                <label>Motion<select data-mutation-index="\${mutationIndex}" data-mutation-overlay-index="\${overlayIndex}" data-mutation-overlay-key="motion">\${mutationMotionOptions(overlay.motion)}</select></label>
+                <label>Motion Speed ×<input type="number" min="0.1" max="5" step="0.1" data-mutation-index="\${mutationIndex}" data-mutation-overlay-index="\${overlayIndex}" data-mutation-overlay-key="motionSpeed" value="\${escapeHtml(String(overlay.motionSpeed ?? 1))}"></label>
+                <label class="toggle-row"><input type="checkbox" data-mutation-index="\${mutationIndex}" data-mutation-overlay-index="\${overlayIndex}" data-mutation-overlay-key="enabled" \${overlay.enabled !== false ? "checked" : ""}> Enabled</label>
+                <label class="file-picker"><span>Choose Image</span><input type="file" accept="image/png,image/jpeg,image/gif,image/webp" data-mutation-index="\${mutationIndex}" data-mutation-overlay-index="\${overlayIndex}" data-mutation-overlay-file></label>
+                <div class="small wide">\${escapeHtml(status)} Uploads are stored in the Discord storage channel when saved.</div>
+                <button class="danger wide" data-clear-mutation-overlay-index="\${mutationIndex}" data-clear-mutation-overlay-overlay-index="\${overlayIndex}" type="button">Clear Image</button>
+              </div>
+            </div>
+          </article>\`;
+      }).join("");
+    }
+
+    function settingsMutationsTemplate() {
+      const mutations = Array.isArray(state.settings.mutations) && state.settings.mutations.length
+        ? state.settings.mutations
+        : [];
+      const totalChance = mutations.filter((mutation) => mutation.enabled !== false).reduce((sum, mutation) => sum + Math.max(0, Number(mutation.chance || 0)), 0);
+      const fishOptions = state.fish.map((fish) =>
+        \`<option value="\${escapeHtml(String(fish.id || ""))}" \${String(fish.id || "") === state.mutationPreviewFishId ? "selected" : ""}>\${escapeHtml(fish.name || fish.id || "Unnamed Fish")}</option>\`
+      ).join("");
+      return \`
+        <div class="fields mutation-settings-list">
+          <div class="wide small">Each enabled Chance Weight is a percentage-point chance. The sum is the overall mutation chance, capped at 100%; if a mutation happens, its weight selects which mutation it is. Set a weight to 0 or disable it to turn it off. Mutation IDs stay stable once created; removing a row preserves existing Fishdex and inventory records.</div>
+          <div class="wide mutation-total"><strong data-mutation-total>Total enabled mutation chance: \${totalChance.toFixed(2)}%</strong></div>
+          <section class="mutation-preview-toolbar wide">
+            <label>Preview Fish<select data-mutation-preview-fish><option value="">None</option>\${fishOptions}</select></label>
+            <div class="small">The selected fish supplies the base icon. Each mutation preview appears beside its settings and updates when you press Preview or change its parameters.</div>
+          </section>
+          <div class="wide button-row"><button data-add-mutation type="button">Add Mutation</button></div>
+          \${mutations.map((mutation, index) => \`
+            <section class="mutation-setting-card wide">
+              <div class="topline"><span><strong>\${escapeHtml(mutation.name || mutation.id)}</strong> <span class="badge">ID: \${escapeHtml(mutation.id)}</span></span><span class="button-row"><button data-copy-mutation-visual="\${index}" type="button">Copy Visual</button><button data-paste-mutation-visual="\${index}" type="button">Paste Visual</button><button class="danger" data-remove-mutation-index="\${index}" type="button">Remove</button></span></div>
+              <div class="mutation-setting-layout">
+                <div class="fields mutation-parameter-fields">
+                <label>Name<input type="text" data-mutation-index="\${index}" data-mutation-key="name" value="\${escapeHtml(mutation.name || mutation.id)}"></label>
+                <label>Chance Weight (%)<input type="number" min="0" step="0.01" data-mutation-index="\${index}" data-mutation-key="chance" value="\${escapeHtml(String(mutation.chance ?? 0))}"></label>
+                <label>Sell Price ×<input type="number" min="0" step="0.01" data-mutation-index="\${index}" data-mutation-key="goldMultiplier" value="\${escapeHtml(String(mutation.goldMultiplier ?? 1))}"></label>
+                <label>EXP ×<input type="number" min="0" step="0.01" data-mutation-index="\${index}" data-mutation-key="expMultiplier" value="\${escapeHtml(String(mutation.expMultiplier ?? 1))}"></label>
+                <label>Size ×<input type="number" min="0.01" step="0.01" data-mutation-index="\${index}" data-mutation-key="sizeMultiplier" value="\${escapeHtml(String(mutation.sizeMultiplier ?? 1))}"></label>
+                <label>Mutation Color<input type="color" data-mutation-index="\${index}" data-mutation-key="color" value="\${mutationColorInput(mutation.color)}"></label>
+                <label>Visual Preset<select data-mutation-index="\${index}" data-mutation-key="visual">\${mutationVisualOptions(mutation.visual)}</select></label>
+                <label class="toggle-row"><input type="checkbox" data-mutation-index="\${index}" data-mutation-key="enabled" \${mutation.enabled !== false ? "checked" : ""}> Enabled</label>
+                <section class="mutation-overlay-editor wide">
+                  <div class="topline"><strong>Custom Overlays</strong><button data-add-mutation-overlay="\${index}" type="button">+ Add Overlay</button></div>
+                  <div class="small">Overlays are independent from the Visual Preset, so you can combine multiple images with Gold, Ghost, or any other preset.</div>
+                 <div class="mutation-overlay-list">\${mutationOverlayTemplate(mutation, index)}</div>
+               </section>
+                </div>
+               <section class="mutation-preview-panel">
+                  <div class="topline"><strong>Visual Preview</strong><button data-preview-mutation-index="\${index}" type="button">Preview</button></div>
+                  <div class="mutation-preview-stage">
+                    <div id="mutation-preview-status-\${index}" class="small" data-mutation-preview-status-index="\${index}">Select a fish above, then press Preview.</div>
+                    <img id="mutation-preview-image-\${index}" data-mutation-preview-image-index="\${index}" alt="\${escapeHtml(mutation.name || mutation.id)} visual preview" hidden>
+                 </div>
+               </section>
+             </div>
+           </section>\`).join("")}
+        </div>\`;
+    }
+
+    let mutationPreviewTimer = 0;
+
+    function scheduleMutationPreview(index = null) {
+      clearTimeout(mutationPreviewTimer);
+      mutationPreviewTimer = setTimeout(() => refreshMutationPreview(index), 250);
+    }
+
+    async function refreshMutationPreview(index = null) {
+      const mutations = Array.isArray(state.settings.mutations) ? state.settings.mutations : [];
+      const targetIndexes = index === null
+        ? mutations.map((mutation, mutationIndex) => mutation ? mutationIndex : -1).filter((mutationIndex) => mutationIndex >= 0)
+        : [Number(index)];
+      const fish = state.fish.find((entry) => String(entry.id || "") === String(state.mutationPreviewFishId || ""));
+      if (!fish) {
+        for (const previewIndex of targetIndexes) {
+          const image = document.getElementById("mutation-preview-image-" + previewIndex);
+          const status = document.getElementById("mutation-preview-status-" + previewIndex);
+          if (image) image.hidden = true;
+          if (status) status.textContent = "Select a fish above to preview this mutation.";
+        }
+        return;
+      }
+      state.mutationPreviewBusy = true;
+      window.mutationPreviewObjectUrls = window.mutationPreviewObjectUrls || {};
+      try {
+        await Promise.all(targetIndexes.map(async (previewIndex) => {
+          const mutation = mutations[previewIndex];
+          const image = document.getElementById("mutation-preview-image-" + previewIndex);
+          const status = document.getElementById("mutation-preview-status-" + previewIndex);
+          if (!mutation || !image || !status) return;
+          status.textContent = "Generating preview…";
+          try {
+            const response = await fetch("/api/mutation-preview", {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({ fish, mutation })
+            });
+            if (!response.ok) {
+              const payload = await response.json().catch(() => ({}));
+              throw new Error(payload.error || "Could not generate preview.");
+            }
+            const blob = await response.blob();
+            const key = String(mutation.id || previewIndex);
+            if (window.mutationPreviewObjectUrls[key]) URL.revokeObjectURL(window.mutationPreviewObjectUrls[key]);
+            window.mutationPreviewObjectUrls[key] = URL.createObjectURL(blob);
+            image.src = window.mutationPreviewObjectUrls[key];
+            image.hidden = false;
+            status.textContent = "Preview ready. Changes are not saved until you press Save This Tab.";
+          } catch (error) {
+            image.hidden = true;
+            status.textContent = error.message || "Could not generate preview.";
+          }
+        }));
+      } finally {
+        state.mutationPreviewBusy = false;
+      }
     }
 
     function settingsFishCompTemplate() {
@@ -3261,7 +3726,7 @@ const html = `<!doctype html>
 
     function makeEmptyEvent() {
       const startAt = formatDateTimeLocal(new Date());
-      return { id: String(Date.now()), title: "", description: "", bannerBase64: "", bannerUrl: "", startAt, durationMinutes: 60, bonuses: [{ type: "gold_multiplier", value: 2, fishId: "" }], questIds: [], announcementChannelId: state.lastAnnouncementChannelId, guildId: "", stoppedAt: "", deployedAt: "" };
+      return { id: String(Date.now()), title: "", description: "", bannerBase64: "", bannerUrl: "", startAt, durationMinutes: 60, bonuses: [{ type: "gold_multiplier", value: 2, fishId: "", mutationId: "" }], questIds: [], announcementChannelId: state.lastAnnouncementChannelId, guildId: "", stoppedAt: "", deployedAt: "" };
     }
 
     function formatDateTimeLocal(date) {
@@ -3286,7 +3751,7 @@ const html = `<!doctype html>
     function normalizeEvent(event) {
       const bonuses = Array.isArray(event?.bonuses) && event.bonuses.length
         ? event.bonuses
-        : [{ type: event?.type || "gold_multiplier", value: event?.value ?? 1, fishId: event?.fishId || "" }];
+        : [{ type: event?.type || "gold_multiplier", value: event?.value ?? 1, fishId: event?.fishId || "", mutationId: event?.mutationId || "" }];
       return { ...(event || {}), bonuses };
     }
 
@@ -3311,6 +3776,10 @@ const html = `<!doctype html>
           return \`\${fishName} chance x\${bonus.value}\`;
         }
         if (bonus.type === "fishing_speed") return \`Fishing speed x\${bonus.value}\`;
+        if (bonus.type === "mutation_chance") {
+          const mutationName = state.settings.mutations?.find((mutation) => mutation.id === bonus.mutationId)?.name || bonus.mutationId || "all mutations";
+          return \`\${mutationName} chance x\${bonus.value}\`;
+        }
         return \`Bonus x\${bonus.value}\`;
       }).join(", ") || "No bonus";
     }
@@ -3580,14 +4049,18 @@ const html = `<!doctype html>
           return \`<option value="\${escapeHtml(fishId)}" \${bonus.fishId === fishId ? "selected" : ""}>\${escapeHtml(fish.name || fish.id || "")} (\${escapeHtml(fishId)})</option>\`;
         })
         .join("");
+      const mutationOptions = (state.settings.mutations || [])
+        .map((mutation) => \`<option value="\${escapeHtml(mutation.id)}" \${bonus.mutationId === mutation.id ? "selected" : ""}>\${escapeHtml(mutation.name || mutation.id)}</option>\`)
+        .join("");
       return \`
         <div class="bonus-row wide">
           <div class="fields">
             <label>Event Type<select data-bonus-index="\${bonusIndex}" data-bonus-key="type">
-              \${["gold_multiplier", "exp_multiplier", "fish_chance", "fishing_speed"].map((type) => \`<option value="\${type}" \${bonus.type === type ? "selected" : ""}>\${type}</option>\`).join("")}
+              \${[["gold_multiplier", "Gold multiplier"], ["exp_multiplier", "EXP multiplier"], ["fish_chance", "Fish chance"], ["fishing_speed", "Fishing speed"], ["mutation_chance", "Mutation chance"]].map(([type, label]) => \`<option value="\${type}" \${bonus.type === type ? "selected" : ""}>\${label}</option>\`).join("")}
             </select></label>
-            \${bonusField("Multiplier / Chance Boost", "value", bonus.value, bonusIndex, "number", "0.01")}
+            \${bonusField(bonus.type === "mutation_chance" ? "Chance Multiplier" : "Multiplier / Chance Boost", "value", bonus.value, bonusIndex, "number", "0.01")}
             \${bonus.type === "fish_chance" ? \`<label>Fish<select data-bonus-index="\${bonusIndex}" data-bonus-key="fishId"><option value="">All fish</option>\${fishOptions}</select><input placeholder="Search fish by typing here" list="\${fishDatalistId}" value="\${escapeHtml(bonus.fishId || "")}" data-bonus-index="\${bonusIndex}" data-bonus-key="fishId"></label><datalist id="\${fishDatalistId}">\${fishOptions}</datalist>\` : ""}
+            \${bonus.type === "mutation_chance" ? \`<label>Mutation<select data-bonus-index="\${bonusIndex}" data-bonus-key="mutationId"><option value="">All mutations</option>\${mutationOptions}</select></label>\` : ""}
             <button class="danger" data-remove-bonus="\${bonusIndex}" type="button">Remove Bonus</button>
           </div>
         </div>\`;
@@ -4246,8 +4719,9 @@ const html = `<!doctype html>
           if (!importedSettings) {
             throw new Error("JSON must be a settings object, or an object with a settings value.");
           }
-          state.settings = { ...state.settings, ...importedSettings };
-          state.selectedRaidBossId = state.settings.fishRaidBosses?.[0]?.id || "";
+         state.settings = { ...state.settings, ...importedSettings };
+          state.settings.mutations = normalizeMutationSettings(state.settings.mutations);
+         state.selectedRaidBossId = state.settings.fishRaidBosses?.[0]?.id || "";
           setStatus("Imported settings JSON. Press Save to store changes.");
           render();
         } catch (error) {
@@ -4390,7 +4864,10 @@ const html = `<!doctype html>
       if (Array.isArray(payload.rods)) state.rods = payload.rods;
       if (Array.isArray(payload.fishBags)) state.fishBags = payload.fishBags;
       if (Array.isArray(payload.adminDiscordIds)) state.adminDiscordIds = payload.adminDiscordIds;
-      if (payload.settings) state.settings = payload.settings;
+      if (payload.settings) {
+        state.settings = payload.settings;
+        state.settings.mutations = normalizeMutationSettings(state.settings.mutations);
+      }
       if (tab === "event") {
         state.activeEvent = payload.activeEvent || null;
         state.events = Array.isArray(payload.events) ? payload.events : [];
@@ -4675,12 +5152,13 @@ const html = `<!doctype html>
         setStatus("Forcing a fishing catch...");
         const fishSelections = getEnforceFishSelections().map((selection) => ({
           fishId: String(selection.fishId || ""),
+          mutationId: String(selection.mutationId || ""),
           quantity: Math.max(1, Math.min(99, Math.floor(Number(selection.quantity || 1))))
         }));
         const response = await fetch("/api/player/enforce-fishing", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ playFabId: selected.playFabId, player: selected.player, fishSelections })
+          body: JSON.stringify({ playFabId: selected.playFabId, player: selected.player, fishSelections, testOnly: state.enforceTestOnly })
         });
         const payload = await response.json();
         if (!response.ok) throw new Error(payload.error || "Could not enforce fishing.");
@@ -4688,9 +5166,9 @@ const html = `<!doctype html>
         const discordStatus = payload.messageQueued ? " Discord catch message queued." : " No last Discord channel is saved for this player yet.";
         const catches = Array.isArray(payload.catches) ? payload.catches : (payload.catch ? [payload.catch] : []);
         const catchSummary = catches.length === 1
-          ? \`Caught \${catches[0].fish.name}, \${Number(catches[0].catchWeight || 0).toFixed(2)} kg, +\${catches[0].expGain} EXP, Luck Score \${catches[0].luckScore}\`
+          ? \`Caught \${catches[0].fish.name} (\${mutationName(catches[0].mutationId)}), \${Number(catches[0].catchWeight || 0).toFixed(2)} kg, +\${catches[0].expGain} EXP, Luck Score \${catches[0].luckScore}\`
           : \`Caught \${catches.length} fish, +\${catches.reduce((sum, entry) => sum + Number(entry.expGain || 0), 0)} EXP total\`;
-        state.catchNotice = \`\${catchSummary}. Progress reset.\${discordStatus}\`;
+        state.catchNotice = \`\${catchSummary}. \${payload.testOnly ? "Test only; player data was not changed." : "Progress reset."}\${discordStatus}\`;
         state.enforceModalOpen = false;
         setStatus(payload.messageQueued ? "Fishing enforced and Discord message queued." : "Fishing enforced, but no Discord channel was saved.");
         render();
@@ -4700,6 +5178,7 @@ const html = `<!doctype html>
     async function enforceFishingForAllPlayers() {
       const fishSelections = getEnforceFishSelections("all").map((selection) => ({
         fishId: String(selection.fishId || ""),
+        mutationId: String(selection.mutationId || ""),
         quantity: Math.max(1, Math.min(99, Math.floor(Number(selection.quantity || 1))))
       }));
       await runWithLoading("Enforcing fishing for targeted players…", async () => {
@@ -4707,13 +5186,13 @@ const html = `<!doctype html>
         const response = await fetch("/api/players/enforce-fishing", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ guildId: state.enforceAllGuildId, fishSelections })
+          body: JSON.stringify({ guildId: state.enforceAllGuildId, fishSelections, testOnly: state.enforceAllTestOnly })
         });
         const payload = await readProgressResponse(response, showOperationProgress);
         mergeUpdatedPlayers(payload.players);
         state.enforceAllModalOpen = false;
         const excludedSummary = payload.excludedCount ? \` Excluded by server filter: \${payload.excludedCount}.\` : "";
-        state.catchNotice = \`Enforced fishing for \${payload.count || 0} of \${payload.targetCount || 0} targeted players. Discord catch messages queued: \${payload.queuedCount || 0}. No saved channel: \${payload.noChannelCount || 0}. Failed: \${payload.failedCount || 0}.\${excludedSummary}\`;
+        state.catchNotice = \`\${payload.testOnly ? "Tested fishing for" : "Enforced fishing for"} \${payload.count || 0} of \${payload.targetCount || 0} targeted players. Discord catch messages queued: \${payload.queuedCount || 0}. No saved channel: \${payload.noChannelCount || 0}. Failed: \${payload.failedCount || 0}.\${payload.testOnly ? " Player data was not changed." : ""}\${excludedSummary}\`;
         setStatus("Fishing enforcement finished.");
         render();
       });
@@ -5061,6 +5540,16 @@ const html = `<!doctype html>
           if (selection) selection.fishId = target.value;
           return;
         }
+        if (target.dataset.enforceMutationIndex !== undefined) {
+          const selection = getEnforceFishSelections(target.dataset.enforceScope)[Number(target.dataset.enforceMutationIndex)];
+          if (selection) selection.mutationId = target.value;
+          return;
+        }
+        if (target.dataset.enforceTestToggle !== undefined) {
+          if (target.dataset.enforceTestToggle === "all") state.enforceAllTestOnly = target.checked;
+          else state.enforceTestOnly = target.checked;
+          return;
+        }
         if (target.dataset.enforceQuantityIndex !== undefined) {
           const selection = getEnforceFishSelections(target.dataset.enforceScope)[Number(target.dataset.enforceQuantityIndex)];
           if (selection) selection.quantity = Math.max(1, Math.min(99, Math.floor(Number(target.value || 1))));
@@ -5087,8 +5576,37 @@ const html = `<!doctype html>
         if (!target.dataset.key) return;
         state.adminDiscordIds[Number(target.dataset.index)] = target.value;
         return;
-      }
-      if (state.tab === "settings") {
+     }
+     if (state.tab === "settings") {
+        if (target.dataset.mutationOverlayFile !== undefined) return;
+       if (target.dataset.mutationOverlayKey !== undefined) {
+          const mutation = state.settings.mutations?.[Number(target.dataset.mutationIndex)];
+          const overlay = mutation?.customOverlays?.[Number(target.dataset.mutationOverlayIndex)];
+          if (!overlay) return;
+          const key = target.dataset.mutationOverlayKey;
+          overlay[key] = target.type === "checkbox" ? target.checked : target.type === "number" ? Number(target.value) : target.value;
+          if (key === "url") {
+            overlay.base64 = "";
+            overlay.ref = null;
+            overlay.urlNeedsRehost = true;
+            delete state.uploadNames["mutation-overlay:" + mutation.id + ":" + overlay.id];
+          }
+          scheduleMutationPreview(Number(target.dataset.mutationIndex));
+          return;
+        }
+       if (target.dataset.mutationIndex !== undefined) {
+          const mutation = state.settings.mutations?.[Number(target.dataset.mutationIndex)];
+          if (!mutation) return;
+          const key = target.dataset.mutationKey;
+          mutation[key] = target.type === "checkbox" ? target.checked : target.type === "number" ? Number(target.value) : target.value;
+          const totalChance = (state.settings.mutations || [])
+            .filter((entry) => entry.enabled !== false)
+            .reduce((sum, entry) => sum + Math.max(0, Number(entry.chance || 0)), 0);
+          const totalElement = document.querySelector("[data-mutation-total]");
+         if (totalElement) totalElement.textContent = "Total enabled mutation chance: " + totalChance.toFixed(2) + "%";
+          scheduleMutationPreview(Number(target.dataset.mutationIndex));
+         return;
+        }
         if (target.dataset.fishEntotEventKey) {
           const entry = selectedFishEntotEventEntry();
           if (!entry) return;
@@ -5215,6 +5733,9 @@ const html = `<!doctype html>
           if (target.dataset.bonusKey === "type" && target.value !== "fish_chance") {
             bonus.fishId = "";
           }
+          if (target.dataset.bonusKey === "type" && target.value !== "mutation_chance") {
+            bonus.mutationId = "";
+          }
           if (target.dataset.bonusKey === "type") {
             render();
           }
@@ -5325,6 +5846,31 @@ const html = `<!doctype html>
     });
     grid.addEventListener("change", (event) => {
       const target = event.target;
+     if (target.dataset.mutationPreviewFish !== undefined) {
+       state.mutationPreviewFishId = target.value;
+       scheduleMutationPreview();
+       return;
+     }
+      if (target.dataset.mutationOverlayFile !== undefined) {
+        const mutationIndex = Number(target.dataset.mutationIndex);
+        const overlayIndex = Number(target.dataset.mutationOverlayIndex);
+        const mutation = state.settings.mutations?.[mutationIndex];
+        const overlay = mutation?.customOverlays?.[overlayIndex];
+        const file = target.files[0];
+        if (!mutation || !overlay || !file) return;
+        const reader = new FileReader();
+        reader.onload = () => {
+          overlay.base64 = reader.result;
+          overlay.url = "";
+          overlay.ref = null;
+          overlay.urlNeedsRehost = false;
+          state.uploadNames["mutation-overlay:" + mutation.id + ":" + overlay.id] = file.name;
+          setStatus("Overlay image loaded locally. Press Save This Tab to store it.");
+          render({ preserveFocus: false });
+        };
+        reader.readAsDataURL(file);
+        return;
+      }
       if (target.dataset.createItemIcon !== undefined) {
         const file = target.files[0];
         if (!file || !state.createItemDraft) return;
@@ -5513,6 +6059,123 @@ const html = `<!doctype html>
         render();
         return;
       }
+     const previewMutationButton = event.target.closest("[data-preview-mutation-index]");
+      const copyVisualButton = event.target.closest("[data-copy-mutation-visual]");
+      if (copyVisualButton) {
+        const mutation = state.settings.mutations?.[Number(copyVisualButton.dataset.copyMutationVisual)];
+        if (!mutation) return;
+        state.mutationVisualClipboard = {
+          visual: mutation.visual,
+          color: mutation.color,
+          customOverlays: JSON.parse(JSON.stringify(mutation.customOverlays || []))
+        };
+        setStatus("Visual copied. Choose Paste Visual on another mutation to reuse it.");
+        return;
+      }
+      const pasteVisualButton = event.target.closest("[data-paste-mutation-visual]");
+      if (pasteVisualButton) {
+        const mutation = state.settings.mutations?.[Number(pasteVisualButton.dataset.pasteMutationVisual)];
+        if (!mutation) return;
+        if (!state.mutationVisualClipboard) {
+          setStatus("Copy a mutation visual first.", true);
+          return;
+        }
+        mutation.visual = state.mutationVisualClipboard.visual;
+        mutation.color = state.mutationVisualClipboard.color;
+        mutation.customOverlays = JSON.parse(JSON.stringify(state.mutationVisualClipboard.customOverlays || []));
+        setStatus("Visual pasted locally. Press Save This Tab to store the change.");
+        render();
+        return;
+      }
+      if (previewMutationButton) {
+        const index = Number(previewMutationButton.dataset.previewMutationIndex);
+        if (state.settings.mutations?.[index]) {
+          refreshMutationPreview(index).catch((error) => setStatus(error.message || "Could not generate mutation preview.", true));
+        }
+        return;
+      }
+      const addOverlayButton = event.target.closest("[data-add-mutation-overlay]");
+      if (addOverlayButton) {
+        const mutationIndex = Number(addOverlayButton.dataset.addMutationOverlay);
+        const mutation = state.settings.mutations?.[mutationIndex];
+        if (!mutation) return;
+        if (!Array.isArray(mutation.customOverlays)) mutation.customOverlays = [];
+        mutation.customOverlays.push({
+          id: "overlay_" + Date.now(),
+          name: "Overlay " + (mutation.customOverlays.length + 1),
+          base64: "",
+          url: "",
+          ref: null,
+          urlNeedsRehost: false,
+          scale: 0.35,
+          x: 75,
+          y: 25,
+          opacity: 1,
+          motion: "static",
+          motionSpeed: 1,
+          enabled: true
+        });
+        setStatus("Overlay added locally. Press Save This Tab to store the change.");
+        render();
+        return;
+      }
+      const removeOverlayButton = event.target.closest("[data-remove-mutation-overlay-index]");
+      if (removeOverlayButton) {
+        const mutation = state.settings.mutations?.[Number(removeOverlayButton.dataset.removeMutationOverlayIndex)];
+        const overlayIndex = Number(removeOverlayButton.dataset.removeMutationOverlayOverlayIndex);
+        if (!mutation?.customOverlays?.[overlayIndex] || !confirm("Remove this custom overlay?")) return;
+        const overlay = mutation.customOverlays[overlayIndex];
+        mutation.customOverlays.splice(overlayIndex, 1);
+        delete state.uploadNames["mutation-overlay:" + mutation.id + ":" + overlay.id];
+        setStatus("Overlay removed locally. Press Save This Tab to store the change.");
+        render();
+        return;
+      }
+      if (event.target.closest("[data-add-mutation]")) {
+        if (!Array.isArray(state.settings.mutations)) state.settings.mutations = [];
+        const mutation = {
+          id: "mutation_" + Date.now(),
+          name: "New Mutation",
+          chance: 0,
+          goldMultiplier: 1,
+          expMultiplier: 1,
+          sizeMultiplier: 1,
+          color: 0xffffff,
+         visual: "none",
+         enabled: true,
+          customOverlays: []
+        };
+        state.settings.mutations.push(mutation);
+        setStatus("New mutation added locally. Press Save This Tab to store it.");
+        render();
+        return;
+      }
+      const removeMutationButton = event.target.closest("[data-remove-mutation-index]");
+      if (removeMutationButton) {
+        const mutations = state.settings.mutations || [];
+        const index = Number(removeMutationButton.dataset.removeMutationIndex);
+        const removed = mutations[index];
+        if (!removed || !confirm("Remove this mutation from the active mutation list? Existing player records will be preserved.")) return;
+        mutations.splice(index, 1);
+        setStatus("Mutation removed locally. Existing records remain preserved. Press Save This Tab to store the change.");
+        render();
+        return;
+      }
+      const clearMutationOverlayButton = event.target.closest("[data-clear-mutation-overlay-index]");
+      if (clearMutationOverlayButton) {
+        const mutation = state.settings.mutations?.[Number(clearMutationOverlayButton.dataset.clearMutationOverlayIndex)];
+        const overlayIndex = Number(clearMutationOverlayButton.dataset.clearMutationOverlayOverlayIndex);
+        const overlay = mutation?.customOverlays?.[overlayIndex];
+        if (!overlay) return;
+        overlay.base64 = "";
+        overlay.url = "";
+        overlay.ref = null;
+        overlay.urlNeedsRehost = false;
+        delete state.uploadNames["mutation-overlay:" + mutation.id + ":" + overlay.id];
+        setStatus("Overlay image cleared locally. Press Save This Tab to store the change.");
+       render();
+       return;
+     }
       const selectFishEntotEventButton = event.target.closest("[data-select-fish-entot-event]");
       if (selectFishEntotEventButton) {
         state.selectedFishEntotEventId = selectFishEntotEventButton.dataset.selectFishEntotEvent;
@@ -5640,7 +6303,7 @@ const html = `<!doctype html>
       }
       const addEnforceFishButton = event.target.closest("[data-add-enforce-fish]");
       if (addEnforceFishButton) {
-        getEnforceFishSelections(addEnforceFishButton.dataset.enforceScope).push({ fishId: "", quantity: 1 });
+        getEnforceFishSelections(addEnforceFishButton.dataset.enforceScope).push({ fishId: "", mutationId: "", quantity: 1 });
         render();
         return;
       }
@@ -5961,7 +6624,7 @@ const html = `<!doctype html>
         return;
       }
       if (event.target.closest("[data-add-bonus]")) {
-        getEvent().bonuses.push({ type: "gold_multiplier", value: 2, fishId: "" });
+        getEvent().bonuses.push({ type: "gold_multiplier", value: 2, fishId: "", mutationId: "" });
         render();
         return;
       }
@@ -5969,7 +6632,7 @@ const html = `<!doctype html>
       if (removeBonusButton) {
         const bonuses = getEvent().bonuses;
         bonuses.splice(Number(removeBonusButton.dataset.removeBonus), 1);
-        if (!bonuses.length) bonuses.push({ type: "gold_multiplier", value: 2, fishId: "" });
+        if (!bonuses.length) bonuses.push({ type: "gold_multiplier", value: 2, fishId: "", mutationId: "" });
         render();
         return;
       }

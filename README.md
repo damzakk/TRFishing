@@ -49,7 +49,7 @@ Open this in your browser:
 http://localhost:3000
 ```
 
-From there you can add, edit, remove fish and rods, upload icons, save item data to PlayFab, and seed defaults for the currently selected item tab. Each tab loads only when it is opened and saves to its own PlayFab record, so saving one tab cannot replace another tab's data. The first split-config save also preserves the previous combined manager configuration in `admin_config_backup_before_split`.
+From there you can add, edit, remove fish and rods, upload icons, save item data to PlayFab, and seed defaults for the currently selected item tab. Player Management can enforce a selected fish and mutation, including `No Mutation`, or use `Test Enforce` to send the popup without recording the fish, EXP, Fishdex entry, or progress. Each tab loads only when it is opened and saves to its own PlayFab record, so saving one tab cannot replace another tab's data. The first split-config save also preserves the previous combined manager configuration in `admin_config_backup_before_split`.
 
 Icons, event banners, and the custom rod store image are uploaded to the Discord storage channel when you save. PlayFab Title Data only stores the image URL plus the rest of the fish, rod, settings, admin, and event data. Existing older PlayFab CDN image keys can still be read, but new manager uploads use Discord storage.
 
@@ -58,7 +58,7 @@ The bot refreshes item data automatically every few minutes. Restart the bot if 
 The manager also has:
 
 - Admin Control: add admin Discord IDs or usernames for testing commands.
-- Settings: split into General, FishComp, and FishRaid panels for command banners, competition banners, raid rewards, per-boss raid banners, boss quota data, raid controls, events, chat cooldown, EXP multipliers, and voice progress.
+- Settings: split into General, FishComp, FishRaid, Fishentot, and Mutations panels for command banners, competition banners, raid rewards, per-boss raid banners, boss quota data, raid controls, events, chat cooldown, EXP multipliers, voice progress, and mutation balance/visual presets. The Mutations panel includes a live fish/mutation preview beside each mutation, editable chance/stat/color settings, built-in effects, multiple custom overlay uploads or URLs, configurable overlay motion, and visual copy/paste controls.
 - Event: list deployed events, create server-scoped timed events with start time and duration, add multiple bonus types, and stop running events.
 - Player Management: list and search players by Discord ID or username, edit profile and quest data through separate save actions, refresh Daily Quests for one player or every player, reset a player, delete a player from the PlayFab title, make a player admin, force one fishing catch, and reset or delete all loaded players.
 - Quest System: browse each quest category in a scrollable name list and edit the selected quest in a dedicated detail panel.
@@ -106,6 +106,8 @@ Each fish has:
 - Description: flavor text shown when the fish is caught.
 
 When fishing triggers, the user catches one fish, sees its rolled weight, gains EXP, and can later sell fish for gold.
+
+Normal catches can also receive one mutation. Mutations modify the final size, EXP, and sell value, are tracked separately in inventory, and appear in Fishdex with mutation counts and best weights. Catch and Fishdex icons use cached animated GIF effects generated from the configured fish icon. Transparent source icons are flattened onto the mutation color before resizing/encoding to prevent transparent-edge color bleed. A built-in visual preset can be combined with any number of custom overlays; overlays support static, float, orbit, sweep, pulse, bounce, spiral, shake, twinkle, and zoom motion. The initial mutation catalog includes Stone, Gold, Freezing, Ghost, Radioactive, Lightning, Midnight, Fairy Dust, Gemstone, Corrupt, Galaxy, Bloodmoon, Minty, and Jawa, but managers can add, disable, or remove mutation definitions without invalidating older player records. Mutation chance weights are percentage-point chances; their total is the overall mutation chance, capped at 100%, and active events can multiply all mutations or one selected mutation. Mutation balance and visual presets are centralized in `src/mutationSystem.js`.
 
 Each catch also shows a Luck Score. The fish data still keeps its original decimal Luck Scale, but the display score uses `(1 - luckScale) * 5000`, so a fish with `luckScale: -0.45` appears as `7250` on catch popups and the fish luck leaderboard.
 

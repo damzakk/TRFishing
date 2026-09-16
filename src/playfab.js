@@ -8,6 +8,7 @@ const defaultFishRaidEvents = require("../fishRaidEvents.json");
 const defaultFishDuelEvents = require("../fishDuelEvents.json");
 const { defaultFishEntotSettings, cleanFishEntotEvents } = require("./fishEntotConfig");
 const { getDiscordImageUrl, uploadDiscordImageFromUrl, uploadDiscordImageWithRef } = require("./discordStorage");
+const { normalizeFishDex, normalizeMutationInventory, normalizeMutationSettings } = require("./mutationSystem");
 
 const titleId = process.env.PLAYFAB_TITLE_ID;
 const secretKey = process.env.PLAYFAB_SECRET_KEY;
@@ -35,6 +36,7 @@ const titleDataKeys = {
 
 const defaultSettings = {
   ...defaultFishEntotSettings,
+  mutations: normalizeMutationSettings(),
   rodStoreImageBase64: "",
   rodStoreImageUrl: "",
   fishCompBannerBase64: "",
@@ -299,6 +301,7 @@ function makeDefaultPlayer() {
     fishBagId: "",
     ownedFishBags: [],
     inventory: {},
+    mutationInventory: {},
     fishDex: {},
     showcasedFishId: "",
     fishEntotLastUsedAt: 0,
@@ -328,28 +331,37 @@ function normalizePlayer(rawPlayer) {
   const starterRodId = defaultRods[0]?.id || "twig";
   const ownedRods = Array.isArray(rawPlayer?.ownedRods) && rawPlayer.ownedRods.length ? rawPlayer.ownedRods : [starterRodId];
   const ownedFishBags = Array.isArray(rawPlayer?.ownedFishBags) ? rawPlayer.ownedFishBags : [];
-  const inventory = rawPlayer?.inventory && typeof rawPlayer.inventory === "object" ? rawPlayer.inventory : {};
-  const rawFishDex = rawPlayer?.fishDex && typeof rawPlayer.fishDex === "object" ? rawPlayer.fishDex : {};
-  const fishDex = {};
-  for (const [fishId, entry] of Object.entries(rawFishDex)) {
-    const source = entry && typeof entry === "object" ? entry : {};
-    const count = Math.max(0, Math.floor(cleanNumber(source.count, Number(entry || 0))));
-    const heaviestWeight = Math.max(0, cleanNumber(source.heaviestWeight, 0));
-    if (count > 0 || heaviestWeight > 0) {
-      fishDex[fishId] = { count, heaviestWeight };
-    }
-  }
+  const inventory = rawPlayer?.inventory && typeof rawPlayer.inventory === "object" && !Array.isArray(rawPlayer.inventory)
+    ? Object.fromEntries(Object.entries(rawPlayer.inventory).map(([fishId, quantity]) => [String(fishId), Math.max(0, Math.floor(cleanNumber(quantity, 0)))]))
+    : {};
+  const mutationInventory = normalizeMutationInventory(rawPlayer?.mutationInventory);
+  const fishDex = normalizeFishDex(rawPlayer?.fishDex);
   for (const [fishId, quantity] of Object.entries(inventory)) {
-    const count = Math.max(0, Math.floor(cleanNumber(quantity, 0)));
-    if (count <= 0) {
-      continue;
-    }
-    fishDex[fishId] = {
-      count: Math.max(count, Math.floor(cleanNumber(fishDex[fishId]?.count, 0))),
-      heaviestWeight: Math.max(0, cleanNumber(fishDex[fishId]?.heaviestWeight, 0))
+    if (quantity > 0) fishDex[fishId] = {
+      count: Math.max(quantity, Math.floor(cleanNumber(fishDex[fishId]?.count, 0))),
+      heaviestWeight: Math.max(0, cleanNumber(fishDex[fishId]?.heaviestWeight, 0)),
+      mutations: fishDex[fishId]?.mutations || {}
     };
   }
-  const totalFromInventory = Object.values(inventory).reduce((sum, quantity) => sum + Math.max(0, Number(quantity || 0)), 0);
+  for (const [fishId, mutations] of Object.entries(mutationInventory)) {
+    const mutationCount = Object.values(mutations).reduce((sum, quantity) => sum + quantity, 0);
+    if (mutationCount > 0) {
+      const dexMutations = { ...(fishDex[fishId]?.mutations || {}) };
+      for (const [mutationId, quantity] of Object.entries(mutations)) {
+        dexMutations[mutationId] = {
+          count: Math.max(quantity, Math.floor(cleanNumber(dexMutations[mutationId]?.count, 0))),
+          heaviestWeight: Math.max(0, cleanNumber(dexMutations[mutationId]?.heaviestWeight, 0))
+        };
+      }
+      fishDex[fishId] = {
+        count: Math.max(mutationCount, Math.floor(cleanNumber(fishDex[fishId]?.count, 0))),
+        heaviestWeight: Math.max(0, cleanNumber(fishDex[fishId]?.heaviestWeight, 0)),
+        mutations: dexMutations
+      };
+    }
+  }
+  const totalFromInventory = Object.values(inventory).reduce((sum, quantity) => sum + Math.max(0, Number(quantity || 0)), 0)
+    + Object.values(mutationInventory).reduce((sum, mutations) => sum + Object.values(mutations).reduce((mutationSum, quantity) => mutationSum + quantity, 0), 0);
   const heaviestFish = rawPlayer?.heaviestFish && typeof rawPlayer.heaviestFish === "object"
     ? rawPlayer.heaviestFish
     : null;
@@ -357,7 +369,8 @@ function normalizePlayer(rawPlayer) {
     const fishId = String(heaviestFish.fishId);
     fishDex[fishId] = {
       count: Math.max(1, Math.floor(cleanNumber(fishDex[fishId]?.count, 0))),
-      heaviestWeight: Math.max(cleanNumber(fishDex[fishId]?.heaviestWeight, 0), cleanNumber(heaviestFish.weight, 0))
+      heaviestWeight: Math.max(cleanNumber(fishDex[fishId]?.heaviestWeight, 0), cleanNumber(heaviestFish.weight, 0)),
+      mutations: fishDex[fishId]?.mutations || {}
     };
   }
   const luckiestFish = rawPlayer?.luckiestFish && typeof rawPlayer.luckiestFish === "object"
@@ -367,6 +380,7 @@ function normalizePlayer(rawPlayer) {
     ...makeDefaultPlayer(),
     ...(rawPlayer && typeof rawPlayer === "object" ? rawPlayer : {}),
     inventory,
+    mutationInventory,
     fishDex,
     showcasedFishId: String(rawPlayer?.showcasedFishId || "").trim(),
     fishEntotLastUsedAt: Math.max(0, cleanNumber(rawPlayer?.fishEntotLastUsedAt, 0)),
@@ -810,6 +824,7 @@ function cleanSettings(settings) {
   const fishHelpBannerUrl = String(source.fishHelpBannerUrl || "").trim();
   const sellFishBannerUrl = String(source.sellFishBannerUrl || "").trim();
   return {
+    mutations: normalizeMutationSettings(source.mutations),
     rodStoreImageBase64: String(source.rodStoreImageBase64 || ""),
     rodStoreImageUrl,
     rodStoreImageContentKey: String(source.rodStoreImageContentKey || "").trim(),
@@ -1016,8 +1031,9 @@ function cleanEventBonus(bonus) {
   const source = bonus && typeof bonus === "object" ? bonus : {};
   return {
     type: String(source.type || "gold_multiplier").trim(),
-    value: Math.max(0, Number(source.value || 1)),
-    fishId: String(source.fishId || "").trim()
+    value: Math.max(0, Number(source.value ?? 1)),
+    fishId: String(source.fishId || "").trim(),
+    mutationId: String(source.mutationId || "").trim().toLowerCase().replace(/[^a-z0-9_]+/g, "_")
   };
 }
 
@@ -1049,6 +1065,7 @@ function cleanEvent(event) {
     type: bonuses[0]?.type || "gold_multiplier",
     value: bonuses[0]?.value ?? 1,
     fishId: bonuses[0]?.fishId || "",
+    mutationId: bonuses[0]?.mutationId || "",
     announcementChannelId: String(event.announcementChannelId || "").trim(),
     guildId: String(event.guildId || "").trim(),
     isAnnounced: event.isAnnounced === true,
@@ -1585,11 +1602,21 @@ async function attachConfigAssets(config, useSecretKey = false, caller = "") {
     failedBannerBase64: "",
     failedBannerUrl: await getStoredImageUrl(boss.failedBannerRef, boss.failedBannerUrl, "", withImageCaller({ type: "fish raid boss failed banner", name: boss.name || boss.id }, caller))
   })));
+  const mutations = await Promise.all(settings.mutations.map(async (mutation) => ({
+    ...mutation,
+    customOverlays: await Promise.all((mutation.customOverlays || []).map(async (overlay) => ({
+      ...overlay,
+      base64: "",
+      url: await getStoredImageUrl(overlay.ref, overlay.url, "", withImageCaller({ type: "mutation overlay", name: (mutation.name || mutation.id) + " - " + (overlay.name || overlay.id) }, caller)),
+      urlNeedsRehost: false
+    })))
+  })));
 
   return {
     adminDiscordIds: cleanAdminDiscordIds(config.adminDiscordIds),
     settings: {
       ...settings,
+      mutations,
       rodStoreImageBase64: "",
       rodStoreImageUrl: await getStoredImageUrl(settings.rodStoreImageRef, settings.rodStoreImageUrl, settings.rodStoreImageContentKey, withImageCaller("rod store image", caller)),
       fishCompBannerBase64: "",
@@ -2156,7 +2183,27 @@ async function saveSettingsSection(settings) {
       forceRehost: clean[`${baseKey}UrlNeedsRehost`]
     });
   }
-  const settingsWithUrls = { ...clean, fishRaidBosses: await saveFishRaidBossImages(clean.fishRaidBosses) };
+ const savedMutationImages = await Promise.all(clean.mutations.map(async (mutation) => {
+    const customOverlays = await Promise.all((mutation.customOverlays || []).map(async (overlay) => {
+      const saved = await saveContentImage({
+        currentUrl: overlay.url,
+        currentRef: overlay.ref,
+        dataUrl: overlay.base64,
+        sourceUrl: overlay.url,
+        keyForExtension: (extension) => `images/mutations/${mutation.id}-${overlay.id}-overlay.${extension}`,
+        forceRehost: overlay.urlNeedsRehost
+      });
+      return {
+        ...overlay,
+        base64: "",
+        url: saved.url,
+        ref: saved.ref,
+        urlNeedsRehost: false
+      };
+    }));
+    return { ...mutation, customOverlays };
+ }));
+  const settingsWithUrls = { ...clean, mutations: savedMutationImages, fishRaidBosses: await saveFishRaidBossImages(clean.fishRaidBosses) };
   for (const [baseKey] of imageDefinitions) {
     settingsWithUrls[`${baseKey}Url`] = savedImages[baseKey].url;
     settingsWithUrls[`${baseKey}Ref`] = savedImages[baseKey].ref;

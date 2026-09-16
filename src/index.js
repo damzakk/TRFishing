@@ -33,6 +33,18 @@ const {
 const { adminListPlayers, adminSaveEventData, adminSaveRoutineState, getGameData, getPlayer, savePlayer } = require("./playfab");
 const { makeFishShowoffBanner } = require("./fishShowoffBanner");
 const { makeIconAttachment, parseDataImage } = require("./imageUtils");
+const { makeMutationIconAttachment } = require("./mutationVisuals");
+const {
+  ensurePlayerMutationData,
+  getMutationDefinition,
+  getMutationInventoryEntries,
+  getMutationSummary,
+  normalizeMutationId,
+  normalizeMutationSettings,
+  recordCatch,
+  resolveMutationCatch,
+  rollMutation
+} = require("./mutationSystem");
 const { defaultFishEntotSettings, cleanFishEntotEvents } = require("./fishEntotConfig");
 
 const token = process.env.DISCORD_TOKEN;
@@ -94,6 +106,7 @@ let gameData = {
   fishBags: [],
   adminDiscordIds: [],
   settings: {
+    mutations: normalizeMutationSettings(),
     ...defaultFishEntotSettings,
     rodStoreImageBase64: "",
     rodStoreImageUrl: "",
@@ -476,6 +489,7 @@ function hasEquippedFishBag(player) {
 function getSettings() {
   return gameData.settings || {
     ...defaultFishEntotSettings,
+    mutations: normalizeMutationSettings(),
     rodStoreImageBase64: "",
     rodStoreImageUrl: "",
     fishCompBannerBase64: "",
@@ -570,8 +584,16 @@ function addFishingProgress(player, progressAmount = 1, guildId = "") {
     if (!catchResult) {
       break;
     }
-    const { expGain, expBase, expEventInfo } = addCatch(player, catchResult.fish, catchResult.catchWeight, guildId);
-    catches.push({ caughtFish: catchResult.fish, catchWeight: catchResult.catchWeight, expGain, expBase, expEventInfo });
+    const gain = addCatch(player, catchResult.fish, catchResult.catchWeight, guildId);
+    catches.push({
+      caughtFish: catchResult.fish,
+      catchWeight: gain.catchWeight,
+      expGain: gain.expGain,
+      expBase: gain.expBase,
+      expEventInfo: gain.expEventInfo,
+      mutationId: gain.mutationId,
+      sellGold: gain.sellGold
+    });
   }
   return catches;
 }
@@ -992,9 +1014,10 @@ async function sendFishingCatchMessages(channel, user, catches, previousLevel, c
   }
 
   for (const result of catches) {
-    await channel.send(makeCatchMessage(user, result.caughtFish, result.catchWeight, result.expGain, {
+    await channel.send(await makeCatchMessage(user, result.caughtFish, result.catchWeight, result.expGain, {
       expBase: result.expBase,
-      expEventInfo: result.expEventInfo
+      expEventInfo: result.expEventInfo,
+      mutationId: result.mutationId
     })).catch((error) => {
       console.error("Could not send fishing catch message:", error);
     });
@@ -1712,6 +1735,25 @@ function getFishLuckScoreRanges() {
   };
 }
 
+function getMutationChanceEventOptions(guildId = "", player = null) {
+  const result = { globalMultiplier: 1, specificMultipliers: {} };
+  for (const event of getActiveEvents(guildId)) {
+    for (const bonus of normalizeEventBonuses(event)) {
+      if (bonus.type !== "mutation_chance") continue;
+      const multiplier = Math.max(0, Number(bonus.value ?? 1));
+      const mutationId = normalizeMutationId(bonus.mutationId);
+      if (mutationId) {
+        result.specificMultipliers[mutationId] = (result.specificMultipliers[mutationId] || 1) * multiplier;
+      } else {
+        result.globalMultiplier *= multiplier;
+      }
+    }
+  }
+  const buffMultiplier = getPlayerBuffMultiplier(player, "mutation_chance");
+  result.globalMultiplier *= buffMultiplier;
+  return result;
+}
+
 function formatFishLuckScore(fishEntry) {
   if (!fishEntry || typeof fishEntry !== "object") {
     return Math.max(0, Math.round((1 + Number(fishEntry || 0)) * 5000));
@@ -1808,39 +1850,49 @@ function rollFish(rod, guildId = "", player = null) {
   return fallback ? { fish: fallback, catchWeight: rollCatchWeight(fallback, rod) } : null;
 }
 
-function addCatch(player, caughtFish, catchWeight, guildId = "") {
-  const expReward = calculateCatchExp(caughtFish, guildId, player);
+function addCatch(player, caughtFish, catchWeight, guildId = "", options = {}) {
+  const mutationSettings = getSettings().mutations;
+  const mutationChanceOptions = getMutationChanceEventOptions(guildId, player);
+  const mutationId = options.forceMutation === true
+    ? normalizeMutationId(options.mutationId)
+    : rollMutation(undefined, mutationSettings, mutationChanceOptions)?.id || "";
+  const mutationCatch = resolveMutationCatch(caughtFish, catchWeight, mutationId, mutationSettings);
+  const expReward = calculateCatchExp(caughtFish, guildId, player, mutationCatch);
   const expGain = expReward.total;
   const luckScore = formatFishLuckScore(caughtFish);
-  player.inventory[caughtFish.id] = (player.inventory[caughtFish.id] || 0) + 1;
-  player.fishDex = player.fishDex && typeof player.fishDex === "object" ? player.fishDex : {};
-  const dexEntry = player.fishDex[caughtFish.id] && typeof player.fishDex[caughtFish.id] === "object"
-    ? player.fishDex[caughtFish.id]
-    : {};
-  player.fishDex[caughtFish.id] = {
-    count: Math.max(0, Math.floor(Number(dexEntry.count || 0))) + 1,
-    heaviestWeight: Math.max(Number(dexEntry.heaviestWeight || 0), Number(catchWeight || 0))
-  };
+  recordCatch(player, caughtFish, mutationCatch.catchWeight, mutationCatch.mutationId);
   player.totalFishCaught = Math.max(0, Number(player.totalFishCaught || 0)) + 1;
-  if (!player.heaviestFish || Number(catchWeight || 0) > Number(player.heaviestFish.weight || 0)) {
+  if (!player.heaviestFish || Number(mutationCatch.catchWeight || 0) > Number(player.heaviestFish.weight || 0)) {
     player.heaviestFish = {
       fishId: caughtFish.id,
       name: caughtFish.name,
-      weight: Number(catchWeight || 0)
+      weight: Number(mutationCatch.catchWeight || 0),
+      mutationId: mutationCatch.mutationId
     };
   }
   refreshPlayerLuckiestFish(player, guildId);
   player.exp += expGain;
   processQuestCatch(player, caughtFish, guildId);
-  return { expGain, expBase: expReward.base, expEventInfo: expReward.eventInfo, luckScore };
+  return {
+    expGain,
+    expBase: expReward.base,
+    expEventInfo: expReward.eventInfo,
+    luckScore,
+    mutationId: mutationCatch.mutationId,
+    mutation: mutationCatch.mutation,
+    catchWeight: mutationCatch.catchWeight,
+    sellGold: mutationCatch.sellGold
+  };
 }
 
-function calculateCatchExp(caughtFish, guildId = "", player = null) {
+function calculateCatchExp(caughtFish, guildId = "", player = null, mutationCatch = null) {
   const base = Math.max(0, Math.round(Number(caughtFish.exp || 0) * Number(getSettings().expMultiplier || 1)));
   const eventInfo = getEventMultiplierInfo("exp_multiplier", guildId, "", player);
+  const mutationMultiplier = Math.max(0, Number(mutationCatch?.expMultiplier || 1));
+  const mutatedBase = Math.max(0, Math.round(base * mutationMultiplier));
   return {
-    base,
-    total: Math.max(0, Math.round(base * eventInfo.multiplier)),
+    base: mutatedBase,
+    total: Math.max(0, Math.round(mutatedBase * eventInfo.multiplier)),
     eventInfo
   };
 }
@@ -1852,21 +1904,27 @@ function formatFishLine(fishEntry, quantity = null) {
   return `${fishEntry.name}${amount} - ${fishEntry.rarity}, ${formatKg(minWeight)}-${formatKg(maxWeight)}, ${fishEntry.exp} EXP, ${fishEntry.gold} gold`;
 }
 
-function formatInventoryFishLine(fishEntry, quantity) {
+function formatInventoryFishLine(fishEntry, quantity, mutationId = "") {
   const minWeight = Number(fishEntry.minWeight || 0);
   const maxWeight = Number(fishEntry.maxWeight || minWeight);
-  const totalSellGold = Math.max(0, Math.round(Number(quantity || 0) * Number(fishEntry.gold || 0)));
+  const mutation = getMutationDefinition(mutationId, getSettings().mutations);
+  const mutationLabel = mutation?.name || (mutationId ? `${mutationId} (Archived)` : "");
+  const unitSellGold = Math.max(0, Math.round(Number(fishEntry.gold || 0) * Number(mutation?.goldMultiplier || 1)));
+  const totalSellGold = Math.max(0, Math.round(Number(quantity || 0) * unitSellGold));
   return [
-    `**${fishEntry.name}** x${quantity}`,
-    `${fishEntry.rarity} | ${formatKg(minWeight)}-${formatKg(maxWeight)} | ${fishEntry.exp} EXP | ${formatGoldAmount(totalSellGold)}`
+    `**${fishEntry.name}**${mutationLabel ? ` · ${mutationLabel}` : ""} x${quantity}`,
+    `${mutationLabel ? `Mutation ${mutationLabel} | ` : ""}${fishEntry.rarity} | ${formatKg(minWeight)}-${formatKg(maxWeight)} | ${fishEntry.exp} EXP | ${formatGoldAmount(totalSellGold)}`
   ].join("\n");
 }
 
 function calculateInventorySellGold(player, guildId = "") {
   const goldEventInfo = getEventMultiplierInfo("gold_multiplier", guildId, "", player);
+  const mutationSettings = getSettings().mutations;
   const baseGold = gameData.fish.reduce((sum, fishEntry) => {
-    const quantity = Math.max(0, Math.floor(Number(player.inventory?.[fishEntry.id] || 0)));
-    return sum + Math.max(0, Math.round(quantity * Number(fishEntry.gold || 0)));
+    return sum + getMutationInventoryEntries(player, fishEntry.id, mutationSettings).reduce((fishSum, entry) => {
+      const unitGold = Number(entry.mutation?.goldMultiplier || 1) * Number(fishEntry.gold || 0);
+      return fishSum + Math.max(0, Math.round(entry.quantity * unitGold));
+    }, 0);
   }, 0);
   return {
     baseGold,
@@ -1876,12 +1934,21 @@ function calculateInventorySellGold(player, guildId = "") {
 }
 
 function getFishDexEntry(player, fishEntry) {
+  ensurePlayerMutationData(player);
+  const mutationSettings = getSettings().mutations;
   const fishDex = player.fishDex && typeof player.fishDex === "object" ? player.fishDex : {};
   const dexEntry = fishDex[fishEntry.id] && typeof fishDex[fishEntry.id] === "object" ? fishDex[fishEntry.id] : {};
-  const inventoryCount = Math.max(0, Math.floor(Number(player.inventory?.[fishEntry.id] || 0)));
+  const inventoryEntries = getMutationInventoryEntries(player, fishEntry.id, mutationSettings);
+  const inventoryCount = inventoryEntries.reduce((sum, entry) => sum + entry.quantity, 0);
   const count = Math.max(0, Math.floor(Number(dexEntry.count || 0)), inventoryCount);
   const heaviestWeight = Math.max(0, Number(dexEntry.heaviestWeight || 0));
-  return { count, heaviestWeight, caught: count > 0 || heaviestWeight > 0 };
+  return {
+    count,
+    heaviestWeight,
+    mutations: getMutationSummary(dexEntry, mutationSettings),
+    lastMutationId: normalizeMutationId(dexEntry.lastMutationId),
+    caught: count > 0 || heaviestWeight > 0
+  };
 }
 
 function getLuckScoreFishPool(guildId = "") {
@@ -2260,11 +2327,16 @@ function getRandomFishDescription(caughtFish) {
   return pool.length ? pool[Math.floor(Math.random() * pool.length)] : "";
 }
 
-function makeCatchEmbed(user, caughtFish, catchWeight, expGain, expBase = expGain, expEventInfo = null) {
+async function makeCatchEmbed(user, caughtFish, catchWeight, expGain, expBase = expGain, expEventInfo = null, options = {}) {
   const description = getRandomFishDescription(caughtFish);
   const descriptionLine = description ? `\n${description}` : "";
   const bonusLine = formatBonusNotice("EXP", expEventInfo, expGain, expBase);
   const luckScore = formatFishLuckScore(caughtFish);
+  const mutationSettings = getSettings().mutations;
+  const mutation = getMutationDefinition(options.mutationId, mutationSettings);
+  const sellGold = Math.max(0, Math.round(Number(options.sellGold ?? caughtFish.gold ?? 0)));
+  const testLine = options.testOnly ? "🧪 **Test only** — this catch was not recorded." : "";
+  const mutationLine = mutation ? `Mutasi : **${mutation.name}**` : "";
   const embed = new EmbedBuilder()
     .setColor(rarityColors[caughtFish.rarity] || 0x2ecc71)
     .setTitle("Umpan Disambar!")
@@ -2273,20 +2345,23 @@ function makeCatchEmbed(user, caughtFish, catchWeight, expGain, expBase = expGai
         `**${caughtFish.name}** berhasil ditangkap!!`,
         "",
         `Kelangkaan: **${caughtFish.rarity}**`,
+        mutationLine,
         `Berat: **${formatKg(catchWeight)}**`,
         `Luck Score: **${luckScore}**`,
         `Exp: **+${formatRewardWithBonus(expGain, expBase, "EXP")}**`,
+        `Sell Value: **${sellGold} gold**`,
         bonusLine,
+        testLine,
         descriptionLine.trim()
       ].filter(Boolean).join("\n")
     );
 
-  const icon = makeIconAttachment(caughtFish, "fish");
+  const icon = await makeMutationIconAttachment(caughtFish, options.mutationId, "fish", mutationSettings);
   if (icon) {
     embed.setThumbnail(icon.url);
   }
 
-  return { embed, files: icon?.attachment ? [icon.attachment] : [] };
+  return { embed, files: icon?.attachment ? [icon.attachment] : [], mutation };
 }
 
 function getUserMentionForMessage(user, options = {}) {
@@ -2319,8 +2394,8 @@ function makeCatchShareRow(user) {
   );
 }
 
-function makeCatchMessage(user, caughtFish, catchWeight, expGain, options = {}) {
-  const catchEmbed = makeCatchEmbed(user, caughtFish, catchWeight, expGain, options.expBase ?? expGain, options.expEventInfo || null);
+async function makeCatchMessage(user, caughtFish, catchWeight, expGain, options = {}) {
+  const catchEmbed = await makeCatchEmbed(user, caughtFish, catchWeight, expGain, options.expBase ?? expGain, options.expEventInfo || null, options);
   const mention = getUserMentionForMessage(user, options);
   return makeEmbedPanelMessage(catchEmbed.embed, {
     prefix: mention.content,
@@ -2682,7 +2757,8 @@ function describeEventBonus(bonus) {
     gold_multiplier: `Gold ${formatEventMultiplier(bonus.value)}`,
     exp_multiplier: `EXP ${formatEventMultiplier(bonus.value)}`,
     fish_chance: `${fishName} chance ${formatEventMultiplier(bonus.value)}`,
-    fishing_speed: `Fishing speed ${formatEventMultiplier(bonus.value)}`
+    fishing_speed: `Fishing speed ${formatEventMultiplier(bonus.value)}`,
+    mutation_chance: `${getMutationDefinition(bonus.mutationId, getSettings().mutations)?.name || bonus.mutationId || "All mutations"} chance ${formatEventMultiplier(bonus.value)}`
   }[bonus.type] || `Multiplier ${formatEventMultiplier(bonus.value)}`;
 }
 
@@ -3133,10 +3209,13 @@ async function processEnforcedFishingSignal() {
       extra: `fish=${entry.fish.name || entry.fish.id}`
     });
     const mention = `<@${entry.discordUserId}>`;
-    await channel.send(makeCatchMessage(mention, entry.fish, entry.catchWeight, entry.expGain, {
+    await channel.send(await makeCatchMessage(mention, entry.fish, entry.catchWeight, entry.expGain, {
       enforced: true,
       expBase: entry.expBase,
-      expEventInfo: entry.expEventInfo
+      expEventInfo: entry.expEventInfo,
+      mutationId: entry.mutationId,
+      sellGold: entry.sellGold,
+      testOnly: entry.testOnly
     })).then(() => {
       logBotAction("Enforce Fishing Discord popup sent", {
         user: entry.discordUserId,
@@ -3417,10 +3496,10 @@ function watchFishRaidSignal() {
 }
 
 function makeInventoryEmbed(user, player, guildId = "") {
+  const mutationSettings = getSettings().mutations;
   const lines = gameData.fish
-    .map((fishEntry) => [fishEntry, player.inventory[fishEntry.id] || 0])
-    .filter(([, quantity]) => quantity > 0)
-    .map(([fishEntry, quantity]) => formatInventoryFishLine(fishEntry, quantity));
+    .flatMap((fishEntry) => getMutationInventoryEntries(player, fishEntry.id, mutationSettings)
+      .map((entry) => formatInventoryFishLine(fishEntry, entry.quantity, entry.mutationId)));
   const { baseGold, totalGold, goldEventInfo } = calculateInventorySellGold(player, guildId);
   const goldSummary = [
     `Gold kamu sekarang: **${formatGoldAmount(player.gold)}**`,
@@ -3700,13 +3779,19 @@ function getFishDexPageFish(guildId = "", page = 0) {
   };
 }
 
-function makeFishDexEmbed(user, player, selectedFishId = "", guildId = "", page = 0) {
+async function makeFishDexEmbed(user, player, selectedFishId = "", guildId = "", page = 0) {
   const pageData = getFishDexPageFish(guildId, page);
   const selectedFish = getAvailableFish(guildId).find((fishEntry) => fishEntry.id === selectedFishId)
     || pageData.fish[0]
     || null;
   const dexEntry = selectedFish ? getFishDexEntry(player, selectedFish) : null;
   const caught = Boolean(dexEntry?.caught);
+  const selectedMutationId = caught
+    ? dexEntry.lastMutationId || dexEntry.mutations?.[0]?.mutationId || ""
+    : "";
+  const mutationLines = caught && dexEntry.mutations?.length
+    ? dexEntry.mutations.map((entry) => `${entry.mutation?.name || entry.mutationId} x${entry.count} · Best ${formatKg(entry.heaviestWeight)}`)
+    : [];
   const caughtTypes = countCaughtFishTypes(player, guildId);
   const color = selectedFish && caught ? rarityColors[selectedFish.rarity] || 0x3498db : 0x5865f2;
   const name = selectedFish && caught ? selectedFish.name : unknownFishName;
@@ -3726,15 +3811,18 @@ function makeFishDexEmbed(user, player, selectedFishId = "", guildId = "", page 
       { name: "Rarity", value: selectedFish?.rarity || "-", inline: true },
       { name: "Caught", value: caught ? `${dexEntry.count}` : unknownFishValue, inline: true },
       { name: "Heaviest", value: caught ? formatKg(dexEntry.heaviestWeight) : unknownFishValue, inline: true },
-      { name: "Sell Price", value: caught ? `${Number(selectedFish.gold || 0)} gold` : unknownFishValue, inline: true }
+      { name: "Sell Price", value: caught ? `${Number(selectedFish.gold || 0)} gold` : unknownFishValue, inline: true },
+      { name: "Mutations", value: caught ? truncateText(mutationLines.length ? mutationLines.join("\n") : "No Mutation", 1024) : unknownFishValue }
     );
 
-  const icon = selectedFish && caught ? makeIconAttachment(selectedFish, "fish") : null;
+  const icon = selectedFish && caught
+    ? await makeMutationIconAttachment(selectedFish, selectedMutationId, "fishdex", getSettings().mutations)
+    : null;
   if (icon) {
     embed.setThumbnail(icon.url);
   }
 
-  return { embed, files: icon?.attachment ? [icon.attachment] : [], page: pageData.page, pageCount: pageData.pageCount, selectedFish, caught };
+  return { embed, files: icon?.attachment ? [icon.attachment] : [], page: pageData.page, pageCount: pageData.pageCount, selectedFish, caught, selectedMutationId };
 }
 
 function makeFishDexOptions(player, guildId = "", page = 0, selectedFishId = "") {
@@ -3799,8 +3887,8 @@ function makeFishDexComponents(player, userId, guildId = "", page = 0, selectedF
   return components;
 }
 
-function makeFishDexMessage(user, player, selectedFishId = "", guildId = "", page = 0) {
-  const fishDexEmbed = makeFishDexEmbed(user, player, selectedFishId, guildId, page);
+async function makeFishDexMessage(user, player, selectedFishId = "", guildId = "", page = 0) {
+  const fishDexEmbed = await makeFishDexEmbed(user, player, selectedFishId, guildId, page);
   const data = fishDexEmbed.embed.toJSON();
   const container = new ContainerBuilder().setAccentColor(data.color || 0x5865f2);
   const mainText = formatEmbedMainText(data);
@@ -5163,6 +5251,7 @@ function sellFish(player, fishName, guildId = "") {
   }
 
   const fishToSell = selectedFish ? [selectedFish] : gameData.fish;
+  const mutationSettings = getSettings().mutations;
   const goldBefore = Math.max(0, Math.floor(Number(player.gold || 0)));
   const goldEventInfo = getEventMultiplierInfo("gold_multiplier", guildId);
   let totalGold = 0;
@@ -5171,18 +5260,24 @@ function sellFish(player, fishName, guildId = "") {
   const soldLines = [];
 
   for (const fishEntry of fishToSell) {
-    const quantity = player.inventory[fishEntry.id] || 0;
-    if (quantity <= 0) {
-      continue;
+    const inventoryEntries = getMutationInventoryEntries(player, fishEntry.id, mutationSettings);
+    for (const inventoryEntry of inventoryEntries) {
+      const quantity = inventoryEntry.quantity;
+      const mutation = inventoryEntry.mutation;
+      const mutationLabel = mutation?.name || (inventoryEntry.mutationId ? `${inventoryEntry.mutationId} (Archived)` : "");
+      const baseGold = Math.max(0, Math.round(quantity * Number(fishEntry.gold || 0) * Number(mutation?.goldMultiplier || 1)));
+      const earnedGold = Math.max(0, Math.round(baseGold * goldEventInfo.multiplier));
+      totalCount += quantity;
+      totalGold += earnedGold;
+      totalBaseGold += baseGold;
+      soldLines.push(`${fishEntry.name}${mutationLabel ? ` · ${mutationLabel}` : ""} x${quantity} = ${formatRewardWithBonus(earnedGold, baseGold, "Gold")}`);
+      if (inventoryEntry.mutationId) {
+        delete player.mutationInventory[fishEntry.id]?.[inventoryEntry.mutationId];
+        if (!Object.keys(player.mutationInventory[fishEntry.id] || {}).length) delete player.mutationInventory[fishEntry.id];
+      } else {
+        delete player.inventory[fishEntry.id];
+      }
     }
-
-    const baseGold = Math.max(0, Math.round(quantity * Number(fishEntry.gold || 0)));
-    const earnedGold = Math.max(0, Math.round(baseGold * goldEventInfo.multiplier));
-    totalCount += quantity;
-    totalGold += earnedGold;
-    totalBaseGold += baseGold;
-    soldLines.push(`${fishEntry.name} x${quantity} = ${formatRewardWithBonus(earnedGold, baseGold, "Gold")}`);
-    delete player.inventory[fishEntry.id];
   }
 
   if (totalCount === 0) {
@@ -5193,7 +5288,7 @@ function sellFish(player, fishName, guildId = "") {
   }
 
   player.gold = goldBefore + totalGold;
-  const remainingFishCount = Object.values(player.inventory || {}).reduce((sum, quantity) => sum + Math.max(0, Math.floor(Number(quantity || 0))), 0);
+  const remainingFishCount = gameData.fish.reduce((sum, fishEntry) => sum + getMutationInventoryEntries(player, fishEntry.id, mutationSettings).reduce((fishSum, entry) => fishSum + entry.quantity, 0), 0);
   const inventoryStatus = selectedFish
     ? `${selectedFish.name} sekarang **0** di inventory kamu. Total ikan tersisa: **${remainingFishCount}**.`
     : remainingFishCount === 0
@@ -5360,8 +5455,17 @@ function fishNow(player, guildId = "") {
   }
 
   const { fish: caughtFish, catchWeight } = catchResult;
-  const { expGain, expBase, expEventInfo } = addCatch(player, caughtFish, catchWeight, guildId);
-  return { ok: true, caughtFish, catchWeight, expGain, expBase, expEventInfo };
+  const gain = addCatch(player, caughtFish, catchWeight, guildId);
+  return {
+    ok: true,
+    caughtFish,
+    catchWeight: gain.catchWeight,
+    expGain: gain.expGain,
+    expBase: gain.expBase,
+    expEventInfo: gain.expEventInfo,
+    mutationId: gain.mutationId,
+    sellGold: gain.sellGold
+  };
 }
 
 function randomInteger(min, max) {
@@ -5377,29 +5481,34 @@ function randomNumber(min, max) {
 }
 
 function removeRandomInventoryFish(player, maximumCount = 3, minimumCount = 1) {
-  player.inventory = player.inventory && typeof player.inventory === "object" ? player.inventory : {};
-  const totalFish = Object.values(player.inventory)
-    .reduce((sum, quantity) => sum + Math.max(0, Math.floor(Number(quantity || 0))), 0);
+  ensurePlayerMutationData(player);
+  const mutationSettings = getSettings().mutations;
+  const inventoryEntries = gameData.fish.flatMap((fishEntry) => getMutationInventoryEntries(player, fishEntry.id, mutationSettings)
+    .map((entry) => ({ fishId: fishEntry.id, ...entry })));
+  const totalFish = inventoryEntries.reduce((sum, entry) => sum + entry.quantity, 0);
   const safeMaximum = Math.max(0, Math.floor(Number(maximumCount || 0)));
   const safeMinimum = Math.max(0, Math.min(safeMaximum, Math.floor(Number(minimumCount || 0))));
   const removeCount = Math.min(totalFish, randomInteger(safeMinimum, safeMaximum));
 
   for (let removed = 0; removed < removeCount; removed += 1) {
-    const inventoryEntries = Object.entries(player.inventory)
-      .map(([fishId, quantity]) => [fishId, Math.max(0, Math.floor(Number(quantity || 0)))])
-      .filter(([, quantity]) => quantity > 0);
-    const remainingTotal = inventoryEntries.reduce((sum, [, quantity]) => sum + quantity, 0);
+    const availableEntries = gameData.fish.flatMap((fishEntry) => getMutationInventoryEntries(player, fishEntry.id, mutationSettings)
+      .map((entry) => ({ fishId: fishEntry.id, ...entry })));
+    const remainingTotal = availableEntries.reduce((sum, entry) => sum + entry.quantity, 0);
     let selectedIndex = randomInteger(1, remainingTotal);
-    const selectedEntry = inventoryEntries.find(([, quantity]) => {
-      selectedIndex -= quantity;
+    const selectedEntry = availableEntries.find((entry) => {
+      selectedIndex -= entry.quantity;
       return selectedIndex <= 0;
     });
     if (!selectedEntry) break;
-    const [fishId, quantity] = selectedEntry;
-    if (quantity <= 1) {
-      delete player.inventory[fishId];
+    if (selectedEntry.mutationId) {
+      const mutations = player.mutationInventory[selectedEntry.fishId] || {};
+      if (selectedEntry.quantity <= 1) delete mutations[selectedEntry.mutationId];
+      else mutations[selectedEntry.mutationId] = selectedEntry.quantity - 1;
+      if (!Object.keys(mutations).length) delete player.mutationInventory[selectedEntry.fishId];
+    } else if (selectedEntry.quantity <= 1) {
+      delete player.inventory[selectedEntry.fishId];
     } else {
-      player.inventory[fishId] = quantity - 1;
+      player.inventory[selectedEntry.fishId] = selectedEntry.quantity - 1;
     }
   }
 
@@ -6175,11 +6284,17 @@ async function handleCommand(message) {
         await message.reply("No fish are configured yet.");
         return;
       }
-      const expReward = calculateCatchExp(catchResult.fish, message.guildId);
+      const mutationSettings = getSettings().mutations;
+      const mutation = rollMutation(undefined, mutationSettings, getMutationChanceEventOptions(message.guildId, player));
+      const mutationCatch = resolveMutationCatch(catchResult.fish, catchResult.catchWeight, mutation?.id || "", mutationSettings);
+      const expReward = calculateCatchExp(catchResult.fish, message.guildId, null, mutationCatch);
       const popupChannel = await fetchFishingMessageChannel(null, message.guildId) || message.channel;
-      await popupChannel.send(makeCatchMessage(message.author, catchResult.fish, catchResult.catchWeight, expReward.total, {
+      await popupChannel.send(await makeCatchMessage(message.author, catchResult.fish, mutationCatch.catchWeight, expReward.total, {
         expBase: expReward.base,
-        expEventInfo: expReward.eventInfo
+        expEventInfo: expReward.eventInfo,
+        mutationId: mutationCatch.mutationId,
+        sellGold: mutationCatch.sellGold,
+        testOnly: true
       }));
     });
     return;
@@ -6195,9 +6310,11 @@ async function handleCommand(message) {
     }
 
     const popupChannel = await fetchFishingMessageChannel(player, message.guildId) || message.channel;
-    await popupChannel.send(makeCatchMessage(message.author, result.caughtFish, result.catchWeight, result.expGain, {
+    await popupChannel.send(await makeCatchMessage(message.author, result.caughtFish, result.catchWeight, result.expGain, {
       expBase: result.expBase,
-      expEventInfo: result.expEventInfo
+      expEventInfo: result.expEventInfo,
+      mutationId: result.mutationId,
+      sellGold: result.sellGold
     }));
     const currentLevel = getLevel(player.exp);
     if (currentLevel > previousLevel) {
@@ -6235,9 +6352,11 @@ async function handleFishingProgress(message) {
 
     const popupChannel = await fetchFishingMessageChannel(player, message.guildId) || message.channel;
     for (const result of catches) {
-      await popupChannel.send(makeCatchMessage(message.author, result.caughtFish, result.catchWeight, result.expGain, {
+      await popupChannel.send(await makeCatchMessage(message.author, result.caughtFish, result.catchWeight, result.expGain, {
         expBase: result.expBase,
-        expEventInfo: result.expEventInfo
+        expEventInfo: result.expEventInfo,
+        mutationId: result.mutationId,
+        sellGold: result.sellGold
       }));
     }
     const currentLevel = getLevel(player.exp);
@@ -6645,7 +6764,7 @@ async function handleRoutineButton(interaction) {
   }
   if (button.action === "fishdex") {
     await interaction.deferReply({ flags: MessageFlags.Ephemeral });
-    await withPlayerReadOnly(interaction.user, async (player) => interaction.editReply(makeFishDexMessage(interaction.user, player, "", interaction.guildId)));
+    await withPlayerReadOnly(interaction.user, async (player) => interaction.editReply(await makeFishDexMessage(interaction.user, player, "", interaction.guildId)));
     return;
   }
   if (button.action === "fishdaily") {
@@ -6757,7 +6876,7 @@ client.on("interactionCreate", async (interaction) => {
       }
       await interaction.deferUpdate();
       await withPlayer(interaction.user, async (player) => {
-        await interaction.editReply(makeFishDexMessage(interaction.user, player, interaction.values[0], interaction.guildId, Number(pageValue || 0)));
+        await interaction.editReply(await makeFishDexMessage(interaction.user, player, interaction.values[0], interaction.guildId, Number(pageValue || 0)));
       });
       return;
     }
@@ -6770,7 +6889,7 @@ client.on("interactionCreate", async (interaction) => {
       }
       await interaction.deferUpdate();
       await withPlayer(interaction.user, async (player) => {
-        await interaction.editReply(makeFishDexMessage(interaction.user, player, "", interaction.guildId, Number(pageValue || 0)));
+        await interaction.editReply(await makeFishDexMessage(interaction.user, player, "", interaction.guildId, Number(pageValue || 0)));
       });
       return;
     }
@@ -6786,11 +6905,11 @@ client.on("interactionCreate", async (interaction) => {
       await withPlayer(interaction.user, async (player) => {
         const selectedFish = getAvailableFish(interaction.guildId).find((fishEntry) => fishEntry.id === selectedFishId);
         if (!selectedFish || !getFishDexEntry(player, selectedFish).caught) {
-          await interaction.editReply(makeFishDexMessage(interaction.user, player, selectedFishId, interaction.guildId, Number(pageValue || 0)));
+          await interaction.editReply(await makeFishDexMessage(interaction.user, player, selectedFishId, interaction.guildId, Number(pageValue || 0)));
           return { save: false };
         }
         player.showcasedFishId = selectedFish.id;
-        await interaction.editReply(makeFishDexMessage(interaction.user, player, selectedFish.id, interaction.guildId, Number(pageValue || 0)));
+        await interaction.editReply(await makeFishDexMessage(interaction.user, player, selectedFish.id, interaction.guildId, Number(pageValue || 0)));
         return undefined;
       });
       return;
@@ -6810,11 +6929,11 @@ client.on("interactionCreate", async (interaction) => {
       await withPlayer(interaction.user, async (player) => {
         const selectedFish = getAvailableFish(interaction.guildId).find((fishEntry) => fishEntry.id === selectedFishId);
         if (!selectedFish || !getFishDexEntry(player, selectedFish).caught) {
-          await interaction.editReply(makeFishDexMessage(interaction.user, player, selectedFishId, interaction.guildId, Number(pageValue || 0)));
+          await interaction.editReply(await makeFishDexMessage(interaction.user, player, selectedFishId, interaction.guildId, Number(pageValue || 0)));
           return { save: false };
         }
         player.showcasedFishId = selectedFish.id;
-        await interaction.editReply(makeFishDexMessage(interaction.user, player, selectedFish.id, interaction.guildId, Number(pageValue || 0)));
+        await interaction.editReply(await makeFishDexMessage(interaction.user, player, selectedFish.id, interaction.guildId, Number(pageValue || 0)));
         const showoffMessage = await interaction.channel?.send(await makeFishShowoffMessage(interaction.user, player, member, interaction.guildId)).catch((error) => {
           console.error("Could not send fishdex showcase showoff message:", error);
           return null;
@@ -7197,9 +7316,12 @@ client.on("interactionCreate", async (interaction) => {
       for (const caught of (result.event.catchResults || (result.event.catchResult ? [result.event.catchResult] : []))) {
         const popupChannel = await fetchFishingMessageChannel({ lastFishingChannelId: result.lastFishingChannelId }, interaction.guildId)
           || interaction.channel;
-        await popupChannel?.send(makeCatchMessage(interaction.user, caught.caughtFish, caught.catchWeight, caught.expGain, {
+        await popupChannel?.send(await makeCatchMessage(interaction.user, caught.caughtFish, caught.catchWeight, caught.expGain, {
           expBase: caught.expBase,
-          expEventInfo: caught.expEventInfo
+          expEventInfo: caught.expEventInfo,
+          mutationId: caught.mutationId,
+          sellGold: caught.sellGold,
+          testOnly: caught.testOnly
         })).catch((error) => console.error("Could not send Fishentot catch popup:", error));
       }
       return;
@@ -7234,7 +7356,7 @@ client.on("interactionCreate", async (interaction) => {
     if (interaction.commandName === "fishdex") {
       await interaction.deferReply({ flags: MessageFlags.Ephemeral });
       await withPlayerReadOnly(interaction.user, async (player) => {
-        await interaction.editReply(makeFishDexMessage(interaction.user, player, "", interaction.guildId));
+        await interaction.editReply(await makeFishDexMessage(interaction.user, player, "", interaction.guildId));
       });
       return;
     }

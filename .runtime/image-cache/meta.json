@@ -4226,5 +4226,3618 @@
     "extension": "jpg",
     "savedAt": "2026-09-14T08:43:23.340Z",
     "size": 187769
+  },
+  "4d742a9afa79789b32b1ce7e1533f99a0c9d57f7d6ff9172492e1ded21b0ff54": {
+    "itemId": "test_fish",
+    "itemName": "Test Fish",
+    "iconUrl": "",
+    "iconRef": null,
+    "fileName": "fish-test_fish.png",
+    "namePrefix": "fish",
+    "source": "mutation_visual_base64",
+    "contentType": "image/png",
+    "extension": "png",
+    "savedAt": "2026-09-15T10:48:07.113Z",
+    "size": 155
+  },
+  "8786844cc86e864b65d9543138d7df396484b7073b1e52be2401039e9ce6c444": {
+    "source": "mutation_generated",
+    "itemId": "test_fish",
+    "mutationId": "gold",
+    "fileName": "test-test_fish-gold.gif",
+    "contentType": "image/gif",
+    "extension": "gif",
+    "savedAt": "2026-09-15T10:48:08.032Z",
+    "size": 1492
+  },
+  "eb2f46d1b772b1592cdbad3b59ed89355d858889158f1e4a084da351df97e98c": {
+    "source": "mutation_generated",
+    "itemId": "ikan_jawa",
+    "mutationId": "stone",
+    "fileName": "fish-ikan_jawa-stone.gif",
+    "contentType": "image/gif",
+    "extension": "gif",
+    "savedAt": "2026-09-15T11:02:43.768Z",
+    "size": 128334
+  },
+  "8e396da3b01dbce595f110798db71441109b224f5e7d889404eea7d5e3f41c13": {
+    "source": "mutation_generated",
+    "itemId": "ikan_kembung",
+    "mutationId": "stone",
+    "fileName": "fish-ikan_kembung-stone.gif",
+    "contentType": "image/gif",
+    "extension": "gif",
+    "savedAt": "2026-09-15T11:04:39.178Z",
+    "size": 132889
+  },
+  "3a9fda30b9d6bd3d6431043e6b74c85c826b6cbd81eadf9a4e6089f41cd80a5f": {
+    "source": "mutation_generated",
+    "itemId": "whatsapp",
+    "mutationId": "gold",
+    "fileName": "fish-whatsapp-gold.gif",
+    "contentType": "image/gif",
+    "extension": "gif",
+    "savedAt": "2026-09-15T11:04:41.056Z",
+    "size": 76639
+  },
+  "08b392d5f4ffec0ceddb17e255c85d927ff46494dff818c939fbfa246267c39d": {
+    "source": "mutation_generated",
+    "itemId": "ikan_hiu",
+    "mutationId": "freezing",
+    "fileName": "fish-ikan_hiu-freezing.gif",
+    "contentType": "image/gif",
+    "extension": "gif",
+    "savedAt": "2026-09-15T11:04:43.459Z",
+    "size": 125064
+  },
+  "036a0f5873283dd8f7fd1f0a1dff8e3f5dd01ea049a34af42f3aa68cef231424": {
+    "source": "mutation_generated",
+    "itemId": "ikan_hiu",
+    "mutationId": "ghost",
+    "fileName": "fish-ikan_hiu-ghost.gif",
+    "contentType": "image/gif",
+    "extension": "gif",
+    "savedAt": "2026-09-15T11:04:45.825Z",
+    "size": 92810
+  },
+  "04d326256f7e50055d87c6c39c1d21d6e7d4a4cc68bf6a693e64778cfdcb9e58": {
+    "source": "mutation_generated",
+    "itemId": "ikan_teri",
+    "mutationId": "radioactive",
+    "fileName": "fish-ikan_teri-radioactive.gif",
+    "contentType": "image/gif",
+    "extension": "gif",
+    "savedAt": "2026-09-15T11:04:50.536Z",
+    "size": 121936
+  },
+  "95e8620def9f1e78724ac40a527d7240be84ffa76dd778ae98f34f79a8871b3f": {
+    "source": "mutation_generated",
+    "itemId": "teh_pucuk_1_3_liter",
+    "mutationId": "lightning",
+    "fileName": "fish-teh_pucuk_1_3_liter-lightning.gif",
+    "contentType": "image/gif",
+    "extension": "gif",
+    "savedAt": "2026-09-15T11:08:09.494Z",
+    "size": 117803
+  },
+  "2d33c37e226478c29d6848cb477aa9892b685073ac96582a58668b51f17ffce6": {
+    "source": "mutation_generated",
+    "itemId": "ikan_depok",
+    "mutationId": "midnight",
+    "fileName": "fish-ikan_depok-midnight.gif",
+    "contentType": "image/gif",
+    "extension": "gif",
+    "savedAt": "2026-09-15T11:08:11.651Z",
+    "size": 113705
+  },
+  "b5fe0f4ca4e8b08a932631244c2d9642c1bcc364ddb54b52a3e0feddd260559e": {
+    "source": "mutation_generated",
+    "itemId": "kerang",
+    "mutationId": "fairy_dust",
+    "fileName": "fish-kerang-fairy_dust.gif",
+    "contentType": "image/gif",
+    "extension": "gif",
+    "savedAt": "2026-09-15T11:08:14.062Z",
+    "size": 107495
+  },
+  "025f38ee91715ec3886dfbee2994edb56a6c0f29a64b2ea20409458b7099c46c": {
+    "source": "mutation_generated",
+    "itemId": "teh_pucuk_1_3_liter",
+    "mutationId": "gemstone",
+    "fileName": "fish-teh_pucuk_1_3_liter-gemstone.gif",
+    "contentType": "image/gif",
+    "extension": "gif",
+    "savedAt": "2026-09-15T11:08:16.322Z",
+    "size": 121512
+  },
+  "46015ddc8b6c445d5a39d90a1a365f7a7215815c08c50a7346644c3c02b77c0c": {
+    "source": "mutation_generated",
+    "itemId": "kulkas_2_pintu",
+    "mutationId": "corrupt",
+    "fileName": "fish-kulkas_2_pintu-corrupt.gif",
+    "contentType": "image/gif",
+    "extension": "gif",
+    "savedAt": "2026-09-15T11:08:18.855Z",
+    "size": 125412
+  },
+  "37991ccb6e7d23ab959f69ea4aee374fd3a971a6b8a7dc5f73e77d73a91a8468": {
+    "source": "mutation_generated",
+    "itemId": "ikan_atmin_cina",
+    "mutationId": "galaxy",
+    "fileName": "fish-ikan_atmin_cina-galaxy.gif",
+    "contentType": "image/gif",
+    "extension": "gif",
+    "savedAt": "2026-09-15T11:08:21.240Z",
+    "size": 102745
+  },
+  "c2e791ead080cac5e85c33d119d85fea89270f62feba2aa96f5f4b22c514c0c0": {
+    "source": "mutation_generated",
+    "itemId": "ikan_depok",
+    "mutationId": "bloodmoon",
+    "fileName": "fish-ikan_depok-bloodmoon.gif",
+    "contentType": "image/gif",
+    "extension": "gif",
+    "savedAt": "2026-09-15T11:08:24.346Z",
+    "size": 106998
+  },
+  "b71848303e5410b2f4a9831bcaafa36f030eed1a7112a07318759dc94614c93d": {
+    "source": "mutation_generated",
+    "itemId": "vario_160",
+    "mutationId": "minty",
+    "fileName": "fish-vario_160-minty.gif",
+    "contentType": "image/gif",
+    "extension": "gif",
+    "savedAt": "2026-09-15T11:08:26.501Z",
+    "size": 112830
+  },
+  "5a40eff79081ab83b799ea2e3b76791e5e610f98e06be1863b8104fddfc8e7ca": {
+    "source": "mutation_generated",
+    "itemId": "ikan_hiu",
+    "mutationId": "jawa",
+    "fileName": "fish-ikan_hiu-jawa.gif",
+    "contentType": "image/gif",
+    "extension": "gif",
+    "savedAt": "2026-09-15T11:08:28.445Z",
+    "size": 102501
+  },
+  "ef221dc483627d1af8dc35b1bf88fc14cb8b3e5f2ee515a21ee6c0f560dbc616": {
+    "itemId": "test_fish",
+    "itemName": "Test Fish",
+    "iconUrl": "",
+    "iconRef": null,
+    "fileName": "fish-test_fish.png",
+    "namePrefix": "fish",
+    "source": "mutation_visual_base64",
+    "contentType": "image/png",
+    "extension": "png",
+    "savedAt": "2026-09-15T11:25:45.085Z",
+    "size": 70
+  },
+  "f9986b30c398e309be9f511dfd6769c5f3895a9fd360e1728532cf4b1c36bfdc": {
+    "itemId": "test_fish",
+    "itemName": "Test Fish",
+    "iconUrl": "",
+    "iconRef": null,
+    "fileName": "fish-test_fish.png",
+    "namePrefix": "fish",
+    "source": "mutation_visual_base64",
+    "contentType": "image/png",
+    "extension": "png",
+    "savedAt": "2026-09-15T11:26:06.329Z",
+    "size": 2567793
+  },
+  "5ea8d8f3874755fd565a8705c5a088d2f8e95cfd1d66a558717860454c53d1f6": {
+    "source": "mutation_generated",
+    "itemId": "test_fish",
+    "mutationId": "gold",
+    "fileName": "test-test_fish-gold.gif",
+    "contentType": "image/gif",
+    "extension": "gif",
+    "savedAt": "2026-09-15T11:26:07.310Z",
+    "size": 102887
+  },
+  "db5b9debb28d00f14fe93b937436d89ca10fa481467214153bae13c21e827347": {
+    "itemId": "preview_fish",
+    "itemName": "Preview Fish",
+    "iconUrl": "",
+    "iconRef": null,
+    "fileName": "fish-preview_fish.png",
+    "namePrefix": "fish",
+    "source": "mutation_visual_base64",
+    "contentType": "image/png",
+    "extension": "png",
+    "savedAt": "2026-09-15T11:57:49.214Z",
+    "size": 2567793
+  },
+  "9fe985b8724244c10c2ed83ddefccca11213fe4a208f553dc43f3cd4630e45ac": {
+    "source": "mutation_generated",
+    "itemId": "preview_fish",
+    "mutationId": "moon",
+    "fileName": "preview-preview_fish-moon.gif",
+    "contentType": "image/gif",
+    "extension": "gif",
+    "savedAt": "2026-09-15T11:57:50.461Z",
+    "size": 129473
+  },
+  "164c1358f1b3e9c3d47e35531d1580a6dda6dab45198620b1f74f5a36247ba2f": {
+    "source": "mutation_generated",
+    "itemId": "ikan_lele",
+    "mutationId": "ghost",
+    "fileName": "mutation-preview-ikan_lele-ghost.gif",
+    "contentType": "image/gif",
+    "extension": "gif",
+    "savedAt": "2026-09-15T12:10:19.534Z",
+    "size": 94917
+  },
+  "808ce121c993e22c7ee4d934475e660b4adf287092e36968af271c314c85839b": {
+    "source": "mutation_generated",
+    "itemId": "ikan_lele",
+    "mutationId": "stone",
+    "fileName": "mutation-preview-ikan_lele-stone.gif",
+    "contentType": "image/gif",
+    "extension": "gif",
+    "savedAt": "2026-09-15T12:10:24.737Z",
+    "size": 133810
+  },
+  "7abbdee89be7653ef882a521b014e5ce0c87545af63528f6379332bb54638061": {
+    "source": "mutation_generated",
+    "itemId": "cumi",
+    "mutationId": "stone",
+    "fileName": "mutation-preview-cumi-stone.gif",
+    "contentType": "image/gif",
+    "extension": "gif",
+    "savedAt": "2026-09-15T12:10:28.665Z",
+    "size": 135792
+  },
+  "ab866c2903a77d595be873e5bdaa03de070e4703cc8f3c1d8fdad698b2a15198": {
+    "source": "mutation_generated",
+    "itemId": "cumi",
+    "mutationId": "bloodmoon",
+    "fileName": "mutation-preview-cumi-bloodmoon.gif",
+    "contentType": "image/gif",
+    "extension": "gif",
+    "savedAt": "2026-09-15T12:13:26.810Z",
+    "size": 118235
+  },
+  "a9201839ecb1e92ccc3958db1445f34fe6410e2bedae1ef94c8776760a85a621": {
+    "source": "mutation_generated",
+    "itemId": "ikan_nila",
+    "mutationId": "stone",
+    "fileName": "mutation-preview-ikan_nila-stone.gif",
+    "contentType": "image/gif",
+    "extension": "gif",
+    "savedAt": "2026-09-15T12:35:24.438Z",
+    "size": 133602
+  },
+  "4ec28f2487545e23605850705d9dbb36b3bc02c51c6bc578f608a4c23e291f20": {
+    "source": "mutation_generated",
+    "itemId": "ikan_nila",
+    "mutationId": "gold",
+    "fileName": "mutation-preview-ikan_nila-gold.gif",
+    "contentType": "image/gif",
+    "extension": "gif",
+    "savedAt": "2026-09-15T12:35:25.489Z",
+    "size": 106974
+  },
+  "a5ed15161c206c92d1358646df8a0589d7993e175064258accf2aebfa6d66a93": {
+    "source": "mutation_generated",
+    "itemId": "ikan_nila",
+    "mutationId": "freezing",
+    "fileName": "mutation-preview-ikan_nila-freezing.gif",
+    "contentType": "image/gif",
+    "extension": "gif",
+    "savedAt": "2026-09-15T12:35:26.750Z",
+    "size": 132174
+  },
+  "4889ce21595c093345c29ce43b3f3cdbfac6285ca215eece6c7dbbd2320aebb7": {
+    "source": "mutation_generated",
+    "itemId": "ikan_nila",
+    "mutationId": "ghost",
+    "fileName": "mutation-preview-ikan_nila-ghost.gif",
+    "contentType": "image/gif",
+    "extension": "gif",
+    "savedAt": "2026-09-15T12:35:28.212Z",
+    "size": 98745
+  },
+  "9ebda9cab435a93f16b52302b520041d33f8695867efa514ccedab8df868d0b6": {
+    "source": "mutation_generated",
+    "itemId": "ikan_nila",
+    "mutationId": "radioactive",
+    "fileName": "mutation-preview-ikan_nila-radioactive.gif",
+    "contentType": "image/gif",
+    "extension": "gif",
+    "savedAt": "2026-09-15T12:35:29.903Z",
+    "size": 119666
+  },
+  "4a63dbeb34b0ff7dc4e9d3200001f37df370a148e40b961716c4815463af7200": {
+    "source": "mutation_generated",
+    "itemId": "ikan_nila",
+    "mutationId": "lightning",
+    "fileName": "mutation-preview-ikan_nila-lightning.gif",
+    "contentType": "image/gif",
+    "extension": "gif",
+    "savedAt": "2026-09-15T12:35:31.432Z",
+    "size": 120495
+  },
+  "e516ab1e0f001f65c252ed38e5f66e74f9aac3bb318ec7d70e92178c1eb314ec": {
+    "source": "mutation_generated",
+    "itemId": "ikan_nila",
+    "mutationId": "fairy_dust",
+    "fileName": "mutation-preview-ikan_nila-fairy_dust.gif",
+    "contentType": "image/gif",
+    "extension": "gif",
+    "savedAt": "2026-09-15T12:35:32.736Z",
+    "size": 127635
+  },
+  "b70fe245f8c63daf6854e0d7e5c7f8e89f7da57feb8c4d9c92041597419a4d04": {
+    "source": "mutation_generated",
+    "itemId": "ikan_nila",
+    "mutationId": "gemstone",
+    "fileName": "mutation-preview-ikan_nila-gemstone.gif",
+    "contentType": "image/gif",
+    "extension": "gif",
+    "savedAt": "2026-09-15T12:35:34.041Z",
+    "size": 127961
+  },
+  "131f64373dcebeaa00420e95632d754bb45a890a8ce4f8b118b36f522db2facd": {
+    "source": "mutation_generated",
+    "itemId": "ikan_nila",
+    "mutationId": "corrupt",
+    "fileName": "mutation-preview-ikan_nila-corrupt.gif",
+    "contentType": "image/gif",
+    "extension": "gif",
+    "savedAt": "2026-09-15T12:35:35.773Z",
+    "size": 134865
+  },
+  "70df9313ad46f6a7ac038a5cd6f2a5988ac7d1fa7aaccb947aed568de198e6ba": {
+    "source": "mutation_generated",
+    "itemId": "ikan_nila",
+    "mutationId": "galaxy",
+    "fileName": "mutation-preview-ikan_nila-galaxy.gif",
+    "contentType": "image/gif",
+    "extension": "gif",
+    "savedAt": "2026-09-15T12:35:37.224Z",
+    "size": 125083
+  },
+  "91bbab14a4f0ab1e0952a1b4f5b50ae799e06312f260eb8631e6911210228ee0": {
+    "source": "mutation_generated",
+    "itemId": "ikan_nila",
+    "mutationId": "minty",
+    "fileName": "mutation-preview-ikan_nila-minty.gif",
+    "contentType": "image/gif",
+    "extension": "gif",
+    "savedAt": "2026-09-15T12:35:38.718Z",
+    "size": 132373
+  },
+  "db89d88cb96fa0886548093260c78cd5c7308e2ef29b29f3b9d178f7e43e0b81": {
+    "source": "mutation_generated",
+    "itemId": "ikan_nila",
+    "mutationId": "jawa",
+    "fileName": "mutation-preview-ikan_nila-jawa.gif",
+    "contentType": "image/gif",
+    "extension": "gif",
+    "savedAt": "2026-09-15T12:35:40.099Z",
+    "size": 118951
+  },
+  "0fa7565970284a2a60d1f80e2d3c3679bdc06fa8c5d3ebfa39056eff3755bab4": {
+    "source": "mutation_generated",
+    "itemId": "ikan_nila",
+    "mutationId": "bloodmoon",
+    "fileName": "mutation-preview-ikan_nila-bloodmoon.gif",
+    "contentType": "image/gif",
+    "extension": "gif",
+    "savedAt": "2026-09-15T12:35:42.083Z",
+    "size": 120026
+  },
+  "7e78c459d00d982992d28f5a3f1d4fae2feaecb9a3375dd60377f0d95997596f": {
+    "source": "mutation_generated",
+    "itemId": "ikan_nila",
+    "mutationId": "midnight",
+    "fileName": "mutation-preview-ikan_nila-midnight.gif",
+    "contentType": "image/gif",
+    "extension": "gif",
+    "savedAt": "2026-09-15T12:35:43.698Z",
+    "size": 129929
+  },
+  "0b14c08abffb11f2ff41dddc3c8c1cc104fe53b8093ac88c82de908918b5b3fa": {
+    "source": "mutation_generated",
+    "itemId": "ikan_nila",
+    "mutationId": "stone",
+    "fileName": "mutation-preview-ikan_nila-stone.gif",
+    "contentType": "image/gif",
+    "extension": "gif",
+    "savedAt": "2026-09-15T12:35:48.278Z",
+    "size": 133602
+  },
+  "c8496d445f0d9d2ae4ded49939c6010a5ddef8a3fb1b82b7ea8bfb87433797c0": {
+    "source": "mutation_generated",
+    "itemId": "ikan_nila",
+    "mutationId": "stone",
+    "fileName": "mutation-preview-ikan_nila-stone.gif",
+    "contentType": "image/gif",
+    "extension": "gif",
+    "savedAt": "2026-09-15T12:35:54.147Z",
+    "size": 133602
+  },
+  "28d54c8a8c29c564f5d6f35fb63bb92153f325a5f546a6fe8b424d494a175001": {
+    "source": "mutation_generated",
+    "itemId": "ikan_nila",
+    "mutationId": "stone",
+    "fileName": "mutation-preview-ikan_nila-stone.gif",
+    "contentType": "image/gif",
+    "extension": "gif",
+    "savedAt": "2026-09-15T12:36:07.724Z",
+    "size": 132461
+  },
+  "51d5d6514d839b78170ef0dce5db3a7eb32937c721f808a6807ab9d4424bd11c": {
+    "source": "mutation_generated",
+    "itemId": "ikan_nila",
+    "mutationId": "stone",
+    "fileName": "mutation-preview-ikan_nila-stone.gif",
+    "contentType": "image/gif",
+    "extension": "gif",
+    "savedAt": "2026-09-15T12:36:11.851Z",
+    "size": 130330
+  },
+  "0fc943a9dd9afdf99102012cf7df08ce887b4ffd38932bc68ec53eb9b67b2e2f": {
+    "source": "mutation_generated",
+    "itemId": "ikan_nila",
+    "mutationId": "stone",
+    "fileName": "mutation-preview-ikan_nila-stone.gif",
+    "contentType": "image/gif",
+    "extension": "gif",
+    "savedAt": "2026-09-15T12:36:16.022Z",
+    "size": 120781
+  },
+  "6c839beaec27ee58522eb040c195afd251321b00b501495652bccc69b95868d5": {
+    "source": "mutation_generated",
+    "itemId": "ikan_nila",
+    "mutationId": "stone",
+    "fileName": "mutation-preview-ikan_nila-stone.gif",
+    "contentType": "image/gif",
+    "extension": "gif",
+    "savedAt": "2026-09-15T12:36:21.949Z",
+    "size": 131096
+  },
+  "30fd680b3951926d9d9548561e1ba07e51b22b3af93f7ab2cb9d01514f4ac1ff": {
+    "source": "mutation_generated",
+    "itemId": "ikan_nila",
+    "mutationId": "stone",
+    "fileName": "mutation-preview-ikan_nila-stone.gif",
+    "contentType": "image/gif",
+    "extension": "gif",
+    "savedAt": "2026-09-15T12:36:25.915Z",
+    "size": 99747
+  },
+  "3a778d538f13be91aaafd0a1458b6747ebcc4d3847f36260684aa6e326e71ce1": {
+    "source": "mutation_generated",
+    "itemId": "ikan_nila",
+    "mutationId": "stone",
+    "fileName": "mutation-preview-ikan_nila-stone.gif",
+    "contentType": "image/gif",
+    "extension": "gif",
+    "savedAt": "2026-09-15T12:36:35.559Z",
+    "size": 99747
+  },
+  "9f7be0ec67b8607ca596e27f005b84bde15fa1ead91e30843fc5ba2263cb8fcc": {
+    "source": "mutation_generated",
+    "itemId": "ikan_nila",
+    "mutationId": "stone",
+    "fileName": "mutation-preview-ikan_nila-stone.gif",
+    "contentType": "image/gif",
+    "extension": "gif",
+    "savedAt": "2026-09-15T12:36:54.461Z",
+    "size": 132915
+  },
+  "f543e563334423e0570f181741b9c66f8b6c9ef9e4c195cf9283b77acfa8c920": {
+    "source": "mutation_generated",
+    "itemId": "ikan_nila",
+    "mutationId": "stone",
+    "fileName": "mutation-preview-ikan_nila-stone.gif",
+    "contentType": "image/gif",
+    "extension": "gif",
+    "savedAt": "2026-09-15T12:37:02.164Z",
+    "size": 132913
+  },
+  "1063494112d702e19cf7af60506001560058aa378164c8c4b2c5683e3d847a62": {
+    "source": "mutation_generated",
+    "itemId": "ikan_nila",
+    "mutationId": "stone",
+    "fileName": "mutation-preview-ikan_nila-stone.gif",
+    "contentType": "image/gif",
+    "extension": "gif",
+    "savedAt": "2026-09-15T12:37:10.068Z",
+    "size": 132267
+  },
+  "342e71ed5bcd833a79f37899572a37b6c1c717096e0940df06bc24db7e4418f5": {
+    "source": "mutation_generated",
+    "itemId": "ikan_nila",
+    "mutationId": "stone",
+    "fileName": "mutation-preview-ikan_nila-stone.gif",
+    "contentType": "image/gif",
+    "extension": "gif",
+    "savedAt": "2026-09-15T12:37:19.895Z",
+    "size": 134960
+  },
+  "aaf29af35d4d9b0d54aa6eb4a9fb2c78a956d2e16766646641a5812ffdc99e1c": {
+    "source": "mutation_generated",
+    "itemId": "ikan_nila",
+    "mutationId": "stone",
+    "fileName": "mutation-preview-ikan_nila-stone.gif",
+    "contentType": "image/gif",
+    "extension": "gif",
+    "savedAt": "2026-09-15T12:37:32.636Z",
+    "size": 136729
+  },
+  "f9d90eaa262376bc877a75f64bdc2510fafc06782b55deccb1df49456dbde73b": {
+    "source": "mutation_generated",
+    "itemId": "rama_naufal",
+    "mutationId": "stone",
+    "fileName": "mutation-preview-rama_naufal-stone.gif",
+    "contentType": "image/gif",
+    "extension": "gif",
+    "savedAt": "2026-09-15T12:37:48.170Z",
+    "size": 129345
+  },
+  "e34e96a4853228453d76a7907ba34c66a70b2aaa1b9e67cfe0b57a4b9f9ce576": {
+    "source": "mutation_generated",
+    "itemId": "rama_naufal",
+    "mutationId": "gold",
+    "fileName": "mutation-preview-rama_naufal-gold.gif",
+    "contentType": "image/gif",
+    "extension": "gif",
+    "savedAt": "2026-09-15T12:37:49.303Z",
+    "size": 103233
+  },
+  "87046f614fae47b51feeb521740c234f0b0a0e732b679f85ebc57e218409b02b": {
+    "source": "mutation_generated",
+    "itemId": "rama_naufal",
+    "mutationId": "freezing",
+    "fileName": "mutation-preview-rama_naufal-freezing.gif",
+    "contentType": "image/gif",
+    "extension": "gif",
+    "savedAt": "2026-09-15T12:37:51.152Z",
+    "size": 126687
+  },
+  "b951202be62d14afa253d391c5de600798bbd044d4ad07cf7eb9efd98f7831ea": {
+    "source": "mutation_generated",
+    "itemId": "rama_naufal",
+    "mutationId": "ghost",
+    "fileName": "mutation-preview-rama_naufal-ghost.gif",
+    "contentType": "image/gif",
+    "extension": "gif",
+    "savedAt": "2026-09-15T12:37:53.086Z",
+    "size": 93582
+  },
+  "64d0346dca5fea6d6305c1ec7c0c8f36f293ab06c26583456609da7e74ce32e5": {
+    "source": "mutation_generated",
+    "itemId": "rama_naufal",
+    "mutationId": "radioactive",
+    "fileName": "mutation-preview-rama_naufal-radioactive.gif",
+    "contentType": "image/gif",
+    "extension": "gif",
+    "savedAt": "2026-09-15T12:37:54.726Z",
+    "size": 111953
+  },
+  "7db81862a93d8cf748747af006ad29e20183b3c9cfbff8fbc5c2b49a7de4c9a7": {
+    "source": "mutation_generated",
+    "itemId": "rama_naufal",
+    "mutationId": "gemstone",
+    "fileName": "mutation-preview-rama_naufal-gemstone.gif",
+    "contentType": "image/gif",
+    "extension": "gif",
+    "savedAt": "2026-09-15T12:37:58.125Z",
+    "size": 120819
+  },
+  "00376648cd62225c10125d69d635fe1510c7cc6d388a0cc8cc877846666d9e02": {
+    "source": "mutation_generated",
+    "itemId": "rama_naufal",
+    "mutationId": "corrupt",
+    "fileName": "mutation-preview-rama_naufal-corrupt.gif",
+    "contentType": "image/gif",
+    "extension": "gif",
+    "savedAt": "2026-09-15T12:37:59.571Z",
+    "size": 127526
+  },
+  "30c9d5be058f66f895a236c4d20ce70791a7a5075d0b7e1f9e6f08e00703e858": {
+    "source": "mutation_generated",
+    "itemId": "rama_naufal",
+    "mutationId": "galaxy",
+    "fileName": "mutation-preview-rama_naufal-galaxy.gif",
+    "contentType": "image/gif",
+    "extension": "gif",
+    "savedAt": "2026-09-15T12:38:02.012Z",
+    "size": 117318
+  },
+  "1d7ad2f39e4eaac16941518a670aa9aed3b6bcb5430d480b09899e3f8e1615df": {
+    "source": "mutation_generated",
+    "itemId": "rama_naufal",
+    "mutationId": "jawa",
+    "fileName": "mutation-preview-rama_naufal-jawa.gif",
+    "contentType": "image/gif",
+    "extension": "gif",
+    "savedAt": "2026-09-15T12:38:03.984Z",
+    "size": 111585
+  },
+  "d959d34cca4643763867a2509e121f220940c869e1edc219a444089c6111f940": {
+    "source": "mutation_generated",
+    "itemId": "rama_naufal",
+    "mutationId": "midnight",
+    "fileName": "mutation-preview-rama_naufal-midnight.gif",
+    "contentType": "image/gif",
+    "extension": "gif",
+    "savedAt": "2026-09-15T12:38:05.846Z",
+    "size": 124225
+  },
+  "61b5901ced5c1fd5209f56b1db7a32b0265ce24b7df79ccccb61a549106f269d": {
+    "source": "mutation_generated",
+    "itemId": "rama_naufal",
+    "mutationId": "fairy_dust",
+    "fileName": "mutation-preview-rama_naufal-fairy_dust.gif",
+    "contentType": "image/gif",
+    "extension": "gif",
+    "savedAt": "2026-09-15T12:38:07.364Z",
+    "size": 122315
+  },
+  "ef160dc458eb700c7853e8de042511261322f82c643468bedd269514099ad18b": {
+    "source": "mutation_generated",
+    "itemId": "rama_naufal",
+    "mutationId": "bloodmoon",
+    "fileName": "mutation-preview-rama_naufal-bloodmoon.gif",
+    "contentType": "image/gif",
+    "extension": "gif",
+    "savedAt": "2026-09-15T12:38:09.017Z",
+    "size": 113243
+  },
+  "7e3b2047bfdffa5f5ecdb90b5a683b752e9b788c512b11bb6d7abf5641bfc615": {
+    "source": "mutation_generated",
+    "itemId": "rama_naufal",
+    "mutationId": "minty",
+    "fileName": "mutation-preview-rama_naufal-minty.gif",
+    "contentType": "image/gif",
+    "extension": "gif",
+    "savedAt": "2026-09-15T12:38:10.805Z",
+    "size": 125010
+  },
+  "8eeefd5fdc561cf08de95aa18530b35dca9122ea63148bdc5e69ecf04916b7f3": {
+    "source": "mutation_generated",
+    "itemId": "rama_naufal",
+    "mutationId": "stone",
+    "fileName": "mutation-preview-rama_naufal-stone.gif",
+    "contentType": "image/gif",
+    "extension": "gif",
+    "savedAt": "2026-09-15T12:39:37.598Z",
+    "size": 119965
+  },
+  "20ea290ffce318ae91045ce296fee6d503ba3438365413f56de035510b9dac69": {
+    "source": "mutation_generated",
+    "itemId": "rama_naufal",
+    "mutationId": "stone",
+    "fileName": "mutation-preview-rama_naufal-stone.gif",
+    "contentType": "image/gif",
+    "extension": "gif",
+    "savedAt": "2026-09-15T12:39:43.205Z",
+    "size": 113886
+  },
+  "ef66ca8349135bd7fbe7ab018583da002f67bb73de16662a324fe3efa23c4a78": {
+    "itemId": "test",
+    "itemName": "",
+    "iconUrl": "",
+    "iconRef": null,
+    "fileName": "fish-test.png",
+    "namePrefix": "fish",
+    "source": "mutation_visual_base64",
+    "contentType": "image/png",
+    "extension": "png",
+    "savedAt": "2026-09-15T13:19:47.736Z",
+    "size": 136
+  },
+  "66d97c458fdbb9e1cb48e2654f6208c6dab5082af464fd234065fd4fa7e0eb9f": {
+    "source": "mutation_generated",
+    "itemId": "test",
+    "mutationId": "moon",
+    "fileName": "test-test-moon.gif",
+    "contentType": "image/gif",
+    "extension": "gif",
+    "savedAt": "2026-09-15T13:19:48.005Z",
+    "size": 2230
+  },
+  "716313e0221b175889ec34a1cb0abe3a15a04e4ae9af41fac8ed94c853eac904": {
+    "source": "mutation_generated",
+    "itemId": "test",
+    "mutationId": "moon",
+    "fileName": "test-test-moon.gif",
+    "contentType": "image/gif",
+    "extension": "gif",
+    "savedAt": "2026-09-15T13:25:10.778Z",
+    "size": 2230
+  },
+  "f33a62c8ec85760e19d36859e872dd89d66e62b047fb77eb5ed1b4dad1c46c1c": {
+    "source": "mutation_generated",
+    "itemId": "ikan_lele",
+    "mutationId": "stone",
+    "fileName": "mutation-preview-ikan_lele-stone.gif",
+    "contentType": "image/gif",
+    "extension": "gif",
+    "savedAt": "2026-09-15T13:32:49.614Z",
+    "size": 149024
+  },
+  "9d44b8f7d09b2b07e0f6e6969639db38b04d731d6f611b9c01c4e358288bfac1": {
+    "source": "mutation_generated",
+    "itemId": "ikan_lele",
+    "mutationId": "gold",
+    "fileName": "mutation-preview-ikan_lele-gold.gif",
+    "contentType": "image/gif",
+    "extension": "gif",
+    "savedAt": "2026-09-15T13:32:50.695Z",
+    "size": 113600
+  },
+  "2ca2956c0abfde9364d09bd16b99b6f7c2756fef526a9f1732a2ead74cb1633b": {
+    "source": "mutation_generated",
+    "itemId": "ikan_lele",
+    "mutationId": "freezing",
+    "fileName": "mutation-preview-ikan_lele-freezing.gif",
+    "contentType": "image/gif",
+    "extension": "gif",
+    "savedAt": "2026-09-15T13:32:51.704Z",
+    "size": 148625
+  },
+  "f6eb2284751581211f0b508b23f59cdecbef1daa98959caa254a30ea3be70d76": {
+    "source": "mutation_generated",
+    "itemId": "ikan_lele",
+    "mutationId": "ghost",
+    "fileName": "mutation-preview-ikan_lele-ghost.gif",
+    "contentType": "image/gif",
+    "extension": "gif",
+    "savedAt": "2026-09-15T13:32:53.536Z",
+    "size": 98717
+  },
+  "375685a0148ef2002093691168860d7bccf20008136a71cb8b239f99d91e7e33": {
+    "source": "mutation_generated",
+    "itemId": "ikan_lele",
+    "mutationId": "radioactive",
+    "fileName": "mutation-preview-ikan_lele-radioactive.gif",
+    "contentType": "image/gif",
+    "extension": "gif",
+    "savedAt": "2026-09-15T13:32:55.165Z",
+    "size": 126663
+  },
+  "c4ccf1bb221371a876a4e0465c8522b95fd1c34bfd2e8c1de3d2aed29ddca0db": {
+    "source": "mutation_generated",
+    "itemId": "ikan_lele",
+    "mutationId": "lightning",
+    "fileName": "mutation-preview-ikan_lele-lightning.gif",
+    "contentType": "image/gif",
+    "extension": "gif",
+    "savedAt": "2026-09-15T13:32:56.762Z",
+    "size": 129537
+  },
+  "3a1555d8b378e835b05d2d5a16c9e0a99c7c05b5677c44bb61d5c6e30213d807": {
+    "source": "mutation_generated",
+    "itemId": "ikan_lele",
+    "mutationId": "gemstone",
+    "fileName": "mutation-preview-ikan_lele-gemstone.gif",
+    "contentType": "image/gif",
+    "extension": "gif",
+    "savedAt": "2026-09-15T13:32:58.450Z",
+    "size": 139217
+  },
+  "9c1fb5aac87375b8cf217c6dd5aa0fdb1d317e64f9d371147cea448f23b3c489": {
+    "source": "mutation_generated",
+    "itemId": "ikan_lele",
+    "mutationId": "corrupt",
+    "fileName": "mutation-preview-ikan_lele-corrupt.gif",
+    "contentType": "image/gif",
+    "extension": "gif",
+    "savedAt": "2026-09-15T13:32:59.956Z",
+    "size": 149751
+  },
+  "0623bd04cc37d348d2947275379f488a66595ffdafd2f2a2635f8b6bdb3bee73": {
+    "source": "mutation_generated",
+    "itemId": "ikan_lele",
+    "mutationId": "galaxy",
+    "fileName": "mutation-preview-ikan_lele-galaxy.gif",
+    "contentType": "image/gif",
+    "extension": "gif",
+    "savedAt": "2026-09-15T13:33:01.468Z",
+    "size": 132703
+  },
+  "f867587e3151e4093cb42dc5d8c4e5d5b17389676e35f026c7160b63eb43d5d5": {
+    "source": "mutation_generated",
+    "itemId": "ikan_lele",
+    "mutationId": "jawa",
+    "fileName": "mutation-preview-ikan_lele-jawa.gif",
+    "contentType": "image/gif",
+    "extension": "gif",
+    "savedAt": "2026-09-15T13:33:03.259Z",
+    "size": 129436
+  },
+  "8401a3325f82bd8ed80f67918b0e4e31cf6ee887aeff1168b56c97d558c81301": {
+    "source": "mutation_generated",
+    "itemId": "ikan_lele",
+    "mutationId": "midnight",
+    "fileName": "mutation-preview-ikan_lele-midnight.gif",
+    "contentType": "image/gif",
+    "extension": "gif",
+    "savedAt": "2026-09-15T13:33:05.053Z",
+    "size": 144182
+  },
+  "6a40aa3c822f88de98a86c9ae07d173b024a02749342ba341bf6d0a4be1a7424": {
+    "source": "mutation_generated",
+    "itemId": "ikan_lele",
+    "mutationId": "bloodmoon",
+    "fileName": "mutation-preview-ikan_lele-bloodmoon.gif",
+    "contentType": "image/gif",
+    "extension": "gif",
+    "savedAt": "2026-09-15T13:33:06.492Z",
+    "size": 129668
+  },
+  "4ee0b6d219efa79a291867599b023c1cbc6f560a47ecb42d6a9296ec6aa8396c": {
+    "source": "mutation_generated",
+    "itemId": "ikan_lele",
+    "mutationId": "fairy_dust",
+    "fileName": "mutation-preview-ikan_lele-fairy_dust.gif",
+    "contentType": "image/gif",
+    "extension": "gif",
+    "savedAt": "2026-09-15T13:33:09.942Z",
+    "size": 140081
+  },
+  "385dfc08541406e29fe52591046c2991f3b1249d967f0c1af0080cb1fbb65860": {
+    "source": "mutation_generated",
+    "itemId": "ikan_lele",
+    "mutationId": "minty",
+    "fileName": "mutation-preview-ikan_lele-minty.gif",
+    "contentType": "image/gif",
+    "extension": "gif",
+    "savedAt": "2026-09-15T13:33:15.634Z",
+    "size": 143111
+  },
+  "2dd44158e4edfb395a43a3d0b7363074ba82f3fd0d1d09d431ebd5c712df31c5": {
+    "source": "mutation_generated",
+    "itemId": "ikan_lele",
+    "mutationId": "stone",
+    "fileName": "mutation-preview-ikan_lele-stone.gif",
+    "contentType": "image/gif",
+    "extension": "gif",
+    "savedAt": "2026-09-15T14:17:58.431Z",
+    "size": 149024
+  },
+  "455ff264c763f943204c35df65bae0f22198c696434eaa5942a62fc6a71d73c3": {
+    "source": "mutation_generated",
+    "itemId": "ikan_lele",
+    "mutationId": "stone",
+    "fileName": "mutation-preview-ikan_lele-stone.gif",
+    "contentType": "image/gif",
+    "extension": "gif",
+    "savedAt": "2026-09-15T14:18:04.579Z",
+    "size": 144957
+  },
+  "0dc9e6202da0fa31c8ac2f316d0f342ba7da7fb2604ba557af6cc8c0a7480fbb": {
+    "source": "mutation_generated",
+    "itemId": "ikan_lele",
+    "mutationId": "stone",
+    "fileName": "mutation-preview-ikan_lele-stone.gif",
+    "contentType": "image/gif",
+    "extension": "gif",
+    "savedAt": "2026-09-15T14:18:12.922Z",
+    "size": 146780
+  },
+  "5e0d224aaa0f7da7dbc7a0a4cd5f3adc30b50d355b4eabe3d7dcf3aec74b6cfd": {
+    "source": "mutation_generated",
+    "itemId": "ikan_lele",
+    "mutationId": "stone",
+    "fileName": "mutation-preview-ikan_lele-stone.gif",
+    "contentType": "image/gif",
+    "extension": "gif",
+    "savedAt": "2026-09-15T14:18:14.317Z",
+    "size": 146798
+  },
+  "b47b0a3c06ac86522d90814bbf3bed1a0621cd87450cb4b541c82a80b362cbf7": {
+    "source": "mutation_generated",
+    "itemId": "ikan_lele",
+    "mutationId": "stone",
+    "fileName": "mutation-preview-ikan_lele-stone.gif",
+    "contentType": "image/gif",
+    "extension": "gif",
+    "savedAt": "2026-09-15T14:18:20.288Z",
+    "size": 145474
+  },
+  "fba421a9ae9a9b0f4b6c3b361f7ce5fcb1b4b28baa58ce272a39f0e37f9a2bee": {
+    "source": "mutation_generated",
+    "itemId": "ikan_lele",
+    "mutationId": "stone",
+    "fileName": "mutation-preview-ikan_lele-stone.gif",
+    "contentType": "image/gif",
+    "extension": "gif",
+    "savedAt": "2026-09-15T14:18:24.671Z",
+    "size": 147369
+  },
+  "15e53e9d88fa89d6112f43af1b4220273c22d08af8f191ea2a79a82ebe471dd9": {
+    "source": "mutation_generated",
+    "itemId": "ikan_lele",
+    "mutationId": "stone",
+    "fileName": "mutation-preview-ikan_lele-stone.gif",
+    "contentType": "image/gif",
+    "extension": "gif",
+    "savedAt": "2026-09-15T14:18:26.375Z",
+    "size": 147394
+  },
+  "da1786b232eae790894b1b5d9e68c80cbe2054211a45e1a462c5f17b2182b5c1": {
+    "source": "mutation_generated",
+    "itemId": "ikan_lele",
+    "mutationId": "stone",
+    "fileName": "mutation-preview-ikan_lele-stone.gif",
+    "contentType": "image/gif",
+    "extension": "gif",
+    "savedAt": "2026-09-15T14:18:30.159Z",
+    "size": 217385
+  },
+  "ab409cc5887a5955ec9416672b44674640b674db67f69f39eb658de03e6e880a": {
+    "source": "mutation_generated",
+    "itemId": "ikan_lele",
+    "mutationId": "stone",
+    "fileName": "mutation-preview-ikan_lele-stone.gif",
+    "contentType": "image/gif",
+    "extension": "gif",
+    "savedAt": "2026-09-15T14:18:33.690Z",
+    "size": 171899
+  },
+  "b308ebd81174a75f089b3a52e0aff3dcfe66959cee12fbb64a506fdbe09035fb": {
+    "source": "mutation_generated",
+    "itemId": "ikan_lele",
+    "mutationId": "stone",
+    "fileName": "mutation-preview-ikan_lele-stone.gif",
+    "contentType": "image/gif",
+    "extension": "gif",
+    "savedAt": "2026-09-15T14:18:38.772Z",
+    "size": 149024
+  },
+  "9ae088ade47ddce1b6965417f41a1cbb4f9bbb6da56f06fc5ef174c947477d49": {
+    "source": "mutation_generated",
+    "itemId": "ikan_lele",
+    "mutationId": "stone",
+    "fileName": "mutation-preview-ikan_lele-stone.gif",
+    "contentType": "image/gif",
+    "extension": "gif",
+    "savedAt": "2026-09-15T14:18:40.054Z",
+    "size": 186536
+  },
+  "5929b007e9faa5f2e8ac1f87251d4bcfa9b1ccc3c4e4bf68862100a5db4ae9cd": {
+    "source": "mutation_generated",
+    "itemId": "ikan_lele",
+    "mutationId": "stone",
+    "fileName": "mutation-preview-ikan_lele-stone.gif",
+    "contentType": "image/gif",
+    "extension": "gif",
+    "savedAt": "2026-09-15T14:18:46.146Z",
+    "size": 176579
+  },
+  "ab90a27e72bbb8fb3e7a6138be6045fb1190c28b6ecdfb03211c4c240891f0f7": {
+    "source": "mutation_generated",
+    "itemId": "cumi",
+    "mutationId": "stone",
+    "fileName": "mutation-preview-cumi-stone.gif",
+    "contentType": "image/gif",
+    "extension": "gif",
+    "savedAt": "2026-09-15T14:19:48.883Z",
+    "size": 149751
+  },
+  "bf536568ff11e82a470d4dc15d2b0ee1c4d0679ec936d5abc0a9f8008bec117e": {
+    "source": "mutation_generated",
+    "itemId": "cumi",
+    "mutationId": "gold",
+    "fileName": "mutation-preview-cumi-gold.gif",
+    "contentType": "image/gif",
+    "extension": "gif",
+    "savedAt": "2026-09-15T14:19:50.189Z",
+    "size": 117722
+  },
+  "f8bdbbaa9ef47b587e7f2bafab963f893b64927717ab7110316393f4e687dac2": {
+    "source": "mutation_generated",
+    "itemId": "cumi",
+    "mutationId": "freezing",
+    "fileName": "mutation-preview-cumi-freezing.gif",
+    "contentType": "image/gif",
+    "extension": "gif",
+    "savedAt": "2026-09-15T14:19:51.640Z",
+    "size": 150032
+  },
+  "222ed545c5a6624b7dbe6b3b22b217b407d55c3a01f869d5839fce22a5bfe6d4": {
+    "source": "mutation_generated",
+    "itemId": "cumi",
+    "mutationId": "ghost",
+    "fileName": "mutation-preview-cumi-ghost.gif",
+    "contentType": "image/gif",
+    "extension": "gif",
+    "savedAt": "2026-09-15T14:19:53.149Z",
+    "size": 98851
+  },
+  "3b786a3e5a380e04d00f6312bd0b7d34b0e551d082611fcd2720555670e79d97": {
+    "source": "mutation_generated",
+    "itemId": "cumi",
+    "mutationId": "radioactive",
+    "fileName": "mutation-preview-cumi-radioactive.gif",
+    "contentType": "image/gif",
+    "extension": "gif",
+    "savedAt": "2026-09-15T14:19:55.339Z",
+    "size": 130384
+  },
+  "f15526aaf2bb819ae3b9d0152ef0e78e90d112bd74510179c5f8906c2e4078f5": {
+    "source": "mutation_generated",
+    "itemId": "cumi",
+    "mutationId": "lightning",
+    "fileName": "mutation-preview-cumi-lightning.gif",
+    "contentType": "image/gif",
+    "extension": "gif",
+    "savedAt": "2026-09-15T14:19:56.957Z",
+    "size": 132935
+  },
+  "e9d5d1cfd39509e4c8e37aad7cc5d734e786929df0201457d3da053bd4ed7871": {
+    "source": "mutation_generated",
+    "itemId": "cumi",
+    "mutationId": "gemstone",
+    "fileName": "mutation-preview-cumi-gemstone.gif",
+    "contentType": "image/gif",
+    "extension": "gif",
+    "savedAt": "2026-09-15T14:19:58.605Z",
+    "size": 139883
+  },
+  "fa64b47413d516bbc30649fb99ddfb2c67b39ff4c640ebcd5d9e9269f3d7a908": {
+    "source": "mutation_generated",
+    "itemId": "cumi",
+    "mutationId": "corrupt",
+    "fileName": "mutation-preview-cumi-corrupt.gif",
+    "contentType": "image/gif",
+    "extension": "gif",
+    "savedAt": "2026-09-15T14:19:59.943Z",
+    "size": 147671
+  },
+  "b09dae43b89df38e493865e61f6a7f22d9c47e9494c6efc5a1793b54f035aaa7": {
+    "source": "mutation_generated",
+    "itemId": "cumi",
+    "mutationId": "galaxy",
+    "fileName": "mutation-preview-cumi-galaxy.gif",
+    "contentType": "image/gif",
+    "extension": "gif",
+    "savedAt": "2026-09-15T14:20:01.375Z",
+    "size": 134675
+  },
+  "707f6532ec8ec662a4faaa7664368b437a955cc9f8a67d8477adb4f0c6e67fab": {
+    "source": "mutation_generated",
+    "itemId": "cumi",
+    "mutationId": "jawa",
+    "fileName": "mutation-preview-cumi-jawa.gif",
+    "contentType": "image/gif",
+    "extension": "gif",
+    "savedAt": "2026-09-15T14:20:03.462Z",
+    "size": 132271
+  },
+  "bf59678e99e2f523d1900a4957e2dac4a67c466d8572349a398e27dc774ae432": {
+    "source": "mutation_generated",
+    "itemId": "cumi",
+    "mutationId": "midnight",
+    "fileName": "mutation-preview-cumi-midnight.gif",
+    "contentType": "image/gif",
+    "extension": "gif",
+    "savedAt": "2026-09-15T14:20:05.153Z",
+    "size": 142993
+  },
+  "c3e2154c75131f15e8d002ea0e7701f2bc190bc73212abf7b63de968aa973be9": {
+    "source": "mutation_generated",
+    "itemId": "cumi",
+    "mutationId": "bloodmoon",
+    "fileName": "mutation-preview-cumi-bloodmoon.gif",
+    "contentType": "image/gif",
+    "extension": "gif",
+    "savedAt": "2026-09-15T14:20:06.668Z",
+    "size": 134659
+  },
+  "b9233f53159a4dacd889f4e35088050f6bea0823373f79d6f00dfdcf4e5e83e8": {
+    "source": "mutation_generated",
+    "itemId": "cumi",
+    "mutationId": "minty",
+    "fileName": "mutation-preview-cumi-minty.gif",
+    "contentType": "image/gif",
+    "extension": "gif",
+    "savedAt": "2026-09-15T14:20:08.177Z",
+    "size": 144455
+  },
+  "eabe189c96c9f7a6da5d500c8e70e92d95e9ab5418f3798721f12aa21fda8a20": {
+    "source": "mutation_generated",
+    "itemId": "cumi",
+    "mutationId": "fairy_dust",
+    "fileName": "mutation-preview-cumi-fairy_dust.gif",
+    "contentType": "image/gif",
+    "extension": "gif",
+    "savedAt": "2026-09-15T14:20:10.460Z",
+    "size": 141517
+  },
+  "1ae5787116d5f6b9ee18149a2ebd9791d1a462c006ae714a4dd4f523ba589f7b": {
+    "source": "mutation_generated",
+    "itemId": "cumi",
+    "mutationId": "stone",
+    "fileName": "mutation-preview-cumi-stone.gif",
+    "contentType": "image/gif",
+    "extension": "gif",
+    "savedAt": "2026-09-15T14:24:12.667Z",
+    "size": 149751
+  },
+  "71faee103b8e3942a963e35526b3c441391dda21359f6219c851f8d2ddce7a53": {
+    "source": "mutation_generated",
+    "itemId": "cumi",
+    "mutationId": "stone",
+    "fileName": "mutation-preview-cumi-stone.gif",
+    "contentType": "image/gif",
+    "extension": "gif",
+    "savedAt": "2026-09-15T14:24:18.938Z",
+    "size": 145040
+  },
+  "6f862b0495322f8c39e4648c41d7cd9e6d566987e8807588952a64d9f9c23f8d": {
+    "source": "mutation_generated",
+    "itemId": "cumi",
+    "mutationId": "stone",
+    "fileName": "mutation-preview-cumi-stone.gif",
+    "contentType": "image/gif",
+    "extension": "gif",
+    "savedAt": "2026-09-15T14:24:20.973Z",
+    "size": 149711
+  },
+  "50c9f42f387617f87d13d601b1297d8598b1975e3cc9627651b1e612d30f3f41": {
+    "source": "mutation_generated",
+    "itemId": "cumi",
+    "mutationId": "stone",
+    "fileName": "mutation-preview-cumi-stone.gif",
+    "contentType": "image/gif",
+    "extension": "gif",
+    "savedAt": "2026-09-15T14:24:23.510Z",
+    "size": 147557
+  },
+  "60ce0f921ae93674f790913f1e21ecb17ee894721b755ec6adec764b42276a92": {
+    "source": "mutation_generated",
+    "itemId": "cumi",
+    "mutationId": "stone",
+    "fileName": "mutation-preview-cumi-stone.gif",
+    "contentType": "image/gif",
+    "extension": "gif",
+    "savedAt": "2026-09-15T14:24:25.058Z",
+    "size": 217385
+  },
+  "e1c87c59af758c53020118917217da40024ce7678471f0e701c124679acf7b99": {
+    "source": "mutation_generated",
+    "itemId": "cumi",
+    "mutationId": "stone",
+    "fileName": "mutation-preview-cumi-stone.gif",
+    "contentType": "image/gif",
+    "extension": "gif",
+    "savedAt": "2026-09-15T14:24:26.605Z",
+    "size": 149751
+  },
+  "3b1d6cf05d6c781c53fa43869d9d563c88cb39ef17534290de572f70d94fa76d": {
+    "source": "mutation_generated",
+    "itemId": "cumi",
+    "mutationId": "stone",
+    "fileName": "mutation-preview-cumi-stone.gif",
+    "contentType": "image/gif",
+    "extension": "gif",
+    "savedAt": "2026-09-15T14:24:28.460Z",
+    "size": 176859
+  },
+  "dee21ceb94797fbe1f797ee7423393fae2c1dbf751b9c95b156e764f2e4a7824": {
+    "discordMessageUrl": "",
+    "discordRef": {
+      "storage": "discord_attachment",
+      "channelId": "1543874293258260550",
+      "messageId": "1549425701957017723",
+      "messageUrl": "",
+      "attachmentId": "1549425702095560774",
+      "fileName": "stone-overlay_1789482251241-overlay.png",
+      "contentType": "image/png"
+    },
+    "fileName": "stone-overlay_1789482251241-overlay.png",
+    "source": "discord_upload",
+    "contentType": "image/png",
+    "extension": "png",
+    "savedAt": "2026-09-15T14:24:33.707Z",
+    "size": 43725
+  },
+  "f1f494e67957ae9c31328cdeb60d7e41c628761593e0c1f5a5fd05369b82cc6b": {
+    "url": "https://cdn.discordapp.com/attachments/1543874293258260550/1549425702095560774/stone-overlay_1789482251241-overlay.png?ex=6aaaa6a2&is=6aa95522&hm=ea85be078c88176c1ed3873b19bc0f9c34bf6db33c28ff10d2ce91594752508e&",
+    "source": "discord_upload",
+    "fileName": "stone-overlay_1789482251241-overlay.png",
+    "contentType": "image/png",
+    "extension": "png",
+    "savedAt": "2026-09-15T14:24:33.841Z",
+    "size": 43725
+  },
+  "c73957547314bc682426d9332b845c9055e62cfd3188c7360c8355724bb37079": {
+    "source": "mutation_generated",
+    "itemId": "cumi",
+    "mutationId": "stone",
+    "fileName": "mutation-preview-cumi-stone.gif",
+    "contentType": "image/gif",
+    "extension": "gif",
+    "savedAt": "2026-09-15T14:24:45.538Z",
+    "size": 176859
+  },
+  "5cf39095fae4f2af63cb54b70a06b38aa52ad6de91a5c8e6364ea18a24465e6f": {
+    "source": "mutation_generated",
+    "itemId": "cumi",
+    "mutationId": "gold",
+    "fileName": "mutation-preview-cumi-gold.gif",
+    "contentType": "image/gif",
+    "extension": "gif",
+    "savedAt": "2026-09-15T14:25:21.026Z",
+    "size": 117722
+  },
+  "57ffbd0154483f073f618d09e2ae06f01bb79f6b4b4f91b2a4a09e2a134faddc": {
+    "source": "mutation_generated",
+    "itemId": "cumi",
+    "mutationId": "gold",
+    "fileName": "mutation-preview-cumi-gold.gif",
+    "contentType": "image/gif",
+    "extension": "gif",
+    "savedAt": "2026-09-15T14:25:23.927Z",
+    "size": 117722
+  },
+  "da0f64ffee5a2de54151e0135c5bc68ee2485a8d69b305c655727f92d03334dc": {
+    "source": "mutation_generated",
+    "itemId": "cumi",
+    "mutationId": "gold",
+    "fileName": "mutation-preview-cumi-gold.gif",
+    "contentType": "image/gif",
+    "extension": "gif",
+    "savedAt": "2026-09-15T14:25:25.861Z",
+    "size": 117722
+  },
+  "a6fc34004c178e063e2b455e263d639c035f4dfbe0e8667de55fafabbf0029b8": {
+    "source": "mutation_generated",
+    "itemId": "cumi",
+    "mutationId": "gold",
+    "fileName": "mutation-preview-cumi-gold.gif",
+    "contentType": "image/gif",
+    "extension": "gif",
+    "savedAt": "2026-09-15T14:25:27.892Z",
+    "size": 117722
+  },
+  "d264dd4b04e6fbcf5fb216b041fc90097b6bf6e09880b2ff7557b19c7c4166e3": {
+    "source": "mutation_generated",
+    "itemId": "cumi",
+    "mutationId": "gold",
+    "fileName": "mutation-preview-cumi-gold.gif",
+    "contentType": "image/gif",
+    "extension": "gif",
+    "savedAt": "2026-09-15T14:25:29.686Z",
+    "size": 117722
+  },
+  "fa7d7de8cc0041b4d2d248adbd28ebf3d0b9837ed0ec019ac71838d3739a7eef": {
+    "source": "mutation_generated",
+    "itemId": "cumi",
+    "mutationId": "gold",
+    "fileName": "mutation-preview-cumi-gold.gif",
+    "contentType": "image/gif",
+    "extension": "gif",
+    "savedAt": "2026-09-15T14:25:31.390Z",
+    "size": 171017
+  },
+  "1d6936c78c243edb5316d111dd2f7b313ff6d6dba68ef0288e8ba10c1aabf8aa": {
+    "source": "mutation_generated",
+    "itemId": "cumi",
+    "mutationId": "gold",
+    "fileName": "mutation-preview-cumi-gold.gif",
+    "contentType": "image/gif",
+    "extension": "gif",
+    "savedAt": "2026-09-15T14:25:33.473Z",
+    "size": 117722
+  },
+  "4bafcac414f9569d1e3280b77d2c8d3567b0c0dabaa74cccf698130e9865fe1c": {
+    "source": "mutation_generated",
+    "itemId": "cumi",
+    "mutationId": "gold",
+    "fileName": "mutation-preview-cumi-gold.gif",
+    "contentType": "image/gif",
+    "extension": "gif",
+    "savedAt": "2026-09-15T14:25:35.601Z",
+    "size": 126728
+  },
+  "bc4bba695793bebdabd2454ee8050178cde618e942bb309e1ff72ee850e2856a": {
+    "source": "mutation_generated",
+    "itemId": "cumi",
+    "mutationId": "gold",
+    "fileName": "mutation-preview-cumi-gold.gif",
+    "contentType": "image/gif",
+    "extension": "gif",
+    "savedAt": "2026-09-15T14:25:39.959Z",
+    "size": 134393
+  },
+  "b3e0087a1a6dff1af8d62d5ff001b5342f2322e87772e2b0a39a11e8a8cb68bd": {
+    "source": "mutation_generated",
+    "itemId": "cumi",
+    "mutationId": "freezing",
+    "fileName": "mutation-preview-cumi-freezing.gif",
+    "contentType": "image/gif",
+    "extension": "gif",
+    "savedAt": "2026-09-15T14:26:21.764Z",
+    "size": 150032
+  },
+  "ae44cf4176e16583faad56f45a3348a58dec0d31271d5f52e2c0d36b1fe74970": {
+    "source": "mutation_generated",
+    "itemId": "cumi",
+    "mutationId": "freezing",
+    "fileName": "mutation-preview-cumi-freezing.gif",
+    "contentType": "image/gif",
+    "extension": "gif",
+    "savedAt": "2026-09-15T14:26:25.880Z",
+    "size": 146202
+  },
+  "bf97c616768bf063899e49032209386053155ad896710d42df5a964386ba6b7a": {
+    "source": "mutation_generated",
+    "itemId": "cumi",
+    "mutationId": "freezing",
+    "fileName": "mutation-preview-cumi-freezing.gif",
+    "contentType": "image/gif",
+    "extension": "gif",
+    "savedAt": "2026-09-15T14:26:28.271Z",
+    "size": 178907
+  },
+  "c7ad8e0771b8091400860682303ca4c55dacc0c1378843909f0088c1a8a7e5fa": {
+    "source": "mutation_generated",
+    "itemId": "cumi",
+    "mutationId": "freezing",
+    "fileName": "mutation-preview-cumi-freezing.gif",
+    "contentType": "image/gif",
+    "extension": "gif",
+    "savedAt": "2026-09-15T14:26:29.967Z",
+    "size": 190431
+  },
+  "6533eeda4b32cf0c0b84a4ef0c42e2aefaa951915e2e63a3c00898bdfebd74ce": {
+    "source": "mutation_generated",
+    "itemId": "cumi",
+    "mutationId": "freezing",
+    "fileName": "mutation-preview-cumi-freezing.gif",
+    "contentType": "image/gif",
+    "extension": "gif",
+    "savedAt": "2026-09-15T14:26:31.669Z",
+    "size": 225273
+  },
+  "eb76d40897a8805e22391cf7aca64aa433ec86dad52ea6a32c21141c7603d911": {
+    "source": "mutation_generated",
+    "itemId": "cumi",
+    "mutationId": "freezing",
+    "fileName": "mutation-preview-cumi-freezing.gif",
+    "contentType": "image/gif",
+    "extension": "gif",
+    "savedAt": "2026-09-15T14:26:33.352Z",
+    "size": 176537
+  },
+  "0ce4c34b5fe6ae5e3e6350c3b96ecaf1dac00bdee01bf9692ddaa25ab3d44994": {
+    "source": "mutation_generated",
+    "itemId": "cumi",
+    "mutationId": "freezing",
+    "fileName": "mutation-preview-cumi-freezing.gif",
+    "contentType": "image/gif",
+    "extension": "gif",
+    "savedAt": "2026-09-15T14:26:38.455Z",
+    "size": 149903
+  },
+  "adf1a5050ee3bb4d3cda6e9829d731c80a7f699f2679c0763b3381afa09d0c98": {
+    "source": "mutation_generated",
+    "itemId": "cumi",
+    "mutationId": "freezing",
+    "fileName": "mutation-preview-cumi-freezing.gif",
+    "contentType": "image/gif",
+    "extension": "gif",
+    "savedAt": "2026-09-15T14:26:41.147Z",
+    "size": 188245
+  },
+  "1b2c60fe6d8903aa548aa2f351aeba357bbd0bd63476e1123aceedc0d962b59e": {
+    "source": "mutation_generated",
+    "itemId": "cumi",
+    "mutationId": "ghost",
+    "fileName": "mutation-preview-cumi-ghost.gif",
+    "contentType": "image/gif",
+    "extension": "gif",
+    "savedAt": "2026-09-15T14:27:31.809Z",
+    "size": 98851
+  },
+  "9a138bb1d0d13ff43f82cad404de63e51aa47f3726e57e21a99eb381b5ef6305": {
+    "source": "mutation_generated",
+    "itemId": "cumi",
+    "mutationId": "ghost",
+    "fileName": "mutation-preview-cumi-ghost.gif",
+    "contentType": "image/gif",
+    "extension": "gif",
+    "savedAt": "2026-09-15T14:27:34.234Z",
+    "size": 98851
+  },
+  "11da0a882624e69731e841b35e85f8fa3baad6725efffc443596a56d731c4fbb": {
+    "source": "mutation_generated",
+    "itemId": "cumi",
+    "mutationId": "ghost",
+    "fileName": "mutation-preview-cumi-ghost.gif",
+    "contentType": "image/gif",
+    "extension": "gif",
+    "savedAt": "2026-09-15T14:27:36.007Z",
+    "size": 98851
+  },
+  "75dfecbdb12636aaa285dabb249fd9ab5d482d545239bddf1bf789eeb6e2fd1f": {
+    "source": "mutation_generated",
+    "itemId": "cumi",
+    "mutationId": "ghost",
+    "fileName": "mutation-preview-cumi-ghost.gif",
+    "contentType": "image/gif",
+    "extension": "gif",
+    "savedAt": "2026-09-15T14:27:37.822Z",
+    "size": 98851
+  },
+  "cb1ebc9637d0fd2e5e070383a910eaefa4a6c5d720ff0395722450481d5efd0d": {
+    "source": "mutation_generated",
+    "itemId": "cumi",
+    "mutationId": "ghost",
+    "fileName": "mutation-preview-cumi-ghost.gif",
+    "contentType": "image/gif",
+    "extension": "gif",
+    "savedAt": "2026-09-15T14:27:39.580Z",
+    "size": 98851
+  },
+  "40ed5829b2bdff874bcb64294ee417c995a13e22c899c6d15654eca8e05de5e2": {
+    "source": "mutation_generated",
+    "itemId": "cumi",
+    "mutationId": "ghost",
+    "fileName": "mutation-preview-cumi-ghost.gif",
+    "contentType": "image/gif",
+    "extension": "gif",
+    "savedAt": "2026-09-15T14:27:41.696Z",
+    "size": 117385
+  },
+  "33025531f53a80e00cfc7ae55ab0ec265be88a73c269a7db2345d69901630242": {
+    "source": "mutation_generated",
+    "itemId": "cumi",
+    "mutationId": "ghost",
+    "fileName": "mutation-preview-cumi-ghost.gif",
+    "contentType": "image/gif",
+    "extension": "gif",
+    "savedAt": "2026-09-15T14:28:47.819Z",
+    "size": 117385
+  },
+  "7cae49a6868535d7714fd758e33f80877702ea2e996877870b69c3b6bfe98ea1": {
+    "source": "mutation_generated",
+    "itemId": "cumi",
+    "mutationId": "ghost",
+    "fileName": "mutation-preview-cumi-ghost.gif",
+    "contentType": "image/gif",
+    "extension": "gif",
+    "savedAt": "2026-09-15T14:28:52.691Z",
+    "size": 115294
+  },
+  "70b4b26c3d0a6699249206533869853468bd844f6aa94794abfbb82c56f9fa95": {
+    "source": "mutation_generated",
+    "itemId": "cumi",
+    "mutationId": "ghost",
+    "fileName": "mutation-preview-cumi-ghost.gif",
+    "contentType": "image/gif",
+    "extension": "gif",
+    "savedAt": "2026-09-15T14:29:00.646Z",
+    "size": 116277
+  },
+  "38e8eecea4357674adfd0b8d6aec1c218c62cffc9e150abb3ebf68aaa61b4caf": {
+    "source": "mutation_generated",
+    "itemId": "cumi",
+    "mutationId": "ghost",
+    "fileName": "mutation-preview-cumi-ghost.gif",
+    "contentType": "image/gif",
+    "extension": "gif",
+    "savedAt": "2026-09-15T14:29:10.925Z",
+    "size": 118619
+  },
+  "8ba9fc381e4f2b27f6b2c25d77aecbffac9aea32aa01305b2d5b2034f65726f8": {
+    "source": "mutation_generated",
+    "itemId": "cumi",
+    "mutationId": "ghost",
+    "fileName": "mutation-preview-cumi-ghost.gif",
+    "contentType": "image/gif",
+    "extension": "gif",
+    "savedAt": "2026-09-15T14:29:19.584Z",
+    "size": 117380
+  },
+  "52c06295d5ad9da5d7673d7ec7a6ee808d56641ee44848a590d8a5f4e8c18c8e": {
+    "source": "mutation_generated",
+    "itemId": "cumi",
+    "mutationId": "ghost",
+    "fileName": "mutation-preview-cumi-ghost.gif",
+    "contentType": "image/gif",
+    "extension": "gif",
+    "savedAt": "2026-09-15T14:29:21.929Z",
+    "size": 118011
+  },
+  "44eebfad9980b547b29f03ee45a212a8b256e333f7c5a0e284004cce9923a01d": {
+    "source": "mutation_generated",
+    "itemId": "cumi",
+    "mutationId": "ghost",
+    "fileName": "mutation-preview-cumi-ghost.gif",
+    "contentType": "image/gif",
+    "extension": "gif",
+    "savedAt": "2026-09-15T14:29:35.826Z",
+    "size": 118052
+  },
+  "d486f573834d584a662836a367f40169375276587cedb7a5ed6e87290f94402a": {
+    "source": "mutation_generated",
+    "itemId": "cumi",
+    "mutationId": "ghost",
+    "fileName": "mutation-preview-cumi-ghost.gif",
+    "contentType": "image/gif",
+    "extension": "gif",
+    "savedAt": "2026-09-15T14:29:42.983Z",
+    "size": 116321
+  },
+  "105cb107d87f73619883092b0ad425c409f5ebc91b3cee3c788b069e1f96a1eb": {
+    "source": "mutation_generated",
+    "itemId": "ikan_gurame",
+    "mutationId": "stone",
+    "fileName": "mutation-preview-ikan_gurame-stone.gif",
+    "contentType": "image/gif",
+    "extension": "gif",
+    "savedAt": "2026-09-15T14:30:30.421Z",
+    "size": 174682
+  },
+  "c7c586d6fb75e270c01edddde2cc98fc5446c2a3061c4f3cc1bcfeaead31c595": {
+    "source": "mutation_generated",
+    "itemId": "ikan_gurame",
+    "mutationId": "gold",
+    "fileName": "mutation-preview-ikan_gurame-gold.gif",
+    "contentType": "image/gif",
+    "extension": "gif",
+    "savedAt": "2026-09-15T14:30:31.896Z",
+    "size": 120028
+  },
+  "2d02ed858c6e4cfbe02c7ea0671be57c0e767e80a1bd5c45d91fc7daf5417459": {
+    "source": "mutation_generated",
+    "itemId": "ikan_gurame",
+    "mutationId": "freezing",
+    "fileName": "mutation-preview-ikan_gurame-freezing.gif",
+    "contentType": "image/gif",
+    "extension": "gif",
+    "savedAt": "2026-09-15T14:30:33.623Z",
+    "size": 147428
+  },
+  "245fc3ef9de5de5d8ad8a826fd293dc31d5ddd309c77edbcaae7a62aab026bf8": {
+    "source": "mutation_generated",
+    "itemId": "ikan_gurame",
+    "mutationId": "ghost",
+    "fileName": "mutation-preview-ikan_gurame-ghost.gif",
+    "contentType": "image/gif",
+    "extension": "gif",
+    "savedAt": "2026-09-15T14:30:35.583Z",
+    "size": 102281
+  },
+  "b2e6de8914a710ebfb12ee93abbd0c7a62490b3d12005f44fa0ca61adc6576ab": {
+    "source": "mutation_generated",
+    "itemId": "ikan_gurame",
+    "mutationId": "radioactive",
+    "fileName": "mutation-preview-ikan_gurame-radioactive.gif",
+    "contentType": "image/gif",
+    "extension": "gif",
+    "savedAt": "2026-09-15T14:30:37.542Z",
+    "size": 131567
+  },
+  "910899ed0f457f01e09277b536b048556200cb4eeec6b07e2e078174e42108fe": {
+    "source": "mutation_generated",
+    "itemId": "ikan_gurame",
+    "mutationId": "lightning",
+    "fileName": "mutation-preview-ikan_gurame-lightning.gif",
+    "contentType": "image/gif",
+    "extension": "gif",
+    "savedAt": "2026-09-15T14:30:39.109Z",
+    "size": 134743
+  },
+  "9431ee207cdb051f9942e5143021c4996b6753164d458b728004574deaac8b15": {
+    "source": "mutation_generated",
+    "itemId": "ikan_gurame",
+    "mutationId": "gemstone",
+    "fileName": "mutation-preview-ikan_gurame-gemstone.gif",
+    "contentType": "image/gif",
+    "extension": "gif",
+    "savedAt": "2026-09-15T14:30:40.476Z",
+    "size": 140265
+  },
+  "e8c23193b03b34ae50ed58813138f6011f7bd5bcf035363d8c96c1d8e794753b": {
+    "source": "mutation_generated",
+    "itemId": "ikan_gurame",
+    "mutationId": "corrupt",
+    "fileName": "mutation-preview-ikan_gurame-corrupt.gif",
+    "contentType": "image/gif",
+    "extension": "gif",
+    "savedAt": "2026-09-15T14:30:41.916Z",
+    "size": 146981
+  },
+  "43eeb20cc8da9c88d7ee3ea2c65cf080ea261b6ac945c7389017f396db533d65": {
+    "source": "mutation_generated",
+    "itemId": "ikan_gurame",
+    "mutationId": "galaxy",
+    "fileName": "mutation-preview-ikan_gurame-galaxy.gif",
+    "contentType": "image/gif",
+    "extension": "gif",
+    "savedAt": "2026-09-15T14:30:43.740Z",
+    "size": 136552
+  },
+  "44a3215d393827e8911c9f3515bf571fcc9f2ab4cec79f8da49b855a42c53f3f": {
+    "source": "mutation_generated",
+    "itemId": "ikan_gurame",
+    "mutationId": "gold",
+    "fileName": "mutation-preview-ikan_gurame-gold.gif",
+    "contentType": "image/gif",
+    "extension": "gif",
+    "savedAt": "2026-09-15T14:30:45.760Z",
+    "size": 114735
+  },
+  "498e847b822ac8ddeb128ac621064d46ed5bbdcefb1e128af2776af168c28458": {
+    "source": "mutation_generated",
+    "itemId": "ikan_gurame",
+    "mutationId": "bloodmoon",
+    "fileName": "mutation-preview-ikan_gurame-bloodmoon.gif",
+    "contentType": "image/gif",
+    "extension": "gif",
+    "savedAt": "2026-09-15T14:30:47.460Z",
+    "size": 135014
+  },
+  "e83c20779c7e09db9668253f9c603ebd92e838ce0ab30f36891961e2a5e0a885": {
+    "source": "mutation_generated",
+    "itemId": "ikan_gurame",
+    "mutationId": "minty",
+    "fileName": "mutation-preview-ikan_gurame-minty.gif",
+    "contentType": "image/gif",
+    "extension": "gif",
+    "savedAt": "2026-09-15T14:30:49.224Z",
+    "size": 145959
+  },
+  "28d5f19b8d385d1a607f5fa638ae9e48ab83c0b73cd3657cde1e25d9f628fab4": {
+    "source": "mutation_generated",
+    "itemId": "ikan_gurame",
+    "mutationId": "midnight",
+    "fileName": "mutation-preview-ikan_gurame-midnight.gif",
+    "contentType": "image/gif",
+    "extension": "gif",
+    "savedAt": "2026-09-15T14:30:51.285Z",
+    "size": 146291
+  },
+  "14c90158dff9862b2b3d9bf1990a8f0159195f724ba912862e3a7328e505ea1e": {
+    "source": "mutation_generated",
+    "itemId": "ikan_gurame",
+    "mutationId": "fairy_dust",
+    "fileName": "mutation-preview-ikan_gurame-fairy_dust.gif",
+    "contentType": "image/gif",
+    "extension": "gif",
+    "savedAt": "2026-09-15T14:30:52.775Z",
+    "size": 142917
+  },
+  "d27ad28977708bbcf4ad7ed7f873f7ca6938980134d5f2de58a2f0dbbb08ff1e": {
+    "source": "mutation_generated",
+    "itemId": "ikan_gurame",
+    "mutationId": "jawa",
+    "fileName": "mutation-preview-ikan_gurame-jawa.gif",
+    "contentType": "image/gif",
+    "extension": "gif",
+    "savedAt": "2026-09-15T14:30:54.198Z",
+    "size": 133689
+  },
+  "8615800fa88e9b20c010104bd6248e016d8d4cd67b081d63df119449c5860f67": {
+    "source": "mutation_generated",
+    "itemId": "ikan_gurame",
+    "mutationId": "gold",
+    "fileName": "mutation-preview-ikan_gurame-gold.gif",
+    "contentType": "image/gif",
+    "extension": "gif",
+    "savedAt": "2026-09-15T14:30:55.753Z",
+    "size": 127953
+  },
+  "09fae0dddac474ed4202d1dfd6e8713088676a8a96b611ec5bb28adeebf987f6": {
+    "source": "mutation_generated",
+    "itemId": "ikan_gurame",
+    "mutationId": "gold",
+    "fileName": "mutation-preview-ikan_gurame-gold.gif",
+    "contentType": "image/gif",
+    "extension": "gif",
+    "savedAt": "2026-09-15T14:30:57.258Z",
+    "size": 142294
+  },
+  "d959231ae5470ffffaf3d22af30e43b2f1127e3f2239f3f437b0126fa551f72c": {
+    "source": "mutation_generated",
+    "itemId": "ikan_gurame",
+    "mutationId": "gold",
+    "fileName": "mutation-preview-ikan_gurame-gold.gif",
+    "contentType": "image/gif",
+    "extension": "gif",
+    "savedAt": "2026-09-15T14:30:58.770Z",
+    "size": 171017
+  },
+  "769096855a736250fac266c49bf2bf7a277652d23ddd278b4b5dc3b8e2952045": {
+    "source": "mutation_generated",
+    "itemId": "ikan_gurame",
+    "mutationId": "gold",
+    "fileName": "mutation-preview-ikan_gurame-gold.gif",
+    "contentType": "image/gif",
+    "extension": "gif",
+    "savedAt": "2026-09-15T14:31:00.131Z",
+    "size": 131219
+  },
+  "fe6364aac1aad1627ee82c475af8024eb450df8551aa9e3693076252a0f11e5f": {
+    "discordMessageUrl": "",
+    "discordRef": {
+      "storage": "discord_attachment",
+      "channelId": "1543874293258260550",
+      "messageId": "1549427366575603853",
+      "messageUrl": "",
+      "attachmentId": "1549427366219092029",
+      "fileName": "gold-overlay_1789482622987-overlay.png",
+      "contentType": "image/png"
+    },
+    "fileName": "gold-overlay_1789482622987-overlay.png",
+    "source": "discord_upload",
+    "contentType": "image/png",
+    "extension": "png",
+    "savedAt": "2026-09-15T14:31:10.421Z",
+    "size": 41936
+  },
+  "f1f4b93eb7758ed5e746a84f27d6f703a1664a750ee22abfb11a4441adc74145": {
+    "url": "https://cdn.discordapp.com/attachments/1543874293258260550/1549427366219092029/gold-overlay_1789482622987-overlay.png?ex=6aaaa82f&is=6aa956af&hm=682d3e37975b756d0d8646a0fc19f080347d2ad697249e67d3f98ac14066c109&",
+    "source": "discord_upload",
+    "fileName": "gold-overlay_1789482622987-overlay.png",
+    "contentType": "image/png",
+    "extension": "png",
+    "savedAt": "2026-09-15T14:31:10.432Z",
+    "size": 41936
+  },
+  "d3bded8a08082d0810a620066d90914febfa8643fdccb85804890289df0035f3": {
+    "source": "mutation_generated",
+    "itemId": "ikan_gurame",
+    "mutationId": "gold",
+    "fileName": "mutation-preview-ikan_gurame-gold.gif",
+    "contentType": "image/gif",
+    "extension": "gif",
+    "savedAt": "2026-09-15T14:31:21.331Z",
+    "size": 131219
+  },
+  "c9a429dd653f4316ad5cc0a94e34fe6cdce3a1e76cbbee321873a7dc28a144f0": {
+    "source": "mutation_generated",
+    "itemId": "ikan_gurame",
+    "mutationId": "freezing",
+    "fileName": "mutation-preview-ikan_gurame-freezing.gif",
+    "contentType": "image/gif",
+    "extension": "gif",
+    "savedAt": "2026-09-15T14:31:26.210Z",
+    "size": 147428
+  },
+  "949a94923dfe00139d51c358df0f45697c3e5620d4ae6c3056a93058a5e1320a": {
+    "source": "mutation_generated",
+    "itemId": "ikan_gurame",
+    "mutationId": "freezing",
+    "fileName": "mutation-preview-ikan_gurame-freezing.gif",
+    "contentType": "image/gif",
+    "extension": "gif",
+    "savedAt": "2026-09-15T14:31:28.106Z",
+    "size": 147428
+  },
+  "68460e279caf0cbacd3cb25e95d6b07883671c9ae10520c96f6357b1bc1b21f8": {
+    "source": "mutation_generated",
+    "itemId": "ikan_gurame",
+    "mutationId": "freezing",
+    "fileName": "mutation-preview-ikan_gurame-freezing.gif",
+    "contentType": "image/gif",
+    "extension": "gif",
+    "savedAt": "2026-09-15T14:31:29.533Z",
+    "size": 147428
+  },
+  "7f3dae1aa22cddb176a08b392d6a84606b514b38e7f8a33437e0de3ec60391ad": {
+    "source": "mutation_generated",
+    "itemId": "ikan_gurame",
+    "mutationId": "freezing",
+    "fileName": "mutation-preview-ikan_gurame-freezing.gif",
+    "contentType": "image/gif",
+    "extension": "gif",
+    "savedAt": "2026-09-15T14:31:31.516Z",
+    "size": 147428
+  },
+  "a99d740afb22020bb14719cff27563a68365e3c981a2e20de059239008807d9d": {
+    "source": "mutation_generated",
+    "itemId": "ikan_gurame",
+    "mutationId": "freezing",
+    "fileName": "mutation-preview-ikan_gurame-freezing.gif",
+    "contentType": "image/gif",
+    "extension": "gif",
+    "savedAt": "2026-09-15T14:31:33.327Z",
+    "size": 147428
+  },
+  "32395f814aa6349537790d00e41821180cec89e9ddfe2b7809ca81ceabf6e149": {
+    "source": "mutation_generated",
+    "itemId": "ikan_gurame",
+    "mutationId": "freezing",
+    "fileName": "mutation-preview-ikan_gurame-freezing.gif",
+    "contentType": "image/gif",
+    "extension": "gif",
+    "savedAt": "2026-09-15T14:31:34.453Z",
+    "size": 147428
+  },
+  "9a175ccf7187a4f55b5858d0369c0fff497b38c8aa25523d515e2b5409561d03": {
+    "source": "mutation_generated",
+    "itemId": "ikan_gurame",
+    "mutationId": "freezing",
+    "fileName": "mutation-preview-ikan_gurame-freezing.gif",
+    "contentType": "image/gif",
+    "extension": "gif",
+    "savedAt": "2026-09-15T14:31:36.147Z",
+    "size": 181783
+  },
+  "36cc023c02fc4c5c1c4f275951537b39e992e38937a73336126e59d60cb7f2da": {
+    "discordMessageUrl": "",
+    "discordRef": {
+      "storage": "discord_attachment",
+      "channelId": "1543874293258260550",
+      "messageId": "1549427507378528257",
+      "messageUrl": "",
+      "attachmentId": "1549427507495960637",
+      "fileName": "freezing-overlay_1789482684014-overlay.png",
+      "contentType": "image/png"
+    },
+    "fileName": "freezing-overlay_1789482684014-overlay.png",
+    "source": "discord_upload",
+    "contentType": "image/png",
+    "extension": "png",
+    "savedAt": "2026-09-15T14:31:44.071Z",
+    "size": 54517
+  },
+  "60efbee94e8ac6e8d5e8379d6d8205e7608eebedc3df7dd8f7a85b54792db98f": {
+    "url": "https://cdn.discordapp.com/attachments/1543874293258260550/1549427507495960637/freezing-overlay_1789482684014-overlay.png?ex=6aaaa850&is=6aa956d0&hm=b9d4000ca58658a8c9ab5b0aa9bb0fb4e0158e4d838a0a9fb7b0087b9a3e6239&",
+    "source": "discord_upload",
+    "fileName": "freezing-overlay_1789482684014-overlay.png",
+    "contentType": "image/png",
+    "extension": "png",
+    "savedAt": "2026-09-15T14:31:44.082Z",
+    "size": 54517
+  },
+  "56c5bbdb11f978ecaea326b072c92cf8a62aeb82dd48a1dc554cba2f720ab830": {
+    "source": "mutation_generated",
+    "itemId": "ikan_gurame",
+    "mutationId": "freezing",
+    "fileName": "mutation-preview-ikan_gurame-freezing.gif",
+    "contentType": "image/gif",
+    "extension": "gif",
+    "savedAt": "2026-09-15T14:31:53.871Z",
+    "size": 181783
+  },
+  "b6a9dd45d36f1e1578d7d78d292a155c6ff5a6ad5d36e0aa6e3a0fb686577853": {
+    "source": "mutation_generated",
+    "itemId": "ikan_gurame",
+    "mutationId": "ghost",
+    "fileName": "mutation-preview-ikan_gurame-ghost.gif",
+    "contentType": "image/gif",
+    "extension": "gif",
+    "savedAt": "2026-09-15T14:31:59.786Z",
+    "size": 102281
+  },
+  "73c26fcaf98b887199cc722cf83aeb29c39c232e735ff91ece9dc24ad21c9475": {
+    "source": "mutation_generated",
+    "itemId": "ikan_gurame",
+    "mutationId": "ghost",
+    "fileName": "mutation-preview-ikan_gurame-ghost.gif",
+    "contentType": "image/gif",
+    "extension": "gif",
+    "savedAt": "2026-09-15T14:32:04.720Z",
+    "size": 98203
+  },
+  "265802b7760a466f118e74ccfb944ecd13a8200281c46b2bcb5a665529983484": {
+    "source": "mutation_generated",
+    "itemId": "ikan_gurame",
+    "mutationId": "ghost",
+    "fileName": "mutation-preview-ikan_gurame-ghost.gif",
+    "contentType": "image/gif",
+    "extension": "gif",
+    "savedAt": "2026-09-15T14:32:07.240Z",
+    "size": 122562
+  },
+  "d3345856ced56dd3d06968453865568079af7a26fb459e662d81e83fc9d41781": {
+    "source": "mutation_generated",
+    "itemId": "ikan_gurame",
+    "mutationId": "ghost",
+    "fileName": "mutation-preview-ikan_gurame-ghost.gif",
+    "contentType": "image/gif",
+    "extension": "gif",
+    "savedAt": "2026-09-15T14:32:08.773Z",
+    "size": 137807
+  },
+  "f96d09fe04c6844ed80d93b426ad36a431df2c97b3429b5559e6d247785d8057": {
+    "source": "mutation_generated",
+    "itemId": "ikan_gurame",
+    "mutationId": "ghost",
+    "fileName": "mutation-preview-ikan_gurame-ghost.gif",
+    "contentType": "image/gif",
+    "extension": "gif",
+    "savedAt": "2026-09-15T14:32:10.164Z",
+    "size": 180033
+  },
+  "790ea0b9120de8b2b8a7355e57cf48e558dd3ea040b77250e0a3b2284b166523": {
+    "source": "mutation_generated",
+    "itemId": "ikan_gurame",
+    "mutationId": "ghost",
+    "fileName": "mutation-preview-ikan_gurame-ghost.gif",
+    "contentType": "image/gif",
+    "extension": "gif",
+    "savedAt": "2026-09-15T14:32:12.031Z",
+    "size": 99819
+  },
+  "c6872f72b550e7b940c31c9959968715a6f4dfb63f0ac346dd41e4b7388a0c55": {
+    "source": "mutation_generated",
+    "itemId": "ikan_gurame",
+    "mutationId": "ghost",
+    "fileName": "mutation-preview-ikan_gurame-ghost.gif",
+    "contentType": "image/gif",
+    "extension": "gif",
+    "savedAt": "2026-09-15T14:32:14.200Z",
+    "size": 116315
+  },
+  "4c8a2d605158f54d6d6b9034d02af1fdba1dd0050fe8feb53d8bf8dbb18bc85e": {
+    "discordMessageUrl": "",
+    "discordRef": {
+      "storage": "discord_attachment",
+      "channelId": "1543874293258260550",
+      "messageId": "1549427704825380878",
+      "messageUrl": "",
+      "attachmentId": "1549427704950956072",
+      "fileName": "ghost-overlay_1789482717271-overlay.png",
+      "contentType": "image/png"
+    },
+    "fileName": "ghost-overlay_1789482717271-overlay.png",
+    "source": "discord_upload",
+    "contentType": "image/png",
+    "extension": "png",
+    "savedAt": "2026-09-15T14:32:31.873Z",
+    "size": 36737
+  },
+  "b9295ccee813ce7f32674e409fe8e549df964e9414a2563039f95ac329ded51a": {
+    "url": "https://cdn.discordapp.com/attachments/1543874293258260550/1549427704950956072/ghost-overlay_1789482717271-overlay.png?ex=6aaaa87f&is=6aa956ff&hm=3f80d951e4eb76f333c7b3581463e68dd0a983d2fc1427015da1ab0d914ab54e&",
+    "source": "discord_upload",
+    "fileName": "ghost-overlay_1789482717271-overlay.png",
+    "contentType": "image/png",
+    "extension": "png",
+    "savedAt": "2026-09-15T14:32:31.884Z",
+    "size": 36737
+  },
+  "68a9eb3248d4d74eae8c766351cec9f0e242df347f041a696cc682d6f6a20137": {
+    "source": "mutation_generated",
+    "itemId": "ikan_gurame",
+    "mutationId": "ghost",
+    "fileName": "mutation-preview-ikan_gurame-ghost.gif",
+    "contentType": "image/gif",
+    "extension": "gif",
+    "savedAt": "2026-09-15T14:32:42.546Z",
+    "size": 116315
+  },
+  "aec6d0b8aea121a40113b9ec14395a999efc48e6e4073cc16367d4a55e463594": {
+    "source": "mutation_generated",
+    "itemId": "ikan_gurame",
+    "mutationId": "radioactive",
+    "fileName": "mutation-preview-ikan_gurame-radioactive.gif",
+    "contentType": "image/gif",
+    "extension": "gif",
+    "savedAt": "2026-09-15T14:33:43.837Z",
+    "size": 131567
+  },
+  "82e44a1486a1efc6998bf832f0b94abf7f7e1a7f3310af603194dcd0791e2351": {
+    "source": "mutation_generated",
+    "itemId": "ikan_gurame",
+    "mutationId": "radioactive",
+    "fileName": "mutation-preview-ikan_gurame-radioactive.gif",
+    "contentType": "image/gif",
+    "extension": "gif",
+    "savedAt": "2026-09-15T14:33:45.560Z",
+    "size": 131567
+  },
+  "273ea5cfce185eea3c9d0a949ff9a959f61cdb2711c3ffe8e07cf1fdc6ccac3e": {
+    "source": "mutation_generated",
+    "itemId": "ikan_gurame",
+    "mutationId": "radioactive",
+    "fileName": "mutation-preview-ikan_gurame-radioactive.gif",
+    "contentType": "image/gif",
+    "extension": "gif",
+    "savedAt": "2026-09-15T14:33:47.347Z",
+    "size": 131567
+  },
+  "32814f7cbba491a75be981358bf8b4ae3e56242a445a477ec1ad0e13e0abf162": {
+    "source": "mutation_generated",
+    "itemId": "ikan_gurame",
+    "mutationId": "radioactive",
+    "fileName": "mutation-preview-ikan_gurame-radioactive.gif",
+    "contentType": "image/gif",
+    "extension": "gif",
+    "savedAt": "2026-09-15T14:33:49.648Z",
+    "size": 131567
+  },
+  "def46067d01624d07a5854c937a4fa13a05ba2667a443e6f118f7c742404b9b5": {
+    "source": "mutation_generated",
+    "itemId": "ikan_gurame",
+    "mutationId": "radioactive",
+    "fileName": "mutation-preview-ikan_gurame-radioactive.gif",
+    "contentType": "image/gif",
+    "extension": "gif",
+    "savedAt": "2026-09-15T14:33:52.613Z",
+    "size": 150988
+  },
+  "b470658e23004658759e7c6b2fe81393355a17903cc63a61f77a42bf6f081a1e": {
+    "source": "mutation_generated",
+    "itemId": "ikan_gurame",
+    "mutationId": "lightning",
+    "fileName": "mutation-preview-ikan_gurame-lightning.gif",
+    "contentType": "image/gif",
+    "extension": "gif",
+    "savedAt": "2026-09-15T14:34:38.674Z",
+    "size": 134743
+  },
+  "eb7b998a516b7638c333db0255e08ab7cfc13e513fb102eeccb30da30572b950": {
+    "source": "mutation_generated",
+    "itemId": "ikan_gurame",
+    "mutationId": "lightning",
+    "fileName": "mutation-preview-ikan_gurame-lightning.gif",
+    "contentType": "image/gif",
+    "extension": "gif",
+    "savedAt": "2026-09-15T14:34:40.728Z",
+    "size": 134743
+  },
+  "becb89b9d13126220a596c1f816c4925479a515cdd7605f170d6b28e0ca7bf18": {
+    "source": "mutation_generated",
+    "itemId": "ikan_gurame",
+    "mutationId": "lightning",
+    "fileName": "mutation-preview-ikan_gurame-lightning.gif",
+    "contentType": "image/gif",
+    "extension": "gif",
+    "savedAt": "2026-09-15T14:34:42.894Z",
+    "size": 134743
+  },
+  "a2b400b35d1d4284caf13a9ac66b070a96627d1255029163b516bb62bbd61fd1": {
+    "source": "mutation_generated",
+    "itemId": "ikan_gurame",
+    "mutationId": "lightning",
+    "fileName": "mutation-preview-ikan_gurame-lightning.gif",
+    "contentType": "image/gif",
+    "extension": "gif",
+    "savedAt": "2026-09-15T14:34:46.516Z",
+    "size": 134743
+  },
+  "2bd78902b9ff234f4c332f77ac3c4c4c952d51e596f1b3c2dbc849865f05d978": {
+    "source": "mutation_generated",
+    "itemId": "ikan_gurame",
+    "mutationId": "lightning",
+    "fileName": "mutation-preview-ikan_gurame-lightning.gif",
+    "contentType": "image/gif",
+    "extension": "gif",
+    "savedAt": "2026-09-15T14:34:48.248Z",
+    "size": 160719
+  },
+  "beb149e71c87d446d554d401ebb6f8da55a1e2fd035a6582633f43af47cba003": {
+    "source": "mutation_generated",
+    "itemId": "ikan_gurame",
+    "mutationId": "lightning",
+    "fileName": "mutation-preview-ikan_gurame-lightning.gif",
+    "contentType": "image/gif",
+    "extension": "gif",
+    "savedAt": "2026-09-15T14:34:58.560Z",
+    "size": 157605
+  },
+  "264ecba33795291204d2ca35f8daa8a77b1ec6e96ae8d3e8e804099a12c0fc1f": {
+    "source": "mutation_generated",
+    "itemId": "ikan_gurame",
+    "mutationId": "lightning",
+    "fileName": "mutation-preview-ikan_gurame-lightning.gif",
+    "contentType": "image/gif",
+    "extension": "gif",
+    "savedAt": "2026-09-15T14:35:12.883Z",
+    "size": 143950
+  },
+  "c792ec4d287ff90420a2d09f7140bc619911902580087bd766f55c659fe3c68d": {
+    "discordMessageUrl": "",
+    "discordRef": {
+      "storage": "discord_attachment",
+      "channelId": "1543874293258260550",
+      "messageId": "1549428435347050536",
+      "messageUrl": "",
+      "attachmentId": "1549428434827083786",
+      "fileName": "lightning-overlay_1789482877294-overlay.png",
+      "contentType": "image/png"
+    },
+    "fileName": "lightning-overlay_1789482877294-overlay.png",
+    "source": "discord_upload",
+    "contentType": "image/png",
+    "extension": "png",
+    "savedAt": "2026-09-15T14:35:25.271Z",
+    "size": 53424
+  },
+  "33263773471d5957e000887a38b3bd2ea8fb8b564c72727b22c62bfae9c2d764": {
+    "url": "https://cdn.discordapp.com/attachments/1543874293258260550/1549428434827083786/lightning-overlay_1789482877294-overlay.png?ex=6aaaa92d&is=6aa957ad&hm=e61acb5050bab60ca598cf31480cdf384b5fce1ef0d0d0351b30223ae8eded0f&",
+    "source": "discord_upload",
+    "fileName": "lightning-overlay_1789482877294-overlay.png",
+    "contentType": "image/png",
+    "extension": "png",
+    "savedAt": "2026-09-15T14:35:25.296Z",
+    "size": 53424
+  },
+  "4661d1fa64d4a6f086ea8045f999bda8c59bd0c0aea02c644405ce7a03d8cb07": {
+    "discordMessageUrl": "",
+    "discordRef": {
+      "storage": "discord_attachment",
+      "channelId": "1543874293258260550",
+      "messageId": "1549428439587749909",
+      "messageUrl": "",
+      "attachmentId": "1549428439662993451",
+      "fileName": "radioactive-overlay_1789482822474-overlay.png",
+      "contentType": "image/png"
+    },
+    "fileName": "radioactive-overlay_1789482822474-overlay.png",
+    "source": "discord_upload",
+    "contentType": "image/png",
+    "extension": "png",
+    "savedAt": "2026-09-15T14:35:26.192Z",
+    "size": 41190
+  },
+  "b6c240bbf25ad6bbd3709f6251db38fc1b5589b998a8216833df5f17b8f9dc3b": {
+    "url": "https://cdn.discordapp.com/attachments/1543874293258260550/1549428439662993451/radioactive-overlay_1789482822474-overlay.png?ex=6aaaa92f&is=6aa957af&hm=c0a5815b85002b68d2a91e2cce5b56825867c6e715fd66d61ba4fcc91ba2228c&",
+    "source": "discord_upload",
+    "fileName": "radioactive-overlay_1789482822474-overlay.png",
+    "contentType": "image/png",
+    "extension": "png",
+    "savedAt": "2026-09-15T14:35:26.202Z",
+    "size": 41190
+  },
+  "91c7f88725336245b110d4b55fa5901a7bd5ba970cdef7e500e676ca2a8d8c50": {
+    "source": "mutation_generated",
+    "itemId": "ikan_gurame",
+    "mutationId": "radioactive",
+    "fileName": "mutation-preview-ikan_gurame-radioactive.gif",
+    "contentType": "image/gif",
+    "extension": "gif",
+    "savedAt": "2026-09-15T14:35:36.798Z",
+    "size": 150988
+  },
+  "b598149b9421133fdd1207a6315edbf3e446889f0d339b3b206cb6fdc2432578": {
+    "source": "mutation_generated",
+    "itemId": "ikan_gurame",
+    "mutationId": "lightning",
+    "fileName": "mutation-preview-ikan_gurame-lightning.gif",
+    "contentType": "image/gif",
+    "extension": "gif",
+    "savedAt": "2026-09-15T14:35:38.102Z",
+    "size": 143950
+  },
+  "821e7c15ff40c0443c860dc343153013855c5f45fedc8494b5a378bf0f2a86a2": {
+    "source": "mutation_generated",
+    "itemId": "ikan_gurame",
+    "mutationId": "fairy_dust",
+    "fileName": "mutation-preview-ikan_gurame-fairy_dust.gif",
+    "contentType": "image/gif",
+    "extension": "gif",
+    "savedAt": "2026-09-15T14:36:51.691Z",
+    "size": 142917
+  },
+  "e02014e17e25881c9dc0c3eb6eaf3ba6668363f631821a6e54885767cb6d71b2": {
+    "source": "mutation_generated",
+    "itemId": "ikan_gurame",
+    "mutationId": "fairy_dust",
+    "fileName": "mutation-preview-ikan_gurame-fairy_dust.gif",
+    "contentType": "image/gif",
+    "extension": "gif",
+    "savedAt": "2026-09-15T14:36:55.485Z",
+    "size": 139739
+  },
+  "c0cdbe54c7cb0ef5775c61a3b1d0c24b5e02f3fe3f90263e3ec5b21c3df0134d": {
+    "source": "mutation_generated",
+    "itemId": "ikan_gurame",
+    "mutationId": "fairy_dust",
+    "fileName": "mutation-preview-ikan_gurame-fairy_dust.gif",
+    "contentType": "image/gif",
+    "extension": "gif",
+    "savedAt": "2026-09-15T14:36:57.564Z",
+    "size": 158034
+  },
+  "f4486e9f66bef71b947f205d30a59363048a15e9794a11768971fc9f0303343d": {
+    "source": "mutation_generated",
+    "itemId": "ikan_gurame",
+    "mutationId": "fairy_dust",
+    "fileName": "mutation-preview-ikan_gurame-fairy_dust.gif",
+    "contentType": "image/gif",
+    "extension": "gif",
+    "savedAt": "2026-09-15T14:36:59.273Z",
+    "size": 153777
+  },
+  "0d0e6a37134651d68fb192bd3d1c0ebb39d9510db16f9288659ada10e96bb83d": {
+    "source": "mutation_generated",
+    "itemId": "ikan_gurame",
+    "mutationId": "fairy_dust",
+    "fileName": "mutation-preview-ikan_gurame-fairy_dust.gif",
+    "contentType": "image/gif",
+    "extension": "gif",
+    "savedAt": "2026-09-15T14:37:00.712Z",
+    "size": 167605
+  },
+  "9c55dab263d8dc8d937b65751d449f4706a0aae8b4a01ef2bfb26a2f71ac051b": {
+    "source": "mutation_generated",
+    "itemId": "ikan_gurame",
+    "mutationId": "fairy_dust",
+    "fileName": "mutation-preview-ikan_gurame-fairy_dust.gif",
+    "contentType": "image/gif",
+    "extension": "gif",
+    "savedAt": "2026-09-15T14:37:02.241Z",
+    "size": 209593
+  },
+  "603ab7dd3974b912d753d13ae5d4a454bf29fb4845fa912f36e104cb62756f8d": {
+    "source": "mutation_generated",
+    "itemId": "ikan_gurame",
+    "mutationId": "fairy_dust",
+    "fileName": "mutation-preview-ikan_gurame-fairy_dust.gif",
+    "contentType": "image/gif",
+    "extension": "gif",
+    "savedAt": "2026-09-15T14:37:03.641Z",
+    "size": 154094
+  },
+  "a051c9d77ca716b0bcd286469bf683aeb9dd161b4a6880b0bd08b7f6a7fe3787": {
+    "source": "mutation_generated",
+    "itemId": "ikan_gurame",
+    "mutationId": "fairy_dust",
+    "fileName": "mutation-preview-ikan_gurame-fairy_dust.gif",
+    "contentType": "image/gif",
+    "extension": "gif",
+    "savedAt": "2026-09-15T14:37:14.771Z",
+    "size": 139442
+  },
+  "672e624c4e9ff1eb5abcfecc0b70422bf0d23e5efa2d2737ffffcd78d70664c7": {
+    "source": "mutation_generated",
+    "itemId": "ikan_gurame",
+    "mutationId": "fairy_dust",
+    "fileName": "mutation-preview-ikan_gurame-fairy_dust.gif",
+    "contentType": "image/gif",
+    "extension": "gif",
+    "savedAt": "2026-09-15T14:37:21.137Z",
+    "size": 150388
+  },
+  "3a554b2a1400e0daa94870c5a2b2aa4bfe55a46388feef084e01b1777cdcf264": {
+    "discordMessageUrl": "",
+    "discordRef": {
+      "storage": "discord_attachment",
+      "channelId": "1543874293258260550",
+      "messageId": "1549428970527653929",
+      "messageUrl": "",
+      "attachmentId": "1549428970678657024",
+      "fileName": "fairy_dust-overlay_1789483010156-overlay.png",
+      "contentType": "image/png"
+    },
+    "fileName": "fairy_dust-overlay_1789483010156-overlay.png",
+    "source": "discord_upload",
+    "contentType": "image/png",
+    "extension": "png",
+    "savedAt": "2026-09-15T14:37:32.773Z",
+    "size": 38900
+  },
+  "d2e905b216a7ef9a832c905a4f530c198743789a9dd53650c693c42a71686160": {
+    "url": "https://cdn.discordapp.com/attachments/1543874293258260550/1549428970678657024/fairy_dust-overlay_1789483010156-overlay.png?ex=6aaaa9ad&is=6aa9582d&hm=f27ca3889af9da998a937896209ccc4d4954e65ee2bee1665e9c1e24e98046ab&",
+    "source": "discord_upload",
+    "fileName": "fairy_dust-overlay_1789483010156-overlay.png",
+    "contentType": "image/png",
+    "extension": "png",
+    "savedAt": "2026-09-15T14:37:32.786Z",
+    "size": 38900
+  },
+  "1ec4b65e321529b477da01dc373908d6cb0322b0d8eddb3d6ac6c067e09ce7a3": {
+    "source": "mutation_generated",
+    "itemId": "ikan_gurame",
+    "mutationId": "fairy_dust",
+    "fileName": "mutation-preview-ikan_gurame-fairy_dust.gif",
+    "contentType": "image/gif",
+    "extension": "gif",
+    "savedAt": "2026-09-15T14:37:43.951Z",
+    "size": 150388
+  },
+  "a0b98c0e218f2a70bb7cc2baf9c83ad8a29068fafaf81e5be4f2858a1dcb506f": {
+    "source": "mutation_generated",
+    "itemId": "ikan_gurame",
+    "mutationId": "gemstone",
+    "fileName": "mutation-preview-ikan_gurame-gemstone.gif",
+    "contentType": "image/gif",
+    "extension": "gif",
+    "savedAt": "2026-09-15T14:38:20.428Z",
+    "size": 140265
+  },
+  "13802c2007633e16944febd227b58ecefda9b6601f6a4b74d390823d805c96eb": {
+    "source": "mutation_generated",
+    "itemId": "ikan_gurame",
+    "mutationId": "gemstone",
+    "fileName": "mutation-preview-ikan_gurame-gemstone.gif",
+    "contentType": "image/gif",
+    "extension": "gif",
+    "savedAt": "2026-09-15T14:38:23.543Z",
+    "size": 140265
+  },
+  "ecf3aabfc304e75affa7503f8d1b26480bb7bedc86eec7ae1cf1d8a87b8bb4f8": {
+    "source": "mutation_generated",
+    "itemId": "ikan_gurame",
+    "mutationId": "gemstone",
+    "fileName": "mutation-preview-ikan_gurame-gemstone.gif",
+    "contentType": "image/gif",
+    "extension": "gif",
+    "savedAt": "2026-09-15T14:38:26.094Z",
+    "size": 140265
+  },
+  "a99589be615439044de58804dcac8f12f182372b7d12653cc034d5a1cefa8dda": {
+    "source": "mutation_generated",
+    "itemId": "ikan_gurame",
+    "mutationId": "gemstone",
+    "fileName": "mutation-preview-ikan_gurame-gemstone.gif",
+    "contentType": "image/gif",
+    "extension": "gif",
+    "savedAt": "2026-09-15T14:38:27.891Z",
+    "size": 140265
+  },
+  "35c458c3d14b28182a2e711be483409f06c8db3327bd13dcff8d64f851e4ea50": {
+    "source": "mutation_generated",
+    "itemId": "ikan_gurame",
+    "mutationId": "gemstone",
+    "fileName": "mutation-preview-ikan_gurame-gemstone.gif",
+    "contentType": "image/gif",
+    "extension": "gif",
+    "savedAt": "2026-09-15T14:38:29.375Z",
+    "size": 140265
+  },
+  "93d201621c1ad174c3c7c2f10a41377de4803fb9507d0677ea9c8ead4e9cf5fe": {
+    "source": "mutation_generated",
+    "itemId": "ikan_gurame",
+    "mutationId": "gemstone",
+    "fileName": "mutation-preview-ikan_gurame-gemstone.gif",
+    "contentType": "image/gif",
+    "extension": "gif",
+    "savedAt": "2026-09-15T14:38:31.075Z",
+    "size": 140265
+  },
+  "a43ef80073af83cb6d15fcdcad31103b6a009eb80095746b54b6091f3635d72e": {
+    "source": "mutation_generated",
+    "itemId": "ikan_gurame",
+    "mutationId": "gemstone",
+    "fileName": "mutation-preview-ikan_gurame-gemstone.gif",
+    "contentType": "image/gif",
+    "extension": "gif",
+    "savedAt": "2026-09-15T14:38:32.637Z",
+    "size": 165184
+  },
+  "1eaa307f60610c16a237235ceb57a1cca8f3511deda1b71d4f643d62239cc1b9": {
+    "discordMessageUrl": "",
+    "discordRef": {
+      "storage": "discord_attachment",
+      "channelId": "1543874293258260550",
+      "messageId": "1549429263986466936",
+      "messageUrl": "",
+      "attachmentId": "1549429263575547914",
+      "fileName": "gemstone-overlay_1789483098941-overlay.png",
+      "contentType": "image/png"
+    },
+    "fileName": "gemstone-overlay_1789483098941-overlay.png",
+    "source": "discord_upload",
+    "contentType": "image/png",
+    "extension": "png",
+    "savedAt": "2026-09-15T14:38:43.505Z",
+    "size": 49605
+  },
+  "66cdfef30ada412e2ffc36f73d33141af4b2b6355fca8c930929db0f7b1d179b": {
+    "url": "https://cdn.discordapp.com/attachments/1543874293258260550/1549429263575547914/gemstone-overlay_1789483098941-overlay.png?ex=6aaaa9f3&is=6aa95873&hm=5269ff0627049e643a7a7ff443fa1dd105d36d42408e4a405a6e689817f9007d&",
+    "source": "discord_upload",
+    "fileName": "gemstone-overlay_1789483098941-overlay.png",
+    "contentType": "image/png",
+    "extension": "png",
+    "savedAt": "2026-09-15T14:38:43.592Z",
+    "size": 49605
+  },
+  "fe3d4589fb223b7093f89bb902074b70a9bf06cb29eea3c40851cfbd21a31b3c": {
+    "source": "mutation_generated",
+    "itemId": "ikan_gurame",
+    "mutationId": "gemstone",
+    "fileName": "mutation-preview-ikan_gurame-gemstone.gif",
+    "contentType": "image/gif",
+    "extension": "gif",
+    "savedAt": "2026-09-15T14:38:56.219Z",
+    "size": 165184
+  },
+  "fc9591859ca9384102985ba05425ec9fffaaf6a3dc4e37806e6f7e8db927d8c2": {
+    "source": "mutation_generated",
+    "itemId": "ikan_gurame",
+    "mutationId": "corrupt",
+    "fileName": "mutation-preview-ikan_gurame-corrupt.gif",
+    "contentType": "image/gif",
+    "extension": "gif",
+    "savedAt": "2026-09-15T14:39:39.234Z",
+    "size": 146981
+  },
+  "8decc01d6af32ca95e65b7c3cb19e68b7a31435ec93fa43350415544002c3598": {
+    "source": "mutation_generated",
+    "itemId": "ikan_gurame",
+    "mutationId": "corrupt",
+    "fileName": "mutation-preview-ikan_gurame-corrupt.gif",
+    "contentType": "image/gif",
+    "extension": "gif",
+    "savedAt": "2026-09-15T14:39:40.846Z",
+    "size": 146981
+  },
+  "654fa8f61eaa3eedca12a1fe849cd3621f3742a44685a1f97afa7030a96b311c": {
+    "source": "mutation_generated",
+    "itemId": "ikan_gurame",
+    "mutationId": "corrupt",
+    "fileName": "mutation-preview-ikan_gurame-corrupt.gif",
+    "contentType": "image/gif",
+    "extension": "gif",
+    "savedAt": "2026-09-15T14:39:42.175Z",
+    "size": 146981
+  },
+  "52166af32521fa06624e7517c4454919099842975b0e125b0b9295957ab82c1b": {
+    "source": "mutation_generated",
+    "itemId": "ikan_gurame",
+    "mutationId": "corrupt",
+    "fileName": "mutation-preview-ikan_gurame-corrupt.gif",
+    "contentType": "image/gif",
+    "extension": "gif",
+    "savedAt": "2026-09-15T14:39:43.643Z",
+    "size": 146981
+  },
+  "4d7300110a5f06863412ddd368f4daa362657b7ee7d307cb82b299be0ff08690": {
+    "source": "mutation_generated",
+    "itemId": "ikan_gurame",
+    "mutationId": "corrupt",
+    "fileName": "mutation-preview-ikan_gurame-corrupt.gif",
+    "contentType": "image/gif",
+    "extension": "gif",
+    "savedAt": "2026-09-15T14:39:45.021Z",
+    "size": 146981
+  },
+  "60589a4b92514f3db8157e2375e8a75190abc3dc58af29131941873036ee104f": {
+    "source": "mutation_generated",
+    "itemId": "ikan_gurame",
+    "mutationId": "corrupt",
+    "fileName": "mutation-preview-ikan_gurame-corrupt.gif",
+    "contentType": "image/gif",
+    "extension": "gif",
+    "savedAt": "2026-09-15T14:39:46.952Z",
+    "size": 146981
+  },
+  "bfb08e9b68aca0f9390c07a7b88082efcae6e2e75e2e1b7585020d474d7efe6b": {
+    "source": "mutation_generated",
+    "itemId": "ikan_gurame",
+    "mutationId": "corrupt",
+    "fileName": "mutation-preview-ikan_gurame-corrupt.gif",
+    "contentType": "image/gif",
+    "extension": "gif",
+    "savedAt": "2026-09-15T14:39:49.868Z",
+    "size": 158342
+  },
+  "6baf4efd660e15e7f04b10d0743584d458b2c9c357f0c6e3ef80d97ed382fc33": {
+    "source": "mutation_generated",
+    "itemId": "ikan_gurame",
+    "mutationId": "corrupt",
+    "fileName": "mutation-preview-ikan_gurame-corrupt.gif",
+    "contentType": "image/gif",
+    "extension": "gif",
+    "savedAt": "2026-09-15T14:39:57.121Z",
+    "size": 139795
+  },
+  "c0f291e98e831b0b08e09f335c7cac57b52b7cffe7f380a1d1157bc151c91506": {
+    "source": "mutation_generated",
+    "itemId": "ikan_gurame",
+    "mutationId": "corrupt",
+    "fileName": "mutation-preview-ikan_gurame-corrupt.gif",
+    "contentType": "image/gif",
+    "extension": "gif",
+    "savedAt": "2026-09-15T14:40:05.936Z",
+    "size": 148316
+  },
+  "10a246403719ea9069abb70116839267609a4701b72090586ae7eb8a5d9c8e2b": {
+    "source": "mutation_generated",
+    "itemId": "ikan_gurame",
+    "mutationId": "corrupt",
+    "fileName": "mutation-preview-ikan_gurame-corrupt.gif",
+    "contentType": "image/gif",
+    "extension": "gif",
+    "savedAt": "2026-09-15T14:40:09.896Z",
+    "size": 147501
+  },
+  "f4e0717faa0ad9754af5fc8549b391464437eac5aeeee594ce412a58ab36833d": {
+    "source": "mutation_generated",
+    "itemId": "ikan_gurame",
+    "mutationId": "corrupt",
+    "fileName": "mutation-preview-ikan_gurame-corrupt.gif",
+    "contentType": "image/gif",
+    "extension": "gif",
+    "savedAt": "2026-09-15T14:40:11.639Z",
+    "size": 145927
+  },
+  "f157d35508205ccbe4031755d85e1f88becd90d41e4ba17d5611992cd359dccf": {
+    "source": "mutation_generated",
+    "itemId": "ikan_gurame",
+    "mutationId": "corrupt",
+    "fileName": "mutation-preview-ikan_gurame-corrupt.gif",
+    "contentType": "image/gif",
+    "extension": "gif",
+    "savedAt": "2026-09-15T14:40:30.555Z",
+    "size": 145288
+  },
+  "f9abac1336089a0f75e2ed2770b21d2e85839d5cd9dd0b146af3e3ecbe08e879": {
+    "source": "mutation_generated",
+    "itemId": "ikan_gurame",
+    "mutationId": "corrupt",
+    "fileName": "mutation-preview-ikan_gurame-corrupt.gif",
+    "contentType": "image/gif",
+    "extension": "gif",
+    "savedAt": "2026-09-15T14:40:41.550Z",
+    "size": 145375
+  },
+  "589268862bcf4328f04e60e93b89584ef2a22a3f0124099f8f8a30d8a7ef7cb5": {
+    "source": "mutation_generated",
+    "itemId": "ikan_gurame",
+    "mutationId": "corrupt",
+    "fileName": "mutation-preview-ikan_gurame-corrupt.gif",
+    "contentType": "image/gif",
+    "extension": "gif",
+    "savedAt": "2026-09-15T14:40:52.830Z",
+    "size": 145290
+  },
+  "1ef3ca0f6b037d104742afe271a6567215ce2557c0ea8bad9e42832c05580dc6": {
+    "discordMessageUrl": "",
+    "discordRef": {
+      "storage": "discord_attachment",
+      "channelId": "1543874293258260550",
+      "messageId": "1549429853512532058",
+      "messageUrl": "",
+      "attachmentId": "1549429853294567515",
+      "fileName": "corrupt-overlay_1789483177879-overlay.png",
+      "contentType": "image/png"
+    },
+    "fileName": "corrupt-overlay_1789483177879-overlay.png",
+    "source": "discord_upload",
+    "contentType": "image/png",
+    "extension": "png",
+    "savedAt": "2026-09-15T14:41:03.471Z",
+    "size": 34956
+  },
+  "8c90f87107edc93196eb7052c5d7909cbe8a69bd2985e0e81b830dd35c9f445a": {
+    "url": "https://cdn.discordapp.com/attachments/1543874293258260550/1549429853294567515/corrupt-overlay_1789483177879-overlay.png?ex=6aaaaa80&is=6aa95900&hm=4835dfa09ed6503e11b5c426013e429f6ca4fa1e2b8bebd4ed11e00c09705fe9&",
+    "source": "discord_upload",
+    "fileName": "corrupt-overlay_1789483177879-overlay.png",
+    "contentType": "image/png",
+    "extension": "png",
+    "savedAt": "2026-09-15T14:41:03.484Z",
+    "size": 34956
+  },
+  "bd12823abebb26638615aa6d1d37e51a0a247542ae808206a95785130cce980f": {
+    "source": "mutation_generated",
+    "itemId": "ikan_gurame",
+    "mutationId": "corrupt",
+    "fileName": "mutation-preview-ikan_gurame-corrupt.gif",
+    "contentType": "image/gif",
+    "extension": "gif",
+    "savedAt": "2026-09-15T14:41:14.743Z",
+    "size": 145290
+  },
+  "23d3b4b64485719ea930c66bf760496572f8ae173e238362118fcddc92992774": {
+    "source": "mutation_generated",
+    "itemId": "ikan_gurame",
+    "mutationId": "jawa",
+    "fileName": "mutation-preview-ikan_gurame-jawa.gif",
+    "contentType": "image/gif",
+    "extension": "gif",
+    "savedAt": "2026-09-15T14:41:50.768Z",
+    "size": 133689
+  },
+  "51d87882494f48ed79da2512210b5be3488b6346cde1399f9fb4a43116740f51": {
+    "source": "mutation_generated",
+    "itemId": "ikan_gurame",
+    "mutationId": "jawa",
+    "fileName": "mutation-preview-ikan_gurame-jawa.gif",
+    "contentType": "image/gif",
+    "extension": "gif",
+    "savedAt": "2026-09-15T14:41:54.350Z",
+    "size": 133689
+  },
+  "461438430483973e600d5cecc69766e68df87c1fab67e54f21b190ddf9174b19": {
+    "source": "mutation_generated",
+    "itemId": "ikan_gurame",
+    "mutationId": "jawa",
+    "fileName": "mutation-preview-ikan_gurame-jawa.gif",
+    "contentType": "image/gif",
+    "extension": "gif",
+    "savedAt": "2026-09-15T14:41:55.920Z",
+    "size": 133689
+  },
+  "858c19769af255c739b1b0ce6c79558c5ea7fc8adf06a7baf3c5f77e6d319e25": {
+    "source": "mutation_generated",
+    "itemId": "ikan_gurame",
+    "mutationId": "jawa",
+    "fileName": "mutation-preview-ikan_gurame-jawa.gif",
+    "contentType": "image/gif",
+    "extension": "gif",
+    "savedAt": "2026-09-15T14:41:57.511Z",
+    "size": 133689
+  },
+  "d11cafc6be7a7cc15ca05b3ad234e933e8e368dd3e607f90ebcc6182d7edd82f": {
+    "source": "mutation_generated",
+    "itemId": "ikan_gurame",
+    "mutationId": "jawa",
+    "fileName": "mutation-preview-ikan_gurame-jawa.gif",
+    "contentType": "image/gif",
+    "extension": "gif",
+    "savedAt": "2026-09-15T14:41:58.702Z",
+    "size": 133689
+  },
+  "6dfa2203eed91cb69ebe956196211cefabfc209d543017d56ca9240394698924": {
+    "source": "mutation_generated",
+    "itemId": "ikan_gurame",
+    "mutationId": "jawa",
+    "fileName": "mutation-preview-ikan_gurame-jawa.gif",
+    "contentType": "image/gif",
+    "extension": "gif",
+    "savedAt": "2026-09-15T14:42:00.260Z",
+    "size": 189419
+  },
+  "caa6d8ce04466081eb2a9c11f3d7417460f863afefbb3f94a2a054a42cb0fb79": {
+    "source": "mutation_generated",
+    "itemId": "ikan_gurame",
+    "mutationId": "bloodmoon",
+    "fileName": "mutation-preview-ikan_gurame-bloodmoon.gif",
+    "contentType": "image/gif",
+    "extension": "gif",
+    "savedAt": "2026-09-15T14:42:30.798Z",
+    "size": 135014
+  },
+  "0cac3d00ba4278ae606ac961782470fd96c715eeec52daf60086f0899c1141e8": {
+    "source": "mutation_generated",
+    "itemId": "ikan_gurame",
+    "mutationId": "bloodmoon",
+    "fileName": "mutation-preview-ikan_gurame-bloodmoon.gif",
+    "contentType": "image/gif",
+    "extension": "gif",
+    "savedAt": "2026-09-15T14:42:32.062Z",
+    "size": 135014
+  },
+  "79282933ebe5b3ed3d4a7448897612a8b005a5c5d5fc94b9484539790f836348": {
+    "source": "mutation_generated",
+    "itemId": "ikan_gurame",
+    "mutationId": "bloodmoon",
+    "fileName": "mutation-preview-ikan_gurame-bloodmoon.gif",
+    "contentType": "image/gif",
+    "extension": "gif",
+    "savedAt": "2026-09-15T14:42:33.519Z",
+    "size": 135014
+  },
+  "f22d68062fff0c2058ccbafcf52e64220ba2b3b2b580dc6188124829334e5505": {
+    "source": "mutation_generated",
+    "itemId": "ikan_gurame",
+    "mutationId": "bloodmoon",
+    "fileName": "mutation-preview-ikan_gurame-bloodmoon.gif",
+    "contentType": "image/gif",
+    "extension": "gif",
+    "savedAt": "2026-09-15T14:42:34.724Z",
+    "size": 135014
+  },
+  "f37c3ce7c359c501f63059d1f8f94ba3556ce4a136d5c78706c734bdcd62fc4f": {
+    "source": "mutation_generated",
+    "itemId": "ikan_gurame",
+    "mutationId": "bloodmoon",
+    "fileName": "mutation-preview-ikan_gurame-bloodmoon.gif",
+    "contentType": "image/gif",
+    "extension": "gif",
+    "savedAt": "2026-09-15T14:42:36.093Z",
+    "size": 135014
+  },
+  "eaaa4449ddedf4b995c27fda07a82f0240bf9564578ff4e3fa2831dd0c174ca4": {
+    "source": "mutation_generated",
+    "itemId": "ikan_gurame",
+    "mutationId": "bloodmoon",
+    "fileName": "mutation-preview-ikan_gurame-bloodmoon.gif",
+    "contentType": "image/gif",
+    "extension": "gif",
+    "savedAt": "2026-09-15T14:42:37.756Z",
+    "size": 135014
+  },
+  "962abc29c3834663f80d8242da7e413417498f655794303e25dfa19dea265783": {
+    "source": "mutation_generated",
+    "itemId": "ikan_gurame",
+    "mutationId": "bloodmoon",
+    "fileName": "mutation-preview-ikan_gurame-bloodmoon.gif",
+    "contentType": "image/gif",
+    "extension": "gif",
+    "savedAt": "2026-09-15T14:42:38.928Z",
+    "size": 150566
+  },
+  "f4e2b90eb9e8ef4417b47d8676c7dc67747cfe6ff664d384097af36ea53d5b1d": {
+    "source": "mutation_generated",
+    "itemId": "ikan_gurame",
+    "mutationId": "bloodmoon",
+    "fileName": "mutation-preview-ikan_gurame-bloodmoon.gif",
+    "contentType": "image/gif",
+    "extension": "gif",
+    "savedAt": "2026-09-15T14:42:48.376Z",
+    "size": 159748
+  },
+  "99fd3f25df782608e91a8a93ffb52672b83c03e6aeb225ac32f2e95a492452b7": {
+    "discordMessageUrl": "",
+    "discordRef": {
+      "storage": "discord_attachment",
+      "channelId": "1543874293258260550",
+      "messageId": "1549430348851449887",
+      "messageUrl": "",
+      "attachmentId": "1549430348562305024",
+      "fileName": "bloodmoon-overlay_1789483349290-overlay.png",
+      "contentType": "image/png"
+    },
+    "fileName": "bloodmoon-overlay_1789483349290-overlay.png",
+    "source": "discord_upload",
+    "contentType": "image/png",
+    "extension": "png",
+    "savedAt": "2026-09-15T14:43:01.393Z",
+    "size": 33184
+  },
+  "e864f87379e947002f3331d849c23c3cbda3209851cf1fb355267232f93f97ad": {
+    "url": "https://cdn.discordapp.com/attachments/1543874293258260550/1549430348562305024/bloodmoon-overlay_1789483349290-overlay.png?ex=6aaaaaf6&is=6aa95976&hm=a86a39b1736b0d943f23c8fc12f9c49b3161199093c4622426625fb3d61fff9f&",
+    "source": "discord_upload",
+    "fileName": "bloodmoon-overlay_1789483349290-overlay.png",
+    "contentType": "image/png",
+    "extension": "png",
+    "savedAt": "2026-09-15T14:43:01.401Z",
+    "size": 33184
+  },
+  "6087d5d49e991dcda0d1905b09b0a32b944436fa3f7c2159f54229e8b60b90cf": {
+    "discordMessageUrl": "",
+    "discordRef": {
+      "storage": "discord_attachment",
+      "channelId": "1543874293258260550",
+      "messageId": "1549430354606034955",
+      "messageUrl": "",
+      "attachmentId": "1549430354794909746",
+      "fileName": "jawa-overlay_1789483308930-overlay.png",
+      "contentType": "image/png"
+    },
+    "fileName": "jawa-overlay_1789483308930-overlay.png",
+    "source": "discord_upload",
+    "contentType": "image/png",
+    "extension": "png",
+    "savedAt": "2026-09-15T14:43:02.922Z",
+    "size": 61436
+  },
+  "28f113a3c510c07680a9457a923874ab9cf128bef814a308febd5398dd5149b6": {
+    "url": "https://cdn.discordapp.com/attachments/1543874293258260550/1549430354794909746/jawa-overlay_1789483308930-overlay.png?ex=6aaaaaf7&is=6aa95977&hm=aedb7722d28c31d83aacd4dfab40b3cfeac3985aa9ed2c651dee687eff56dc87&",
+    "source": "discord_upload",
+    "fileName": "jawa-overlay_1789483308930-overlay.png",
+    "contentType": "image/png",
+    "extension": "png",
+    "savedAt": "2026-09-15T14:43:02.935Z",
+    "size": 61436
+  },
+  "616c8ef6e0ba49ceceb3b64254e0e7d406db9e10c3d65b310bf1d09f05e8f78a": {
+    "source": "mutation_generated",
+    "itemId": "ikan_gurame",
+    "mutationId": "bloodmoon",
+    "fileName": "mutation-preview-ikan_gurame-bloodmoon.gif",
+    "contentType": "image/gif",
+    "extension": "gif",
+    "savedAt": "2026-09-15T14:43:13.416Z",
+    "size": 159748
+  },
+  "25f6d135d827d315deea3420775ce58a1f4cfa822e6940200817f4249bd244d4": {
+    "source": "mutation_generated",
+    "itemId": "ikan_gurame",
+    "mutationId": "jawa",
+    "fileName": "mutation-preview-ikan_gurame-jawa.gif",
+    "contentType": "image/gif",
+    "extension": "gif",
+    "savedAt": "2026-09-15T14:43:15.106Z",
+    "size": 189419
+  },
+  "a2ea97f5bc90a16015fed737ceb77c149a8593806e8dcccc2a6addd4330884a4": {
+    "source": "mutation_generated",
+    "itemId": "ikan_gurame",
+    "mutationId": "galaxy",
+    "fileName": "mutation-preview-ikan_gurame-galaxy.gif",
+    "contentType": "image/gif",
+    "extension": "gif",
+    "savedAt": "2026-09-15T14:43:32.557Z",
+    "size": 136552
+  },
+  "96e2bb864e0b6bd9a43af403c5ccda9d05d2e4267bfdb61a313b7c39d27a54cf": {
+    "source": "mutation_generated",
+    "itemId": "ikan_gurame",
+    "mutationId": "galaxy",
+    "fileName": "mutation-preview-ikan_gurame-galaxy.gif",
+    "contentType": "image/gif",
+    "extension": "gif",
+    "savedAt": "2026-09-15T14:43:34.062Z",
+    "size": 136552
+  },
+  "1f96929f84790b548d8265b862e9aa4497a9ad7f42e534d77a5cf781af669c87": {
+    "source": "mutation_generated",
+    "itemId": "ikan_gurame",
+    "mutationId": "galaxy",
+    "fileName": "mutation-preview-ikan_gurame-galaxy.gif",
+    "contentType": "image/gif",
+    "extension": "gif",
+    "savedAt": "2026-09-15T14:43:35.082Z",
+    "size": 136552
+  },
+  "e43733fce2278ec091e8ee346f422dd0c659beddd28e43afeb373ce4ffa85031": {
+    "source": "mutation_generated",
+    "itemId": "ikan_gurame",
+    "mutationId": "galaxy",
+    "fileName": "mutation-preview-ikan_gurame-galaxy.gif",
+    "contentType": "image/gif",
+    "extension": "gif",
+    "savedAt": "2026-09-15T14:43:36.374Z",
+    "size": 136552
+  },
+  "3ae21b192e785180fa39a0ee14557c886635004c0c538f8afa954912f1f8595c": {
+    "source": "mutation_generated",
+    "itemId": "ikan_gurame",
+    "mutationId": "galaxy",
+    "fileName": "mutation-preview-ikan_gurame-galaxy.gif",
+    "contentType": "image/gif",
+    "extension": "gif",
+    "savedAt": "2026-09-15T14:43:37.897Z",
+    "size": 136552
+  },
+  "f443f8b7f821b81ae373e1848e4568437d0a0a45d46680916dd3bfea02479093": {
+    "source": "mutation_generated",
+    "itemId": "ikan_gurame",
+    "mutationId": "galaxy",
+    "fileName": "mutation-preview-ikan_gurame-galaxy.gif",
+    "contentType": "image/gif",
+    "extension": "gif",
+    "savedAt": "2026-09-15T14:43:39.153Z",
+    "size": 136552
+  },
+  "b3e7f72594639a79b77e922131c1a60793713824017770316cfd911f90b46d93": {
+    "source": "mutation_generated",
+    "itemId": "ikan_gurame",
+    "mutationId": "galaxy",
+    "fileName": "mutation-preview-ikan_gurame-galaxy.gif",
+    "contentType": "image/gif",
+    "extension": "gif",
+    "savedAt": "2026-09-15T14:43:40.395Z",
+    "size": 176516
+  },
+  "13878605da0a1240ff0fd3b1ca62bb4bb2a8920522d383de71111dd05397f242": {
+    "source": "mutation_generated",
+    "itemId": "ikan_gurame",
+    "mutationId": "galaxy",
+    "fileName": "mutation-preview-ikan_gurame-galaxy.gif",
+    "contentType": "image/gif",
+    "extension": "gif",
+    "savedAt": "2026-09-15T14:43:45.453Z",
+    "size": 181385
+  },
+  "0d270d47b84cee70f870d9277a52cf88e134a75c03befcc8a44e02288ac733f2": {
+    "discordMessageUrl": "",
+    "discordRef": {
+      "storage": "discord_attachment",
+      "channelId": "1543874293258260550",
+      "messageId": "1549430601512128564",
+      "messageUrl": "",
+      "attachmentId": "1549430601659195422",
+      "fileName": "galaxy-overlay_1789483411149-overlay.png",
+      "contentType": "image/png"
+    },
+    "fileName": "galaxy-overlay_1789483411149-overlay.png",
+    "source": "discord_upload",
+    "contentType": "image/png",
+    "extension": "png",
+    "savedAt": "2026-09-15T14:44:01.756Z",
+    "size": 51324
+  },
+  "5100470061b12c3502305636d1bb23693896c5b2f04dcff988d6b89a90f4c450": {
+    "url": "https://cdn.discordapp.com/attachments/1543874293258260550/1549430601659195422/galaxy-overlay_1789483411149-overlay.png?ex=6aaaab32&is=6aa959b2&hm=8407170f3cfa68af060eba7ea8cedcfe0331254650c676af04f21a2b44903eb1&",
+    "source": "discord_upload",
+    "fileName": "galaxy-overlay_1789483411149-overlay.png",
+    "contentType": "image/png",
+    "extension": "png",
+    "savedAt": "2026-09-15T14:44:01.765Z",
+    "size": 51324
+  },
+  "033c0bf097c285407f44a6b4c89cd2e5603e3b8f5a574e12a709b598447db929": {
+    "source": "mutation_generated",
+    "itemId": "ikan_gurame",
+    "mutationId": "galaxy",
+    "fileName": "mutation-preview-ikan_gurame-galaxy.gif",
+    "contentType": "image/gif",
+    "extension": "gif",
+    "savedAt": "2026-09-15T14:44:12.234Z",
+    "size": 181385
+  },
+  "17a73d6cddaa64923da3afac41f8590c05e90ad3883249f020ece9650e166fe4": {
+    "discordMessageUrl": "",
+    "discordRef": {
+      "storage": "discord_attachment",
+      "channelId": "1543874293258260550",
+      "messageId": "1549435138482638958",
+      "messageUrl": "",
+      "attachmentId": "1549435137354367097",
+      "fileName": "1789484411341.png",
+      "contentType": "image/png"
+    },
+    "fileName": "1789484411341.png",
+    "source": "discord_upload",
+    "contentType": "image/png",
+    "extension": "png",
+    "savedAt": "2026-09-15T15:02:06.813Z",
+    "size": 2511745
+  },
+  "c4b18cf984d31057aee2cc0a7e5b4770c2212740358f1bd88c0500a6361429d1": {
+    "url": "https://cdn.discordapp.com/attachments/1543874293258260550/1549435137354367097/1789484411341.png?ex=6aaaaf6b&is=6aa95deb&hm=47541d9c00e4e66805c1947532333c0c4523c63996349ee97e377be7d620470c&",
+    "source": "discord_upload",
+    "fileName": "1789484411341.png",
+    "contentType": "image/png",
+    "extension": "png",
+    "savedAt": "2026-09-15T15:02:06.826Z",
+    "size": 2511745
+  },
+  "9c81df239a127c90a2e3021be82cf6b82bb23cb011e791538879f5cf6d6aee25": {
+    "discordMessageUrl": "",
+    "discordRef": {
+      "storage": "discord_attachment",
+      "channelId": "1543874293258260550",
+      "messageId": "1549435390325432432",
+      "messageUrl": "",
+      "attachmentId": "1549435388999766036",
+      "fileName": "1789484531408.png",
+      "contentType": "image/png"
+    },
+    "fileName": "1789484531408.png",
+    "source": "discord_upload",
+    "contentType": "image/png",
+    "extension": "png",
+    "savedAt": "2026-09-15T15:03:05.049Z",
+    "size": 2511745
+  },
+  "c075c68c8c600a1b5652d4c3a32743914f4919716c678ff8abfda35719823d9f": {
+    "url": "https://cdn.discordapp.com/attachments/1543874293258260550/1549435388999766036/1789484531408.png?ex=6aaaafa7&is=6aa95e27&hm=0e24253ad1eda48b9a7bb93b20c733d03be1b6093808a2db642ae530e1371a5b&",
+    "source": "discord_upload",
+    "fileName": "1789484531408.png",
+    "contentType": "image/png",
+    "extension": "png",
+    "savedAt": "2026-09-15T15:03:05.059Z",
+    "size": 2511745
+  },
+  "a1a1146d575626f5abcc856d658849cf581bf7abce8e2188db4586430bd55f4a": {
+    "source": "mutation_generated",
+    "itemId": "sapi",
+    "mutationId": "freezing",
+    "fileName": "fish-sapi-freezing.gif",
+    "contentType": "image/gif",
+    "extension": "gif",
+    "savedAt": "2026-09-15T15:05:39.873Z",
+    "size": 173289
+  },
+  "14831e2c1a0de079168ae74bb82029686e09e0c9372c600b569c98ee84029041": {
+    "source": "mutation_generated",
+    "itemId": "ikan_nila",
+    "mutationId": "radioactive",
+    "fileName": "fish-ikan_nila-radioactive.gif",
+    "contentType": "image/gif",
+    "extension": "gif",
+    "savedAt": "2026-09-15T15:11:09.520Z",
+    "size": 158154
+  },
+  "6511634eeb6271a9b1d6cae1ec7cae1970d4b7a4034958c22f0023431e6d93ba": {
+    "source": "mutation_generated",
+    "itemId": "ikan_arwana",
+    "mutationId": "lightning",
+    "fileName": "fish-ikan_arwana-lightning.gif",
+    "contentType": "image/gif",
+    "extension": "gif",
+    "savedAt": "2026-09-15T15:13:38.978Z",
+    "size": 131713
+  },
+  "65aa7cf5785d46dca63a19a3585abb2f7cde34fbfde380f243439ddeb5c4f036": {
+    "source": "mutation_generated",
+    "itemId": "ikan_gurame",
+    "mutationId": "stone",
+    "fileName": "mutation-preview-ikan_gurame-stone.gif",
+    "contentType": "image/gif",
+    "extension": "gif",
+    "savedAt": "2026-09-15T15:22:01.494Z",
+    "size": 175210
+  },
+  "e58d74dd795d14072360131242be460a1202949f4ddaf6234c0868e72bdb3c29": {
+    "source": "mutation_generated",
+    "itemId": "ikan_gurame",
+    "mutationId": "stone",
+    "fileName": "mutation-preview-ikan_gurame-stone.gif",
+    "contentType": "image/gif",
+    "extension": "gif",
+    "savedAt": "2026-09-15T15:22:02.809Z",
+    "size": 173716
+  },
+  "8dd4e19dcb4d76daaca640fc4657dca22e412e5d7093a0ba04935251c00ce3cd": {
+    "source": "mutation_generated",
+    "itemId": "ikan_gurame",
+    "mutationId": "gold",
+    "fileName": "mutation-preview-ikan_gurame-gold.gif",
+    "contentType": "image/gif",
+    "extension": "gif",
+    "savedAt": "2026-09-15T15:22:07.035Z",
+    "size": 136924
+  },
+  "78c446a074a1e05c03e36a5ce5edee58c07bcf846dcd39ce135db294b58b1968": {
+    "source": "mutation_generated",
+    "itemId": "ikan_gurame",
+    "mutationId": "freezing",
+    "fileName": "mutation-preview-ikan_gurame-freezing.gif",
+    "contentType": "image/gif",
+    "extension": "gif",
+    "savedAt": "2026-09-15T15:22:12.651Z",
+    "size": 183945
+  },
+  "6d4af712ac8790ef1fbd308877da21ad9b2b2c2671ee289ef98c5c1b5e1d9cfc": {
+    "source": "mutation_generated",
+    "itemId": "ikan_gurame",
+    "mutationId": "ghost",
+    "fileName": "mutation-preview-ikan_gurame-ghost.gif",
+    "contentType": "image/gif",
+    "extension": "gif",
+    "savedAt": "2026-09-15T15:22:19.756Z",
+    "size": 116092
+  },
+  "d313f3f518d7b445b6e316d74a7a0f77e6c642c3282a5984586015d4bffb9e80": {
+    "source": "mutation_generated",
+    "itemId": "ikan_gurame",
+    "mutationId": "radioactive",
+    "fileName": "mutation-preview-ikan_gurame-radioactive.gif",
+    "contentType": "image/gif",
+    "extension": "gif",
+    "savedAt": "2026-09-15T15:22:26.671Z",
+    "size": 154367
+  },
+  "928cf19052719e5eaf9aaf405b4c30b64566aa3dfe80f67d2c7ca91a196253b3": {
+    "source": "mutation_generated",
+    "itemId": "ikan_gurame",
+    "mutationId": "lightning",
+    "fileName": "mutation-preview-ikan_gurame-lightning.gif",
+    "contentType": "image/gif",
+    "extension": "gif",
+    "savedAt": "2026-09-15T15:22:31.360Z",
+    "size": 145810
+  },
+  "67a529080326ebef90b893ba3232fabcb5eeb81cb6e9eeb0d429dfc131029256": {
+    "source": "mutation_generated",
+    "itemId": "ikan_gurame",
+    "mutationId": "midnight",
+    "fileName": "mutation-preview-ikan_gurame-midnight.gif",
+    "contentType": "image/gif",
+    "extension": "gif",
+    "savedAt": "2026-09-15T15:22:38.427Z",
+    "size": 146595
+  },
+  "c5a8b4a83f7e29dd7fdd24e774f1522ec48d6feeec246f72b35d8d07d1cd9ad2": {
+    "source": "mutation_generated",
+    "itemId": "ikan_gurame",
+    "mutationId": "fairy_dust",
+    "fileName": "mutation-preview-ikan_gurame-fairy_dust.gif",
+    "contentType": "image/gif",
+    "extension": "gif",
+    "savedAt": "2026-09-15T15:22:44.613Z",
+    "size": 151845
+  },
+  "78f9f1857e2eb5fa33070a63a9644149c8c890980f7312b968c9ac4da87171aa": {
+    "source": "mutation_generated",
+    "itemId": "ikan_gurame",
+    "mutationId": "gemstone",
+    "fileName": "mutation-preview-ikan_gurame-gemstone.gif",
+    "contentType": "image/gif",
+    "extension": "gif",
+    "savedAt": "2026-09-15T15:22:48.595Z",
+    "size": 167003
+  },
+  "7e71d76aee258bd0413bc6dd287540e4ef6bb33714d790b383362104adb2d61c": {
+    "source": "mutation_generated",
+    "itemId": "ikan_gurame",
+    "mutationId": "corrupt",
+    "fileName": "mutation-preview-ikan_gurame-corrupt.gif",
+    "contentType": "image/gif",
+    "extension": "gif",
+    "savedAt": "2026-09-15T15:22:53.889Z",
+    "size": 145744
+  },
+  "2e626ca269581b72a8740aa4c803317fc5fd2c04e675b23e2fcf97c79e9e1f87": {
+    "source": "mutation_generated",
+    "itemId": "ikan_gurame",
+    "mutationId": "galaxy",
+    "fileName": "mutation-preview-ikan_gurame-galaxy.gif",
+    "contentType": "image/gif",
+    "extension": "gif",
+    "savedAt": "2026-09-15T15:22:58.369Z",
+    "size": 186158
+  },
+  "23f5bbe250fe56881e037e32c5fc911c6fdd1ca6b0158c09469059d405b8da46": {
+    "source": "mutation_generated",
+    "itemId": "ikan_gurame",
+    "mutationId": "bloodmoon",
+    "fileName": "mutation-preview-ikan_gurame-bloodmoon.gif",
+    "contentType": "image/gif",
+    "extension": "gif",
+    "savedAt": "2026-09-15T15:23:03.971Z",
+    "size": 159597
+  },
+  "e64e9dd356750de2467fa87fe03d816f33422443bb9d11c691d46bc4636cb3a9": {
+    "source": "mutation_generated",
+    "itemId": "ikan_gurame",
+    "mutationId": "minty",
+    "fileName": "mutation-preview-ikan_gurame-minty.gif",
+    "contentType": "image/gif",
+    "extension": "gif",
+    "savedAt": "2026-09-15T15:23:12.008Z",
+    "size": 145810
+  },
+  "200bc3a3326e56a27981e253ed34d32782a68bd8995df5f7a5b9979b3b1ea03f": {
+    "source": "mutation_generated",
+    "itemId": "ikan_gurame",
+    "mutationId": "jawa",
+    "fileName": "mutation-preview-ikan_gurame-jawa.gif",
+    "contentType": "image/gif",
+    "extension": "gif",
+    "savedAt": "2026-09-15T15:23:16.560Z",
+    "size": 191363
+  },
+  "877a605ece9ce12cfbe0c08105ae78fc1d2fda72662fc89e7047bec18c2fde92": {
+    "source": "mutation_generated",
+    "itemId": "ikan_nila",
+    "mutationId": "radioactive",
+    "fileName": "fish-ikan_nila-radioactive.gif",
+    "contentType": "image/gif",
+    "extension": "gif",
+    "savedAt": "2026-09-15T15:23:47.026Z",
+    "size": 160131
+  },
+  "cf4bcfa81eed14bb18ec726d1450bdd955880e9790d3333ec327df36ed355ff3": {
+    "source": "mutation_generated",
+    "itemId": "ikan_jawa",
+    "mutationId": "jawa",
+    "fileName": "fish-ikan_jawa-jawa.gif",
+    "contentType": "image/gif",
+    "extension": "gif",
+    "savedAt": "2026-09-15T15:32:04.225Z",
+    "size": 176730
+  },
+  "44113281a5476c4905798ece714ff4a9e4436f89c595a1e5e042bdbde3271a5e": {
+    "source": "mutation_generated",
+    "itemId": "sapi",
+    "mutationId": "freezing",
+    "fileName": "fishdex-sapi-freezing.gif",
+    "contentType": "image/gif",
+    "extension": "gif",
+    "savedAt": "2026-09-15T15:34:22.141Z",
+    "size": 174422
+  },
+  "04657a45c11e6242e7c61df20f4c88cd403e2d1dcbe5c4dd576da7e5af402539": {
+    "source": "mutation_generated",
+    "itemId": "kuda_laut",
+    "mutationId": "bloodmoon",
+    "fileName": "fish-kuda_laut-bloodmoon.gif",
+    "contentType": "image/gif",
+    "extension": "gif",
+    "savedAt": "2026-09-15T15:35:18.164Z",
+    "size": 147620
+  },
+  "347f8be952e2694c57577d70631577695b37f7e4a21bd342cf711ea392834297": {
+    "source": "mutation_generated",
+    "itemId": "kulkas_2_pintu",
+    "mutationId": "stone",
+    "fileName": "fish-kulkas_2_pintu-stone.gif",
+    "contentType": "image/gif",
+    "extension": "gif",
+    "savedAt": "2026-09-15T15:36:26.375Z",
+    "size": 162772
+  },
+  "45ff051b71418339ad9886e95fac1827b4895b2b6373ca8648ee6de2e9cac60b": {
+    "source": "mutation_generated",
+    "itemId": "ikan_atmin_cina",
+    "mutationId": "gold",
+    "fileName": "fish-ikan_atmin_cina-gold.gif",
+    "contentType": "image/gif",
+    "extension": "gif",
+    "savedAt": "2026-09-15T15:37:49.630Z",
+    "size": 118246
+  },
+  "bb892e48cfd2d03e4d33cdff15c847c3a6a41bf4b3c16c17f3096d72f982765f": {
+    "source": "mutation_generated",
+    "itemId": "rama_naufal",
+    "mutationId": "bloodmoon",
+    "fileName": "fish-rama_naufal-bloodmoon.gif",
+    "contentType": "image/gif",
+    "extension": "gif",
+    "savedAt": "2026-09-15T15:38:57.887Z",
+    "size": 156766
+  },
+  "882dac1097432fdca54fcf5d5d2ae2077e35f287c084cf656c99a92e24e0dd01": {
+    "source": "mutation_generated",
+    "itemId": "kepiting",
+    "mutationId": "gold",
+    "fileName": "fish-kepiting-gold.gif",
+    "contentType": "image/gif",
+    "extension": "gif",
+    "savedAt": "2026-09-15T15:39:02.477Z",
+    "size": 122181
+  },
+  "acc2d597be2f6d3cfb6c04f86326dc74bfe5c6f6cff465a263839bd298dfb8aa": {
+    "source": "mutation_generated",
+    "itemId": "kulkas_2_pintu",
+    "mutationId": "lightning",
+    "fileName": "fish-kulkas_2_pintu-lightning.gif",
+    "contentType": "image/gif",
+    "extension": "gif",
+    "savedAt": "2026-09-15T15:40:26.403Z",
+    "size": 122315
+  },
+  "34032acb620ff486273d277393210f26e13788b98c1c3902736a3e242f6d3ed0": {
+    "source": "mutation_generated",
+    "itemId": "adhiet",
+    "mutationId": "gold",
+    "fileName": "fish-adhiet-gold.gif",
+    "contentType": "image/gif",
+    "extension": "gif",
+    "savedAt": "2026-09-15T15:44:26.526Z",
+    "size": 124245
+  },
+  "71a48f9e9e30942b5f55a2fd4c195ee24a5d58123e2a1fd47a7a60aa554b55b2": {
+    "source": "mutation_generated",
+    "itemId": "lobster",
+    "mutationId": "lightning",
+    "fileName": "fish-lobster-lightning.gif",
+    "contentType": "image/gif",
+    "extension": "gif",
+    "savedAt": "2026-09-15T15:57:24.582Z",
+    "size": 136700
+  },
+  "6832b3d72761c14a908de5488f38b34db7c510a02d5c569b4f3db26335f3853c": {
+    "source": "mutation_generated",
+    "itemId": "ikan_goreng",
+    "mutationId": "midnight",
+    "fileName": "fish-ikan_goreng-midnight.gif",
+    "contentType": "image/gif",
+    "extension": "gif",
+    "savedAt": "2026-09-15T16:00:13.741Z",
+    "size": 134974
+  },
+  "b10f9af1f9da0a5da710a24e35bb7016cd40f10dc9b8ba54f5ee156c70298c92": {
+    "source": "mutation_generated",
+    "itemId": "ikan_anjrotman",
+    "mutationId": "radioactive",
+    "fileName": "fish-ikan_anjrotman-radioactive.gif",
+    "contentType": "image/gif",
+    "extension": "gif",
+    "savedAt": "2026-09-15T16:04:20.724Z",
+    "size": 149271
+  },
+  "7d529a70567fc5db86db8a971145d76ae99cdb8760926abe4f544df8f2f433bf": {
+    "source": "mutation_generated",
+    "itemId": "gurita",
+    "mutationId": "gold",
+    "fileName": "fish-gurita-gold.gif",
+    "contentType": "image/gif",
+    "extension": "gif",
+    "savedAt": "2026-09-15T16:04:26.397Z",
+    "size": 132544
+  },
+  "df286e2a395140adbbde63cc307766f992f81a3b76888a31357564e2eb7058a9": {
+    "source": "mutation_generated",
+    "itemId": "ebem",
+    "mutationId": "gold",
+    "fileName": "fish-ebem-gold.gif",
+    "contentType": "image/gif",
+    "extension": "gif",
+    "savedAt": "2026-09-15T16:04:27.498Z",
+    "size": 112308
+  },
+  "c185e8efcb5074a6dfe9c1d88cf13d551c28067c88c6eb8ba0966227e5a964b4": {
+    "source": "mutation_generated",
+    "itemId": "cumi",
+    "mutationId": "midnight",
+    "fileName": "fish-cumi-midnight.gif",
+    "contentType": "image/gif",
+    "extension": "gif",
+    "savedAt": "2026-09-15T16:07:33.658Z",
+    "size": 143581
+  },
+  "5d88f6c2903687458acf20960ac4fc2411f6d761843ce7e6d26fbdcd7124b1d8": {
+    "source": "mutation_generated",
+    "itemId": "ikan_cupang",
+    "mutationId": "fairy_dust",
+    "fileName": "fish-ikan_cupang-fairy_dust.gif",
+    "contentType": "image/gif",
+    "extension": "gif",
+    "savedAt": "2026-09-15T16:08:26.676Z",
+    "size": 134537
+  },
+  "2269ddd3e8c3b0a8c07b287a6565b0d7b0a739b5830e775d9b01777786905123": {
+    "source": "mutation_generated",
+    "itemId": "ikan_hiu",
+    "mutationId": "fairy_dust",
+    "fileName": "fish-ikan_hiu-fairy_dust.gif",
+    "contentType": "image/gif",
+    "extension": "gif",
+    "savedAt": "2026-09-15T16:16:26.801Z",
+    "size": 135776
+  },
+  "f82ce2cb410051b6662a5a431d78b1fa9a111d8a02367837a45efb68db18c892": {
+    "source": "mutation_generated",
+    "itemId": "kuda_laut",
+    "mutationId": "corrupt",
+    "fileName": "fish-kuda_laut-corrupt.gif",
+    "contentType": "image/gif",
+    "extension": "gif",
+    "savedAt": "2026-09-15T16:17:27.067Z",
+    "size": 137774
+  },
+  "f34ababe4eb0faa1ca40c7784bcb09b94fa6aa4f9a7f028665cf107ebaab437e": {
+    "source": "mutation_generated",
+    "itemId": "ikan_praroro",
+    "mutationId": "lightning",
+    "fileName": "fish-ikan_praroro-lightning.gif",
+    "contentType": "image/gif",
+    "extension": "gif",
+    "savedAt": "2026-09-15T16:24:26.699Z",
+    "size": 128208
+  },
+  "5478ebf20f4fa56fd140f647d7242b6e1042b8913a69334a7e13874f37854a12": {
+    "source": "mutation_generated",
+    "itemId": "vario_160",
+    "mutationId": "gemstone",
+    "fileName": "fish-vario_160-gemstone.gif",
+    "contentType": "image/gif",
+    "extension": "gif",
+    "savedAt": "2026-09-15T16:48:26.893Z",
+    "size": 154523
+  },
+  "fda0c7e95202e812d156980065c5e8f43f8aa0ae23a9b47bfd514cf2dbe0292a": {
+    "source": "mutation_generated",
+    "itemId": "rama_naufal",
+    "mutationId": "stone",
+    "fileName": "fish-rama_naufal-stone.gif",
+    "contentType": "image/gif",
+    "extension": "gif",
+    "savedAt": "2026-09-15T17:01:26.850Z",
+    "size": 169365
+  },
+  "0be4595e5a0f45472ceddc4e740c7863332d49b6f4ddea1a6fd78c8e19f8e2d0": {
+    "source": "mutation_generated",
+    "itemId": "kepiting",
+    "mutationId": "jawa",
+    "fileName": "fish-kepiting-jawa.gif",
+    "contentType": "image/gif",
+    "extension": "gif",
+    "savedAt": "2026-09-15T17:12:27.096Z",
+    "size": 177920
+  },
+  "c46fb0ac97ec3555eec9a4d08a8d8264bf193b930d788d4d990e5e875ca57f8a": {
+    "source": "mutation_generated",
+    "itemId": "ikan_atmin_cina",
+    "mutationId": "minty",
+    "fileName": "fish-ikan_atmin_cina-minty.gif",
+    "contentType": "image/gif",
+    "extension": "gif",
+    "savedAt": "2026-09-15T17:16:26.998Z",
+    "size": 120456
+  },
+  "63b01d74a27214f8bd4be14df547ac4cbebb126f90872e8cd2751d6dc3e14594": {
+    "source": "mutation_generated",
+    "itemId": "ikan_kelinci_imut",
+    "mutationId": "fairy_dust",
+    "fileName": "fish-ikan_kelinci_imut-fairy_dust.gif",
+    "contentType": "image/gif",
+    "extension": "gif",
+    "savedAt": "2026-09-15T17:21:27.182Z",
+    "size": 137238
+  },
+  "86c1eb66f7640c50fa81fc87011d60da09e107b4a59fe9e1cf4c9f2a53255007": {
+    "source": "mutation_generated",
+    "itemId": "ikan_teri",
+    "mutationId": "ghost",
+    "fileName": "fish-ikan_teri-ghost.gif",
+    "contentType": "image/gif",
+    "extension": "gif",
+    "savedAt": "2026-09-15T17:36:27.250Z",
+    "size": 123420
+  },
+  "de49f17c5aa4a55fe0da77526b363f49debe61460b0801a583c2a14df12bc8a2": {
+    "source": "mutation_generated",
+    "itemId": "ikan_geri",
+    "mutationId": "stone",
+    "fileName": "fish-ikan_geri-stone.gif",
+    "contentType": "image/gif",
+    "extension": "gif",
+    "savedAt": "2026-09-15T17:40:27.166Z",
+    "size": 169518
+  },
+  "7a0bf3e9b8bfae75fb376904d513cb14d362d17eadae4841f4697fc079fc3abc": {
+    "source": "mutation_generated",
+    "itemId": "adhiet",
+    "mutationId": "ghost",
+    "fileName": "fish-adhiet-ghost.gif",
+    "contentType": "image/gif",
+    "extension": "gif",
+    "savedAt": "2026-09-15T17:44:27.334Z",
+    "size": 103256
+  },
+  "ed17ed5b9840cff83387c80be08ceaa95b03a09b0379031010d9cbb594bf68e2": {
+    "source": "mutation_generated",
+    "itemId": "lobster",
+    "mutationId": "freezing",
+    "fileName": "fish-lobster-freezing.gif",
+    "contentType": "image/gif",
+    "extension": "gif",
+    "savedAt": "2026-09-15T18:00:27.332Z",
+    "size": 173780
+  },
+  "71566c7c99aec29580f2a702f2615a87ab24274eec1763640355e993e73b7915": {
+    "source": "mutation_generated",
+    "itemId": "ikan_tongkol",
+    "mutationId": "gold",
+    "fileName": "fish-ikan_tongkol-gold.gif",
+    "contentType": "image/gif",
+    "extension": "gif",
+    "savedAt": "2026-09-15T18:04:27.478Z",
+    "size": 135984
+  },
+  "1ab8b9d25d4fceaa423d913f05e07c93a2600086a455e6160e7aec5d048674c4": {
+    "source": "mutation_generated",
+    "itemId": "ikan_balmond",
+    "mutationId": "gold",
+    "fileName": "fish-ikan_balmond-gold.gif",
+    "contentType": "image/gif",
+    "extension": "gif",
+    "savedAt": "2026-09-15T18:15:27.553Z",
+    "size": 131944
+  },
+  "76e45109e97a336843e0c86d9b8e0c2f6fc0b1be286113d92226ba262b347e45": {
+    "source": "mutation_generated",
+    "itemId": "ikan_asam_manis",
+    "mutationId": "gold",
+    "fileName": "fish-ikan_asam_manis-gold.gif",
+    "contentType": "image/gif",
+    "extension": "gif",
+    "savedAt": "2026-09-15T18:24:27.800Z",
+    "size": 120713
+  },
+  "4d8c5847f0014d582a480f6f2b2047c0e09b11056ed05a76b96c69c185a64efe": {
+    "source": "mutation_generated",
+    "itemId": "zect",
+    "mutationId": "lightning",
+    "fileName": "fish-zect-lightning.gif",
+    "contentType": "image/gif",
+    "extension": "gif",
+    "savedAt": "2026-09-15T18:28:27.736Z",
+    "size": 141474
+  },
+  "864e7fc421a6461ffc8a3ef6a83eb3991b9992fe4dbe432a9d2c3bb9da02aa2d": {
+    "source": "mutation_generated",
+    "itemId": "hamim_jepang",
+    "mutationId": "stone",
+    "fileName": "fish-hamim_jepang-stone.gif",
+    "contentType": "image/gif",
+    "extension": "gif",
+    "savedAt": "2026-09-15T18:48:28.017Z",
+    "size": 162946
+  },
+  "313e8af821bb490ac10f2ba1f46394054642bff1a3ac742cdb8a832aa275c3a8": {
+    "source": "mutation_generated",
+    "itemId": "andry",
+    "mutationId": "radioactive",
+    "fileName": "fish-andry-radioactive.gif",
+    "contentType": "image/gif",
+    "extension": "gif",
+    "savedAt": "2026-09-15T18:51:27.767Z",
+    "size": 151723
+  },
+  "c29eae425caf1191ec49e0565f874d726145689b616515286286c26f1fce1e0c": {
+    "source": "mutation_generated",
+    "itemId": "ikan_shinta_vr",
+    "mutationId": "gold",
+    "fileName": "fish-ikan_shinta_vr-gold.gif",
+    "contentType": "image/gif",
+    "extension": "gif",
+    "savedAt": "2026-09-15T20:24:28.932Z",
+    "size": 142524
+  },
+  "834d0290dc2be3812bf1a29256b02bfa726d1205bc779abf63cf2ea39bdb85a6": {
+    "source": "mutation_generated",
+    "itemId": "lobster",
+    "mutationId": "midnight",
+    "fileName": "fish-lobster-midnight.gif",
+    "contentType": "image/gif",
+    "extension": "gif",
+    "savedAt": "2026-09-15T21:04:29.005Z",
+    "size": 136301
+  },
+  "4caf50e852ea2d6a8c4f4b2129c3a5df125e9daecdf7b9e5a69ced9af3271d19": {
+    "source": "mutation_generated",
+    "itemId": "udang",
+    "mutationId": "jawa",
+    "fileName": "fish-udang-jawa.gif",
+    "contentType": "image/gif",
+    "extension": "gif",
+    "savedAt": "2026-09-15T21:24:29.315Z",
+    "size": 179051
+  },
+  "d852e73ce7fae26e47f4041964440929fe0651093045c54178d5fd54eff39ddf": {
+    "source": "mutation_generated",
+    "itemId": "ikan_tongkol",
+    "mutationId": "ghost",
+    "fileName": "fish-ikan_tongkol-ghost.gif",
+    "contentType": "image/gif",
+    "extension": "gif",
+    "savedAt": "2026-09-15T22:04:29.649Z",
+    "size": 121735
+  },
+  "3ea236e2de2f2ca22aa7fd06210f1fd2e28676a7c560c6d26b3dec12738608be": {
+    "source": "mutation_generated",
+    "itemId": "ikan_charger_poco",
+    "mutationId": "gemstone",
+    "fileName": "fish-ikan_charger_poco-gemstone.gif",
+    "contentType": "image/gif",
+    "extension": "gif",
+    "savedAt": "2026-09-15T22:24:29.708Z",
+    "size": 157470
+  },
+  "b45f9f00af53a0614ca2bc82ff8ef9dd9bb185f6701009d010eacb8920db4bbf": {
+    "source": "mutation_generated",
+    "itemId": "kerang",
+    "mutationId": "ghost",
+    "fileName": "fish-kerang-ghost.gif",
+    "contentType": "image/gif",
+    "extension": "gif",
+    "savedAt": "2026-09-15T22:44:30.100Z",
+    "size": 100096
+  },
+  "58613939884e9bcc1db68b211f9085290eaa5a04064d868e8966c62cd5cf39e7": {
+    "source": "mutation_generated",
+    "itemId": "ikan_atmin_warga",
+    "mutationId": "radioactive",
+    "fileName": "fish-ikan_atmin_warga-radioactive.gif",
+    "contentType": "image/gif",
+    "extension": "gif",
+    "savedAt": "2026-09-15T23:11:30.048Z",
+    "size": 152096
+  },
+  "78e96cb492bfab9538ab93043d05e6443baf85d4c87353ea236ef4d462dbcabb": {
+    "source": "mutation_generated",
+    "itemId": "andry",
+    "mutationId": "gold",
+    "fileName": "fish-andry-gold.gif",
+    "contentType": "image/gif",
+    "extension": "gif",
+    "savedAt": "2026-09-15T23:39:30.349Z",
+    "size": 131670
+  },
+  "eb4fa71547836afe458f6ffbf03b3c05abca56a981e774ec881e9c93bf84583b": {
+    "source": "mutation_generated",
+    "itemId": "ikan_nila",
+    "mutationId": "ghost",
+    "fileName": "fish-ikan_nila-ghost.gif",
+    "contentType": "image/gif",
+    "extension": "gif",
+    "savedAt": "2026-09-16T00:11:30.779Z",
+    "size": 122946
+  },
+  "fc8a4bca5d7bd691e21af79765ef7113aecfe01f18dfa3940530b035d287121f": {
+    "source": "mutation_generated",
+    "itemId": "ikan_lele",
+    "mutationId": "bloodmoon",
+    "fileName": "fish-ikan_lele-bloodmoon.gif",
+    "contentType": "image/gif",
+    "extension": "gif",
+    "savedAt": "2026-09-16T00:55:30.817Z",
+    "size": 158115
+  },
+  "23c43d652e5c172a341d82972b534a1a712a13e366e9fd4b4ae6f67f2db40689": {
+    "url": "https://cdn.discordapp.com/attachments/1543874293258260550/1545347192875782234/routine-message-1788509721953-banner.png?ex=6a9c78f9&is=6a9b2779&hm=212a01e42629f6e1b9d18dc09499cac148bc5c2bdd885bab62ca65fa22cf4e33&",
+    "source": "legacy_local_cache",
+    "fileName": "url-23c43d652e5c.png",
+    "originalUrl": "https://cdn.discordapp.com/attachments/1543874293258260550/1545347192875782234/routine-message-1788509721953-banner.png?ex=6a9bd039&is=6a9a7eb9&hm=1fb53dea056eeb44d170e0d23acb0d43c61b18b51c10820acf2eabf510b9242a&",
+    "contentType": "image/png",
+    "extension": "png",
+    "savedAt": "2026-09-16T00:57:54.206Z",
+    "size": 27435
   }
 }
