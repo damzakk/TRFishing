@@ -1999,6 +1999,37 @@ function getShowcasedFish(player, guildId = "") {
   return fishEntry && getFishDexEntry(player, fishEntry).caught ? fishEntry : null;
 }
 
+function getCaughtMutationEntries(dexEntry) {
+  return (Array.isArray(dexEntry?.mutations) ? dexEntry.mutations : [])
+    .filter((entry) => Number(entry?.count || 0) > 0);
+}
+
+function getSelectedShowcaseMutationChoice(player, fishEntry, dexEntry = null) {
+  if (!fishEntry) {
+    return fishDexNoMutationValue;
+  }
+  const entry = dexEntry || getFishDexEntry(player, fishEntry);
+  const caughtMutations = getCaughtMutationEntries(entry);
+  const caughtMutationIds = new Set(caughtMutations.map((mutation) => normalizeMutationId(mutation.mutationId)).filter(Boolean));
+  const showcasedFishId = String(player?.showcasedFishId || "").trim();
+  const showcasedMutationId = normalizeMutationId(player?.showcasedMutationId);
+  if (showcasedFishId === fishEntry.id && showcasedMutationId === fishDexNoMutationValue) {
+    return fishDexNoMutationValue;
+  }
+  if (showcasedFishId === fishEntry.id && caughtMutationIds.has(showcasedMutationId)) {
+    return showcasedMutationId;
+  }
+  const lastMutationId = normalizeMutationId(entry.lastMutationId);
+  return caughtMutationIds.has(lastMutationId)
+    ? lastMutationId
+    : normalizeMutationId(caughtMutations[0]?.mutationId) || fishDexNoMutationValue;
+}
+
+function getSelectedShowcaseMutationId(player, fishEntry, dexEntry = null) {
+  const mutationChoice = getSelectedShowcaseMutationChoice(player, fishEntry, dexEntry);
+  return mutationChoice === fishDexNoMutationValue ? "" : mutationChoice;
+}
+
 function makeProfileEmbed(user, player) {
   const rod = getRod(player.rodId);
   const level = getLevel(player.exp);
@@ -2282,6 +2313,10 @@ async function makeFishShowoffMessage(user, player, member = null, guildId = "")
     : "Belum ada";
   const selectedFish = getFishShowoffFish(player, guildId);
   const selectedFishDexEntry = selectedFish ? getFishDexEntry(player, selectedFish) : null;
+  const selectedFishMutationId = getSelectedShowcaseMutationId(player, selectedFish, selectedFishDexEntry);
+  const selectedFishMutation = selectedFishMutationId
+    ? getMutationDefinition(selectedFishMutationId, getSettings().mutations)
+    : null;
   const displayName = truncateText(member?.displayName || user.globalName || user.displayName || user.username, 28);
   const avatarUrl = member?.displayAvatarURL?.({ extension: "png", size: 512 })
     || user.displayAvatarURL?.({ extension: "png", size: 512 })
@@ -2292,6 +2327,10 @@ async function makeFishShowoffMessage(user, player, member = null, guildId = "")
   const banner = await makeFishShowoffBanner({
     avatarUrl,
     fish: selectedFish,
+    rod,
+    fishBag: getFishBag(player.fishBagId),
+    mutationId: selectedFishMutationId,
+    mutationSettings: getSettings().mutations,
     imageTrace,
     stats: {
       displayName,
@@ -2303,6 +2342,7 @@ async function makeFishShowoffMessage(user, player, member = null, guildId = "")
       caughtFishTypes: countCaughtFishTypes(player, guildId),
       availableFishCount: getAvailableFish(guildId).length,
       fishName: selectedFish?.name || "",
+      fishMutationName: selectedFishMutation?.name || (selectedFishMutationId ? `${selectedFishMutationId} (Archived)` : ""),
       fishRarity: selectedFish?.rarity || "",
       fishMaxWeight: selectedFishDexEntry?.caught ? formatKg(selectedFishDexEntry.heaviestWeight) : "",
       fishLuckScore: selectedFishLuckScore,
@@ -2311,7 +2351,7 @@ async function makeFishShowoffMessage(user, player, member = null, guildId = "")
     }
   });
   console.info(`${displayName} is showing off ${selectedFish?.name || "no fish"}, image used is <${imageTrace.name || "placeholder fish icon"}><${imageTrace.url || "no image URL"}>${imageTrace.error ? `, error is <${imageTrace.error}>` : ""}`);
-  const fileName = `fishshowoff-${user.id}.png`;
+  const fileName = `fishshowoff-${user.id}.${banner.extension || "png"}`;
   return {
     content: `## ${formatDiscordMention(user.id)} Ingin Pamer!`,
     allowedMentions: { users: [user.id] },
@@ -3762,6 +3802,7 @@ function makeStoreMessage(user, player, selectedRodId = null, status = "", selec
 const fishDexPageSize = 25;
 const unknownFishName = "????????";
 const unknownFishValue = "??????";
+const fishDexNoMutationValue = "no_mutation";
 
 function getFishDexPageCount(guildId = "") {
   return Math.max(1, Math.ceil(getAvailableFish(guildId).length / fishDexPageSize));
@@ -3786,9 +3827,10 @@ async function makeFishDexEmbed(user, player, selectedFishId = "", guildId = "",
     || null;
   const dexEntry = selectedFish ? getFishDexEntry(player, selectedFish) : null;
   const caught = Boolean(dexEntry?.caught);
-  const selectedMutationId = caught
-    ? dexEntry.lastMutationId || dexEntry.mutations?.[0]?.mutationId || ""
+  const selectedMutationChoice = caught
+    ? getSelectedShowcaseMutationChoice(player, selectedFish, dexEntry)
     : "";
+  const selectedMutationId = selectedMutationChoice === fishDexNoMutationValue ? "" : selectedMutationChoice;
   const mutationLines = caught && dexEntry.mutations?.length
     ? dexEntry.mutations.map((entry) => `${entry.mutation?.name || entry.mutationId} x${entry.count} · Best ${formatKg(entry.heaviestWeight)}`)
     : [];
@@ -3822,11 +3864,21 @@ async function makeFishDexEmbed(user, player, selectedFishId = "", guildId = "",
     embed.setThumbnail(icon.url);
   }
 
-  return { embed, files: icon?.attachment ? [icon.attachment] : [], page: pageData.page, pageCount: pageData.pageCount, selectedFish, caught, selectedMutationId };
+  return {
+    embed,
+    files: icon?.attachment ? [icon.attachment] : [],
+    page: pageData.page,
+    pageCount: pageData.pageCount,
+    selectedFish,
+    caught,
+    selectedMutationId,
+    selectedMutationChoice
+  };
 }
 
 function makeFishDexOptions(player, guildId = "", page = 0, selectedFishId = "") {
   const pageData = getFishDexPageFish(guildId, page);
+  const effectiveSelectedFishId = selectedFishId || pageData.fish[0]?.id || "";
   return pageData.fish.map((fishEntry) => {
     const dexEntry = getFishDexEntry(player, fishEntry);
     const caught = dexEntry.caught;
@@ -3834,9 +3886,34 @@ function makeFishDexOptions(player, guildId = "", page = 0, selectedFishId = "")
       label: truncateText(caught ? fishEntry.name : unknownFishName, 100),
       description: truncateText(`${fishEntry.rarity || "Common"}${caught ? ` · Caught ${dexEntry.count} · Best ${formatKg(dexEntry.heaviestWeight)}` : ""}`, 100),
       value: fishEntry.id,
-      default: fishEntry.id === selectedFishId
+      default: fishEntry.id === effectiveSelectedFishId
     };
   });
+}
+
+function makeFishDexMutationOptions(player, selectedFish, selectedMutationChoice = "") {
+  if (!selectedFish) {
+    return [];
+  }
+  const dexEntry = getFishDexEntry(player, selectedFish);
+  if (!dexEntry.caught) {
+    return [];
+  }
+  const normalizedSelectedMutationChoice = normalizeMutationId(selectedMutationChoice) || fishDexNoMutationValue;
+  return [
+    {
+      label: "No Mutation",
+      description: "Tampilkan ikan tanpa mutasi",
+      value: fishDexNoMutationValue,
+      default: normalizedSelectedMutationChoice === fishDexNoMutationValue
+    },
+    ...getCaughtMutationEntries(dexEntry).map((entry) => ({
+      label: truncateText(entry.mutation?.name || entry.mutationId, 100),
+      description: truncateText(`Caught ${entry.count} · Best ${formatKg(entry.heaviestWeight)}`, 100),
+      value: entry.mutationId,
+      default: entry.mutationId === normalizedSelectedMutationChoice
+    }))
+  ];
 }
 
 function makeFishDexActionRow(player, userId, page = 0, selectedFish = null, caught = false) {
@@ -3855,10 +3932,14 @@ function makeFishDexActionRow(player, userId, page = 0, selectedFish = null, cau
   );
 }
 
-function makeFishDexComponents(player, userId, guildId = "", page = 0, selectedFishId = "") {
+function makeFishDexComponents(player, userId, guildId = "", page = 0, selectedFishId = "", selectedMutationChoice = "") {
   const pageData = getFishDexPageFish(guildId, page);
   const options = makeFishDexOptions(player, guildId, pageData.page, selectedFishId);
-  const components = { selectRow: null, pageText: "", buttonRow: null };
+  const selectedFish = getAvailableFish(guildId).find((fishEntry) => fishEntry.id === selectedFishId)
+    || pageData.fish[0]
+    || null;
+  const mutationOptions = makeFishDexMutationOptions(player, selectedFish, selectedMutationChoice);
+  const components = { selectRow: null, mutationRow: null, mutationHint: "", pageText: "", buttonRow: null };
   if (options.length) {
     components.selectRow =
       new ActionRowBuilder().addComponents(
@@ -3867,6 +3948,17 @@ function makeFishDexComponents(player, userId, guildId = "", page = 0, selectedF
           .setPlaceholder("Pilih ikan")
           .addOptions(options)
       );
+  }
+  if (mutationOptions.length) {
+    components.mutationRow =
+      new ActionRowBuilder().addComponents(
+        new StringSelectMenuBuilder()
+          .setCustomId(`fishdex_mut:${userId}:${pageData.page}:${selectedFish?.id || "none"}`)
+          .setPlaceholder("Pilih mutasi untuk dipamerkan")
+          .addOptions(mutationOptions)
+      );
+  } else if (selectedFish && getFishDexEntry(player, selectedFish).caught) {
+    components.mutationHint = "-# Belum ada mutasi tertangkap untuk ikan ini.";
   }
   components.pageText = `Page **${pageData.page + 1}/${pageData.pageCount}**`;
   if (pageData.pageCount > 1) {
@@ -3910,11 +4002,24 @@ async function makeFishDexMessage(user, player, selectedFishId = "", guildId = "
   container.addTextDisplayComponents(makeTextDisplay("**Ikan Profil**"));
   container.addActionRowComponents(makeFishDexActionRow(player, user.id, fishDexEmbed.page, fishDexEmbed.selectedFish, fishDexEmbed.caught));
 
-  const controls = makeFishDexComponents(player, user.id, guildId, fishDexEmbed.page, fishDexEmbed.selectedFish?.id || "");
-  if (controls.selectRow || controls.buttonRow) {
+  const controls = makeFishDexComponents(
+    player,
+    user.id,
+    guildId,
+    fishDexEmbed.page,
+    fishDexEmbed.selectedFish?.id || "",
+    fishDexEmbed.selectedMutationChoice
+  );
+  if (controls.selectRow || controls.mutationRow || controls.mutationHint || controls.buttonRow) {
     container.addSeparatorComponents(new SeparatorBuilder());
     if (controls.selectRow) {
       container.addActionRowComponents(controls.selectRow);
+    }
+    if (controls.mutationRow) {
+      container.addTextDisplayComponents(makeTextDisplay("**Mutasi Pameran**"));
+      container.addActionRowComponents(controls.mutationRow);
+    } else if (controls.mutationHint) {
+      container.addTextDisplayComponents(makeTextDisplay(controls.mutationHint));
     }
     container.addTextDisplayComponents(makeTextDisplay(controls.pageText));
     if (controls.buttonRow) {
@@ -6868,6 +6973,33 @@ client.on("interactionCreate", async (interaction) => {
       return;
     }
 
+    if (interaction.isStringSelectMenu() && interaction.customId.startsWith("fishdex_mut:")) {
+      const [, ownerId, pageValue, ...fishIdParts] = interaction.customId.split(":");
+      const selectedFishId = fishIdParts.join(":");
+      if (ownerId && ownerId !== interaction.user.id) {
+        await interaction.reply({ content: "Fishdex ini punya pemain lain.", flags: MessageFlags.Ephemeral });
+        return;
+      }
+      await interaction.deferUpdate();
+      await withPlayer(interaction.user, async (player) => {
+        const selectedFish = getAvailableFish(interaction.guildId).find((fishEntry) => fishEntry.id === selectedFishId);
+        const selectedFishDexEntry = selectedFish ? getFishDexEntry(player, selectedFish) : null;
+        const selectedMutationChoice = normalizeMutationId(interaction.values?.[0]);
+        const isNoMutation = selectedMutationChoice === fishDexNoMutationValue;
+        const isCaughtMutation = isNoMutation || getCaughtMutationEntries(selectedFishDexEntry)
+          .some((entry) => normalizeMutationId(entry.mutationId) === selectedMutationChoice);
+        if (!selectedFish || !selectedFishDexEntry?.caught || !isCaughtMutation) {
+          await interaction.editReply(await makeFishDexMessage(interaction.user, player, selectedFishId, interaction.guildId, Number(pageValue || 0)));
+          return { save: false };
+        }
+        player.showcasedFishId = selectedFish.id;
+        player.showcasedMutationId = selectedMutationChoice;
+        await interaction.editReply(await makeFishDexMessage(interaction.user, player, selectedFish.id, interaction.guildId, Number(pageValue || 0)));
+        return undefined;
+      });
+      return;
+    }
+
     if (interaction.isStringSelectMenu() && interaction.customId.startsWith("fishdex_select:")) {
       const [, ownerId, pageValue] = interaction.customId.split(":");
       if (ownerId && ownerId !== interaction.user.id) {
@@ -6904,11 +7036,14 @@ client.on("interactionCreate", async (interaction) => {
       await interaction.deferUpdate();
       await withPlayer(interaction.user, async (player) => {
         const selectedFish = getAvailableFish(interaction.guildId).find((fishEntry) => fishEntry.id === selectedFishId);
-        if (!selectedFish || !getFishDexEntry(player, selectedFish).caught) {
+        const selectedFishDexEntry = selectedFish ? getFishDexEntry(player, selectedFish) : null;
+        if (!selectedFish || !selectedFishDexEntry?.caught) {
           await interaction.editReply(await makeFishDexMessage(interaction.user, player, selectedFishId, interaction.guildId, Number(pageValue || 0)));
           return { save: false };
         }
+        const showcasedMutationId = getSelectedShowcaseMutationChoice(player, selectedFish, selectedFishDexEntry);
         player.showcasedFishId = selectedFish.id;
+        player.showcasedMutationId = showcasedMutationId;
         await interaction.editReply(await makeFishDexMessage(interaction.user, player, selectedFish.id, interaction.guildId, Number(pageValue || 0)));
         return undefined;
       });
@@ -6928,11 +7063,14 @@ client.on("interactionCreate", async (interaction) => {
         : null;
       await withPlayer(interaction.user, async (player) => {
         const selectedFish = getAvailableFish(interaction.guildId).find((fishEntry) => fishEntry.id === selectedFishId);
-        if (!selectedFish || !getFishDexEntry(player, selectedFish).caught) {
+        const selectedFishDexEntry = selectedFish ? getFishDexEntry(player, selectedFish) : null;
+        if (!selectedFish || !selectedFishDexEntry?.caught) {
           await interaction.editReply(await makeFishDexMessage(interaction.user, player, selectedFishId, interaction.guildId, Number(pageValue || 0)));
           return { save: false };
         }
+        const showcasedMutationId = getSelectedShowcaseMutationChoice(player, selectedFish, selectedFishDexEntry);
         player.showcasedFishId = selectedFish.id;
+        player.showcasedMutationId = showcasedMutationId;
         await interaction.editReply(await makeFishDexMessage(interaction.user, player, selectedFish.id, interaction.guildId, Number(pageValue || 0)));
         const showoffMessage = await interaction.channel?.send(await makeFishShowoffMessage(interaction.user, player, member, interaction.guildId)).catch((error) => {
           console.error("Could not send fishdex showcase showoff message:", error);

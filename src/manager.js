@@ -253,6 +253,7 @@ function cleanPlayer(player) {
     mutationInventory,
     fishDex: normalizedFishDex,
     showcasedFishId: String(source.showcasedFishId || "").trim(),
+    showcasedMutationId: normalizeMutationId(source.showcasedMutationId),
     fishEntotLastUsedAt: Math.max(0, cleanNumber(source.fishEntotLastUsedAt, 0)),
     fishEntotNegativeStreak: Math.max(0, Math.floor(cleanNumber(source.fishEntotNegativeStreak, 0))),
     totalFishCaught: Math.max(0, Math.floor(cleanNumber(source.totalFishCaught, Object.values(inventory).reduce((sum, quantity) => sum + quantity, 0) + Object.values(mutationInventory).reduce((sum, mutations) => sum + Object.values(mutations).reduce((mutationSum, quantity) => mutationSum + quantity, 0), 0)))),
@@ -1531,6 +1532,63 @@ async function handleApi(request, response) {
       return;
     }
 
+    if (request.method === "POST" && request.url === "/api/event/save") {
+      const body = JSON.parse(await readBody(request));
+      const data = cleanTabData("event", body);
+      const draft = cleanEvent(body.eventDraft);
+      if (!draft) {
+        sendJson(response, 400, { error: "Event is not valid." });
+        return;
+      }
+
+      const originalId = String(body.originalId || draft.id || "").trim();
+      const sourceEvents = cleanEvents(data.events, data.activeEvent);
+      const saveAs = body.saveAs === true;
+      const existingEvent = sourceEvents.find((event) => event.id === originalId);
+      if (!saveAs && originalId && !existingEvent) {
+        sendJson(response, 404, { error: "The event being edited no longer exists. Reload the Event tab and try again." });
+        return;
+      }
+
+      let savedEvent;
+      let events;
+      let activeEvent;
+      if (saveAs || !existingEvent) {
+        const baseId = draft.id || String(Date.now());
+        let newId = baseId;
+        let copyNumber = 2;
+        while (sourceEvents.some((event) => event.id === newId)) {
+          newId = `${baseId}_copy_${Date.now()}_${copyNumber}`;
+          copyNumber += 1;
+        }
+        const deployedAt = new Date().toISOString();
+        savedEvent = {
+          ...draft,
+          id: newId,
+          deployedAt,
+          isAnnounced: false,
+          stoppedAt: ""
+        };
+        if (savedEvent.startAt) {
+          savedEvent.endsAt = new Date(Date.parse(savedEvent.startAt) + Math.max(1, Number(savedEvent.durationMinutes || 60)) * 60_000).toISOString();
+        }
+        events = [savedEvent, ...sourceEvents.filter((event) => event.id !== newId)];
+        activeEvent = savedEvent;
+      } else {
+        savedEvent = { ...existingEvent, ...draft, id: existingEvent.id };
+        if (savedEvent.startAt) {
+          savedEvent.endsAt = new Date(Date.parse(savedEvent.startAt) + Math.max(1, Number(savedEvent.durationMinutes || 60)) * 60_000).toISOString();
+        }
+        events = sourceEvents.map((event) => event.id === originalId ? savedEvent : event);
+        activeEvent = data.activeEvent?.id === originalId ? savedEvent : data.activeEvent || null;
+      }
+
+      const saved = await adminSaveManagerTabData("event", { activeEvent, events });
+      signalBotConfigRefresh();
+      sendJson(response, 200, { ok: true, activeEvent: saved.activeEvent, events: saved.events, savedEvent, saveAs });
+      return;
+    }
+
     if (request.method === "POST" && request.url === "/api/event/stop") {
       const body = JSON.parse(await readBody(request));
       const current = await adminGetManagerTabData("event", { caller: "manager event stop" });
@@ -1565,9 +1623,19 @@ async function handleApi(request, response) {
         sendJson(response, 400, { error: "Routine message is not valid." });
         return;
       }
+      const existingIds = new Set((data.routineMessages || []).map((entry) => entry.id));
+      const baseId = routine.id || String(Date.now());
+      let routineId = baseId;
+      let copyNumber = 2;
+      if (body.saveAs === true) {
+        while (existingIds.has(routineId)) {
+          routineId = `${baseId}_copy_${Date.now()}_${copyNumber}`;
+          copyNumber += 1;
+        }
+      }
       const routineMessages = [
-        { ...routine, id: routine.id || String(Date.now()) },
-        ...(data.routineMessages || []).filter((entry) => entry.id !== routine.id)
+        { ...routine, id: routineId },
+        ...(data.routineMessages || []).filter((entry) => entry.id !== routineId)
       ];
       const savedData = await adminSaveManagerTabData("routine", { routineMessages });
       signalBotConfigRefresh();
@@ -2881,6 +2949,7 @@ const html = `<!doctype html>
           \${playerField("Rod ID", "rodId", player.rodId || "")}
           \${playerField("Fish Bag ID", "fishBagId", player.fishBagId || "")}
           \${playerField("Showcased Fish ID", "showcasedFishId", player.showcasedFishId || "")}
+          \${playerField("Showcased Mutation ID", "showcasedMutationId", player.showcasedMutationId || "")}
           \${playerField("Progress", "progress", player.progress || 0, "number", "1")}
           \${playerField("Total Fish Caught", "totalFishCaught", player.totalFishCaught || 0, "number", "1")}
           \${playerField("FishComp Wins", "fishCompWins", player.fishCompWins || 0, "number", "1")}
@@ -3034,10 +3103,10 @@ const html = `<!doctype html>
 
     function createOverlayTemplate() {
       if (state.createModal === "event" && state.eventDraft) {
-        return modalTemplate("Create Event", eventTemplate());
+        return modalTemplate(isEventDraftEditing() ? "Edit Event" : "Create Event", eventTemplate());
       }
       if (state.createModal === "routine" && state.routineDraft) {
-        return modalTemplate(state.routineMessages.some((entry) => entry.id === state.routineDraft.id) ? "Edit Routine Message" : "Create Routine Message", routineTemplate());
+        return modalTemplate(isRoutineDraftEditing() ? "Edit Routine Message" : "Create Routine Message", routineTemplate());
       }
       if (state.createModal === "raidBoss" && state.raidBossDraft) {
         return modalTemplate("Create Raid Boss", raidBossCreateTemplate());
@@ -3729,6 +3798,32 @@ const html = `<!doctype html>
       return { id: String(Date.now()), title: "", description: "", bannerBase64: "", bannerUrl: "", startAt, durationMinutes: 60, bonuses: [{ type: "gold_multiplier", value: 2, fishId: "", mutationId: "" }], questIds: [], announcementChannelId: state.lastAnnouncementChannelId, guildId: "", stoppedAt: "", deployedAt: "" };
     }
 
+    function cloneEventForEdit(event) {
+      return JSON.parse(JSON.stringify(event || makeEmptyEvent()));
+    }
+
+    function isEventDraftEditing() {
+      const eventId = String(state.eventDraft?.id || "");
+      return Boolean(eventId && ((state.events || []).some((event) => String(event.id || "") === eventId) || String(state.activeEvent?.id || "") === eventId));
+    }
+
+    function isRoutineDraftEditing() {
+      const routineId = String(state.routineDraft?.id || "");
+      return Boolean(routineId && (state.routineMessages || []).some((routine) => String(routine.id || "") === routineId));
+    }
+
+    function makeNewItemId(baseId, entries) {
+      const ids = new Set((Array.isArray(entries) ? entries : []).map((entry) => String(entry?.id || "")));
+      const safeBaseId = String(baseId || "item");
+      let copyId = safeBaseId + "_copy_" + Date.now();
+      let copyNumber = 2;
+      while (ids.has(copyId)) {
+        copyId = safeBaseId + "_copy_" + Date.now() + "_" + copyNumber;
+        copyNumber += 1;
+      }
+      return copyId;
+    }
+
     function formatDateTimeLocal(date) {
       const pad = (value) => String(value).padStart(2, "0");
       return [
@@ -3803,7 +3898,10 @@ const html = `<!doctype html>
             \${event.description ? \`<div class="small event-description-preview">\${escapeHtml(event.description)}</div>\` : ""}
             <div class="small">Start: \${escapeHtml(start)} · End: \${escapeHtml(end)}</div>
             <div class="small">Announcement Channel: \${escapeHtml(event.announcementChannelId || "-")} · Server: \${escapeHtml(event.guildId || "resolved by bot after announce")}</div>
-            \${canStop ? \`<button class="danger" data-stop-event="\${escapeHtml(event.id)}">\${running ? "Stop Event" : "Cancel Event"}</button>\` : \`<button class="danger" data-remove-event="\${escapeHtml(event.id)}">Remove</button>\`}
+            <div class="button-row">
+              <button data-edit-event="\${escapeHtml(event.id)}" type="button">Edit</button>
+              \${canStop ? \`<button class="danger" data-stop-event="\${escapeHtml(event.id)}">\${running ? "Stop Event" : "Cancel Event"}</button>\` : \`<button class="danger" data-remove-event="\${escapeHtml(event.id)}">Remove</button>\`}
+            </div>
           </div>\`;
       }).join("") : \`<div class="small">No events yet.</div>\`;
       return \`
@@ -3820,6 +3918,7 @@ const html = `<!doctype html>
 
     function eventTemplate() {
       const event = getEvent();
+      const editing = isEventDraftEditing();
       const bannerSize = event.bannerBase64 ? Math.round(event.bannerBase64.length / 1024) : 0;
       const bannerSource = event.bannerBase64 || event.bannerUrl || "";
       const bannerName = state.uploadNames.eventBanner || "";
@@ -3827,7 +3926,7 @@ const html = `<!doctype html>
       const bonuses = normalizeEvent(event).bonuses;
       return \`
         <div class="topline">
-          <strong>Create Event</strong>
+          <strong>\${editing ? "Edit Event" : "Create Event"}</strong>
           <button class="danger" data-clear-event>Cancel</button>
         </div>
         <div class="fields">
@@ -3855,7 +3954,10 @@ const html = `<!doctype html>
               <button class="danger" data-clear-event-banner>Clear Event Banner</button>
             </section>
           </div>
-          <button class="primary" data-deploy-event>Deploy Event</button>
+          <div class="button-row">
+            <button class="primary" data-deploy-event>\${editing ? "Save Event" : "Deploy Event"}</button>
+            <button data-save-as-event type="button">Save As</button>
+          </div>
         </div>\`;
     }
 
@@ -3956,6 +4058,7 @@ const html = `<!doctype html>
 
     function routineTemplate() {
       const routine = getRoutine();
+      const editing = isRoutineDraftEditing();
       const condition = routine.condition || {};
       const bannerSize = routine.bannerBase64 ? Math.round(routine.bannerBase64.length / 1024) : 0;
       const bannerSource = routine.bannerBase64 || routine.bannerUrl || "";
@@ -3963,7 +4066,7 @@ const html = `<!doctype html>
       const bannerStatus = bannerName ? \`Selected file: \${bannerName} · \${bannerSize} KB\` : bannerSource ? "Preview loaded from saved image or URL." : "No image selected.";
       return \`
         <div class="topline">
-          <strong>\${state.routineMessages.some((entry) => entry.id === routine.id) ? "Edit Routine Message" : "Create Routine Message"}</strong>
+          <strong>\${editing ? "Edit Routine Message" : "Create Routine Message"}</strong>
           <button class="danger" data-clear-routine type="button">Cancel</button>
         </div>
         <div class="fields">
@@ -4006,7 +4109,10 @@ const html = `<!doctype html>
               <button class="danger" data-clear-routine-banner type="button">Clear Routine Banner</button>
             </section>
           </div>
-          <button class="primary" data-deploy-routine type="button">\${state.routineMessages.some((entry) => entry.id === routine.id) ? "Save Routine Message" : "Deploy Routine Message"}</button>
+          <div class="button-row">
+            <button class="primary" data-deploy-routine type="button">\${editing ? "Save Routine Message" : "Deploy Routine Message"}</button>
+            <button data-save-as-routine type="button">Save As</button>
+          </div>
         </div>\`;
     }
 
@@ -5325,26 +5431,34 @@ const html = `<!doctype html>
       render();
     }
 
-    async function deployEventData() {
-      setStatus("Deploying event to PlayFab...");
+    async function saveEventData(saveAs = false) {
       const eventState = getEvent();
-      eventState.id = eventState.id || String(Date.now());
-      if (eventState.announcementChannelId) {
-        state.lastAnnouncementChannelId = eventState.announcementChannelId;
+      const originalId = eventState.id || String(Date.now());
+      const editing = isEventDraftEditing();
+      const eventDraft = cloneEventForEdit(eventState);
+      if (saveAs) {
+        eventDraft.id = makeNewItemId(originalId, state.events);
+        eventDraft.isAnnounced = false;
+        eventDraft.stoppedAt = "";
+      }
+      setStatus(saveAs ? "Saving event as a new item to PlayFab..." : editing ? "Saving event changes to PlayFab..." : "Deploying event to PlayFab...");
+      if (eventDraft.announcementChannelId) {
+        state.lastAnnouncementChannelId = eventDraft.announcementChannelId;
         localStorage.setItem("trfishing:lastAnnouncementChannelId", state.lastAnnouncementChannelId);
       }
-      const response = await fetch("/api/event/deploy", {
+      const response = await fetch("/api/event/save", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ activeEvent: eventState, events: state.events })
+        body: JSON.stringify({ activeEvent: state.activeEvent, events: state.events, eventDraft, originalId, saveAs })
       });
       const payload = await response.json();
-      if (!response.ok) throw new Error(payload.error || "Could not deploy event.");
-      state.activeEvent = payload.activeEvent || eventState;
-      state.events = payload.events || [state.activeEvent, ...state.events.filter((event) => event.id !== state.activeEvent.id)];
+      if (!response.ok) throw new Error(payload.error || "Could not save event.");
+      state.activeEvent = payload.activeEvent || state.activeEvent;
+      state.events = payload.events || [eventDraft, ...state.events.filter((event) => event.id !== eventDraft.id)];
       state.eventDraft = null;
       state.createModal = null;
-      setStatus("Event deployed. The bot is being refreshed now.");
+      delete state.uploadNames.eventBanner;
+      setStatus(saveAs ? "Event saved as a new item. The original event was kept." : editing ? "Event changes saved. The bot is being refreshed now." : "Event deployed. The bot is being refreshed now.");
       render();
     }
 
@@ -5378,22 +5492,26 @@ const html = `<!doctype html>
       render();
     }
 
-    async function deployRoutineData() {
-      setStatus("Deploying routine message to PlayFab...");
+    async function saveRoutineData(saveAs = false) {
       const routine = getRoutine();
-      routine.id = routine.id || String(Date.now());
+      const originalId = routine.id || String(Date.now());
+      const routineDraft = cloneRoutineForEdit(routine);
+      if (saveAs) {
+        routineDraft.id = makeNewItemId(originalId, state.routineMessages);
+      }
+      setStatus(saveAs ? "Saving routine message as a new item to PlayFab..." : "Saving routine message to PlayFab...");
       const response = await fetch("/api/routine/deploy", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ routineMessages: state.routineMessages, routineDraft: routine })
+        body: JSON.stringify({ routineMessages: state.routineMessages, routineDraft, originalId, saveAs })
       });
       const payload = await response.json();
-      if (!response.ok) throw new Error(payload.error || "Could not deploy routine message.");
-      state.routineMessages = payload.routineMessages || [routine, ...state.routineMessages.filter((entry) => entry.id !== routine.id)];
+      if (!response.ok) throw new Error(payload.error || "Could not save routine message.");
+      state.routineMessages = payload.routineMessages || [routineDraft, ...state.routineMessages.filter((entry) => entry.id !== routineDraft.id)];
       state.routineDraft = null;
       state.createModal = null;
       delete state.uploadNames.routineBanner;
-      setStatus("Routine message deployed. Fish bags and other tabs were not changed.");
+      setStatus(saveAs ? "Routine message saved as a new item. The original message was kept." : "Routine message saved. Fish bags and other tabs were not changed.");
       render();
     }
 
@@ -6414,6 +6532,21 @@ const html = `<!doctype html>
         render();
         return;
       }
+      const editEventButton = event.target.closest("[data-edit-event]");
+      if (editEventButton) {
+        const eventToEdit = (state.events || []).find((entry) => String(entry.id || "") === String(editEventButton.dataset.editEvent || ""))
+          || (String(state.activeEvent?.id || "") === String(editEventButton.dataset.editEvent || "") ? state.activeEvent : null);
+        if (!eventToEdit) {
+          setStatus("Event was not found.", true);
+          return;
+        }
+        state.eventDraft = cloneEventForEdit(eventToEdit);
+        state.createModal = "event";
+        delete state.uploadNames.eventBanner;
+        setStatus("Editing event. Press Save Event when done.");
+        render();
+        return;
+      }
       if (event.target.closest("[data-create-routine]")) {
         state.routineDraft = makeEmptyRoutine();
         state.createModal = "routine";
@@ -6637,7 +6770,11 @@ const html = `<!doctype html>
         return;
       }
       if (event.target.closest("[data-deploy-event]")) {
-        runWithLoading("Deploying event…", deployEventData).catch((error) => setStatus(error.message, true));
+        runWithLoading("Saving event…", () => saveEventData(false)).catch((error) => setStatus(error.message, true));
+        return;
+      }
+      if (event.target.closest("[data-save-as-event]")) {
+        runWithLoading("Saving event as a new item…", () => saveEventData(true)).catch((error) => setStatus(error.message, true));
         return;
       }
       if (event.target.closest("[data-add-routine-button]")) {
@@ -6652,7 +6789,11 @@ const html = `<!doctype html>
         return;
       }
       if (event.target.closest("[data-deploy-routine]")) {
-        runWithLoading("Saving routine message…", deployRoutineData).catch((error) => setStatus(error.message, true));
+        runWithLoading("Saving routine message…", () => saveRoutineData(false)).catch((error) => setStatus(error.message, true));
+        return;
+      }
+      if (event.target.closest("[data-save-as-routine]")) {
+        runWithLoading("Saving routine message as a new item…", () => saveRoutineData(true)).catch((error) => setStatus(error.message, true));
         return;
       }
       const removeRoutineButton = event.target.closest("[data-remove-routine]");

@@ -8,7 +8,7 @@ const defaultFishRaidEvents = require("../fishRaidEvents.json");
 const defaultFishDuelEvents = require("../fishDuelEvents.json");
 const { defaultFishEntotSettings, cleanFishEntotEvents } = require("./fishEntotConfig");
 const { getDiscordImageUrl, uploadDiscordImageFromUrl, uploadDiscordImageWithRef } = require("./discordStorage");
-const { normalizeFishDex, normalizeMutationInventory, normalizeMutationSettings } = require("./mutationSystem");
+const { normalizeFishDex, normalizeMutationId, normalizeMutationInventory, normalizeMutationSettings } = require("./mutationSystem");
 
 const titleId = process.env.PLAYFAB_TITLE_ID;
 const secretKey = process.env.PLAYFAB_SECRET_KEY;
@@ -304,6 +304,7 @@ function makeDefaultPlayer() {
     mutationInventory: {},
     fishDex: {},
     showcasedFishId: "",
+    showcasedMutationId: "",
     fishEntotLastUsedAt: 0,
     fishEntotNegativeStreak: 0,
     dailyLastClaimedAt: 0,
@@ -383,6 +384,7 @@ function normalizePlayer(rawPlayer) {
     mutationInventory,
     fishDex,
     showcasedFishId: String(rawPlayer?.showcasedFishId || "").trim(),
+    showcasedMutationId: normalizeMutationId(rawPlayer?.showcasedMutationId),
     fishEntotLastUsedAt: Math.max(0, cleanNumber(rawPlayer?.fishEntotLastUsedAt, 0)),
     fishEntotNegativeStreak: Math.max(0, Math.floor(cleanNumber(rawPlayer?.fishEntotNegativeStreak, 0))),
     dailyLastClaimedAt: Math.max(0, cleanNumber(rawPlayer?.dailyLastClaimedAt, 0)),

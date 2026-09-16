@@ -7839,5 +7839,15 @@
     "extension": "png",
     "savedAt": "2026-09-16T00:57:54.206Z",
     "size": 27435
+  },
+  "eb9fd145a603668414351fe7e9574b011fc598cd46b0e7197c8223339be4a80d": {
+    "source": "mutation_generated",
+    "itemId": "singa_laut",
+    "mutationId": "stone",
+    "fileName": "fish-singa_laut-stone.gif",
+    "contentType": "image/gif",
+    "extension": "gif",
+    "savedAt": "2026-09-16T03:19:33.742Z",
+    "size": 164717
   }
 }

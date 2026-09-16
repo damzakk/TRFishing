@@ -1,3 +1,28 @@
 {
-  "messages": []
+  "messages": [
+    {
+      "channelId": "1543804160611319880",
+      "messageId": "1549646987895513148",
+      "deleteAt": 1789536855408,
+      "reason": "public showoff cleanup"
+    },
+    {
+      "channelId": "891474628122394637",
+      "messageId": "1549650801201520710",
+      "deleteAt": 1789537740968,
+      "reason": "public showoff cleanup"
+    },
+    {
+      "channelId": "891474628122394637",
+      "messageId": "1549650795081891861",
+      "deleteAt": 1789537763496,
+      "reason": "public showoff cleanup"
+    },
+    {
+      "channelId": "1545366068024057936",
+      "messageId": "1549652415060381757",
+      "deleteAt": 1789537230748,
+      "reason": "Fishentot message cleanup"
+    }
+  ]
 }

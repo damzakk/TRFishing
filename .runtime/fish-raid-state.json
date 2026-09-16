@@ -66,7 +66,7 @@
       "baseQuotaKg": 500,
       "quotaKg": 1200,
       "streak": 7,
-      "filledKg": 680.20378633927,
+      "filledKg": 1200,
       "participants": {
         "215382509851115520": {
           "id": "215382509851115520",
@@ -74,10 +74,10 @@
           "globalName": "Zect",
           "displayName": "<@215382509851115520>",
           "logName": "Discord",
-          "count": 9,
-          "totalWeight": 47.75447692845021,
-          "heaviestWeight": 14.781573084057648,
-          "heaviestName": "Ikan Butiran Debu Kosmik"
+          "count": 22,
+          "totalWeight": 98.26989210842771,
+          "heaviestWeight": 25.36856027909796,
+          "heaviestName": "Ikan Dikala Senja"
         },
         "337858521771278338": {
           "id": "337858521771278338",
@@ -107,10 +107,10 @@
           "globalName": "venomenom",
           "displayName": "<@281139082380312576>",
           "logName": "TR | Mereun",
-          "count": 12,
-          "totalWeight": 61.15218288855782,
-          "heaviestWeight": 16.479965170763244,
-          "heaviestName": "Ikan Dikala Senja"
+          "count": 26,
+          "totalWeight": 146.64163524925945,
+          "heaviestWeight": 30.796031853305063,
+          "heaviestName": "Ikan Hiu"
         },
         "363275626662330369": {
           "id": "363275626662330369",
@@ -118,8 +118,8 @@
           "globalName": "Miradh",
           "displayName": "<@363275626662330369>",
           "logName": "TR | Celup (Adhiet)",
-          "count": 14,
-          "totalWeight": 144.60590999387077,
+          "count": 23,
+          "totalWeight": 180.28567407450154,
           "heaviestWeight": 61.41901233241174,
           "heaviestName": "Ikan Sultan"
         },
@@ -129,8 +129,8 @@
           "globalName": "PakTuki",
           "displayName": "<@367669792993181697>",
           "logName": "TR | Ebol Ebol",
-          "count": 24,
-          "totalWeight": 165.07454885240776,
+          "count": 54,
+          "totalWeight": 337.5414424089515,
           "heaviestWeight": 68.53981456591553,
           "heaviestName": "Ikan Sultan"
         },
@@ -140,14 +140,25 @@
           "globalName": "Delta",
           "displayName": "<@275237881323454465>",
           "logName": "᲼",
-          "count": 14,
-          "totalWeight": 35.0252343165137,
+          "count": 24,
+          "totalWeight": 56.04829284627323,
           "heaviestWeight": 6.609169993964072,
           "heaviestName": "Ikan Hiu"
+        },
+        "451776326723174401": {
+          "id": "451776326723174401",
+          "username": "azaralea",
+          "globalName": "Azara",
+          "displayName": "<@451776326723174401>",
+          "logName": "TR | Aktor (Adam) (Awiwir)",
+          "count": 36,
+          "totalWeight": 196.48031584476365,
+          "heaviestWeight": 34.47736988016925,
+          "heaviestName": "Ikan Kelinci Imut"
         }
       },
-      "fulfilledAt": "",
-      "lastRaidEndedAt": 1789516887613,
+      "fulfilledAt": "2026-09-16T04:12:47.245Z",
+      "lastRaidEndedAt": 1789531967245,
       "channelId": "891474628122394637"
     },
     "842632391000326154": {
@@ -216,7 +227,7 @@
       "baseQuotaKg": 500,
       "quotaKg": 500,
       "streak": 0,
-      "filledKg": 212.24576016357503,
+      "filledKg": 500,
       "participants": {
         "369841174367830019": {
           "id": "369841174367830019",
@@ -224,10 +235,10 @@
           "globalName": "Ned",
           "displayName": "<@369841174367830019>",
           "logName": "Ned",
-          "count": 13,
-          "totalWeight": 32.8736333143203,
-          "heaviestWeight": 6.8232549499737845,
-          "heaviestName": "Udang"
+          "count": 23,
+          "totalWeight": 72.50459737357092,
+          "heaviestWeight": 7.318356087292399,
+          "heaviestName": "Gurita"
         },
         "451776326723174401": {
           "id": "451776326723174401",
@@ -235,14 +246,47 @@
           "globalName": "Azara",
           "displayName": "<@451776326723174401>",
           "logName": "Azara",
-          "count": 12,
-          "totalWeight": 179.3721268492547,
+          "count": 24,
+          "totalWeight": 248.72065885938983,
           "heaviestWeight": 55.04993396111517,
           "heaviestName": "Ikan Hiu"
+        },
+        "565899747009757196": {
+          "id": "565899747009757196",
+          "username": "fiorette.",
+          "globalName": "Fiorette",
+          "displayName": "<@565899747009757196>",
+          "logName": "Fiorette",
+          "count": 11,
+          "totalWeight": 43.29534568998675,
+          "heaviestWeight": 7.4244453834872965,
+          "heaviestName": "Kerang"
+        },
+        "215382509851115520": {
+          "id": "215382509851115520",
+          "username": "zect52",
+          "globalName": "Zect",
+          "displayName": "<@215382509851115520>",
+          "logName": "Zect",
+          "count": 10,
+          "totalWeight": 156.25351731593707,
+          "heaviestWeight": 60.21235423107317,
+          "heaviestName": "Ikan Balmond"
+        },
+        "409293098959634433": {
+          "id": "409293098959634433",
+          "username": "riiura",
+          "globalName": "Riiura",
+          "displayName": "<@409293098959634433>",
+          "logName": "Riiura",
+          "count": 8,
+          "totalWeight": 23.54386581936877,
+          "heaviestWeight": 5.910490570900205,
+          "heaviestName": "Lobster"
         }
       },
-      "fulfilledAt": "",
-      "lastRaidEndedAt": 1789519928882,
+      "fulfilledAt": "2026-09-16T03:16:25.676Z",
+      "lastRaidEndedAt": 1789528585676,
       "channelId": "1545366068024057936"
     }
   }
