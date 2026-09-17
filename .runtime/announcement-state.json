@@ -1,5 +1,5 @@
 {
-  "savedAt": "2026-09-16T05:00:08.942Z",
+  "savedAt": "2026-09-17T03:46:24.682Z",
   "activeEvents": {
     "1788584488170:start:2026-09-05T05:02:11.359Z": {
       "eventId": "1788584488170",
@@ -133,6 +133,27 @@
       "guildId": "891474628122394634",
       "channelId": "891474628122394637",
       "markedAt": "2026-09-15T15:04:00.774Z"
+    },
+    "1789608325533_copy_1789608384379:start:2026-09-17T01:26:24.393Z": {
+      "eventId": "1789608325533_copy_1789608384379",
+      "title": "Ikan Goreng",
+      "guildId": "842632391000326154",
+      "channelId": "842632391809564693",
+      "markedAt": "2026-09-17T01:26:39.453Z"
+    },
+    "1789608325533_copy_1789608384379_copy_1789608470593:start:2026-09-17T01:27:50.596Z": {
+      "eventId": "1789608325533_copy_1789608384379_copy_1789608470593",
+      "title": "Ikan Goreng",
+      "guildId": "842632391000326154",
+      "channelId": "891474628122394637",
+      "markedAt": "2026-09-17T01:28:00.088Z"
+    },
+    "1789608575654_copy_1789608644276:start:2026-09-17T01:30:44.282Z": {
+      "eventId": "1789608575654_copy_1789608644276",
+      "title": "Ikan Goreng",
+      "guildId": "891474628122394634",
+      "channelId": "891474628122394637",
+      "markedAt": "2026-09-17T01:30:59.544Z"
     }
   },
   "endedEvents": {
@@ -254,8 +275,30 @@
       "guildId": "842632391000326154",
       "channelId": "842632391809564693",
       "markedAt": "2026-09-16T01:05:10.895Z"
+    },
+    "1789608325533_copy_1789608384379:end:1789608404383": {
+      "eventId": "1789608325533_copy_1789608384379",
+      "title": "Ikan Goreng",
+      "guildId": "842632391000326154",
+      "channelId": "891474628122394637",
+      "markedAt": "2026-09-17T01:27:40.369Z"
+    },
+    "1789608325533_copy_1789608384379_copy_1789608470593:end:1789608554550": {
+      "eventId": "1789608325533_copy_1789608384379_copy_1789608470593",
+      "title": "Ikan Goreng",
+      "guildId": "842632391000326154",
+      "channelId": "891474628122394637",
+      "markedAt": "2026-09-17T01:29:24.033Z"
+    },
+    "1789608575654_copy_1789608644276:end:1789612140000": {
+      "eventId": "1789608575654_copy_1789608644276",
+      "title": "Ikan Goreng",
+      "guildId": "891474628122394634",
+      "channelId": "891474628122394637",
+      "markedAt": "2026-09-17T02:30:03.266Z"
     }
   },
+  "eventMoves": {},
   "routines": {
     "fishraid_cooldown_ready_reminder:891474628122394634:891474628122394634:fishraid_cooldown_ready:1788593174954": {
       "routineId": "fishraid_cooldown_ready_reminder",
@@ -886,6 +929,83 @@
       "triggerKey": "891474628122394634:2026-09-16:12:00",
       "channelId": "891474628122394637",
       "markedAt": "2026-09-16T05:00:08.942Z"
+    },
+    "tips_tricks_random_30:891474628122394634:891474628122394634:29825617": {
+      "routineId": "tips_tricks_random_30",
+      "guildId": "891474628122394634",
+      "triggerKey": "891474628122394634:29825617",
+      "channelId": "891474628122394637",
+      "markedAt": "2026-09-16T05:37:59.327Z"
+    },
+    "tips_tricks_random_30:891474628122394634:891474628122394634:29826218": {
+      "routineId": "tips_tricks_random_30",
+      "guildId": "891474628122394634",
+      "triggerKey": "891474628122394634:29826218",
+      "channelId": "891474628122394637",
+      "markedAt": "2026-09-16T15:38:51.721Z"
+    },
+    "fishraid_cooldown_ready_reminder_copy_1789523121656:891474628122394634:891474628122394634:fishraid_cooldown_ready:1789583459523": {
+      "routineId": "fishraid_cooldown_ready_reminder_copy_1789523121656",
+      "guildId": "891474628122394634",
+      "triggerKey": "891474628122394634:fishraid_cooldown_ready:1789583459523",
+      "channelId": "891474628122394637",
+      "markedAt": "2026-09-16T18:31:52.818Z"
+    },
+    "fishraid_cooldown_ready_reminder_copy_1789523121656:891474628122394634:891474628122394634:fishraid_cooldown_ready:1789587625169": {
+      "routineId": "fishraid_cooldown_ready_reminder_copy_1789523121656",
+      "guildId": "891474628122394634",
+      "triggerKey": "891474628122394634:fishraid_cooldown_ready:1789587625169",
+      "channelId": "891474628122394637",
+      "markedAt": "2026-09-16T19:40:53.201Z"
+    },
+    "tips_tricks_random_30:891474628122394634:891474628122394634:29826460": {
+      "routineId": "tips_tricks_random_30",
+      "guildId": "891474628122394634",
+      "triggerKey": "891474628122394634:29826460",
+      "channelId": "891474628122394637",
+      "markedAt": "2026-09-16T19:40:57.440Z"
+    },
+    "fishraid_cooldown_ready_reminder_copy_1789523121656:891474628122394634:891474628122394634:fishraid_cooldown_ready:1789591722820": {
+      "routineId": "fishraid_cooldown_ready_reminder_copy_1789523121656",
+      "guildId": "891474628122394634",
+      "triggerKey": "891474628122394634:fishraid_cooldown_ready:1789591722820",
+      "channelId": "891474628122394637",
+      "markedAt": "2026-09-16T20:48:53.786Z"
+    },
+    "fishraid_cooldown_ready_reminder_copy_1789523121656:891474628122394634:891474628122394634:fishraid_cooldown_ready:1789598297446": {
+      "routineId": "fishraid_cooldown_ready_reminder_copy_1789523121656",
+      "guildId": "891474628122394634",
+      "triggerKey": "891474628122394634:fishraid_cooldown_ready:1789598297446",
+      "channelId": "891474628122394637",
+      "markedAt": "2026-09-17T01:20:58.390Z"
+    },
+    "fishraid_cooldown_ready_reminder_copy_1789523121656:891474628122394634:891474628122394634:fishraid_cooldown_ready:1789612728667": {
+      "routineId": "fishraid_cooldown_ready_reminder_copy_1789523121656",
+      "guildId": "891474628122394634",
+      "triggerKey": "891474628122394634:fishraid_cooldown_ready:1789612728667",
+      "channelId": "891474628122394637",
+      "markedAt": "2026-09-17T02:39:14.351Z"
+    },
+    "fishraid_cooldown_ready_reminder:842632391000326154:842632391000326154:fishraid_cooldown_ready:1789614134632": {
+      "routineId": "fishraid_cooldown_ready_reminder",
+      "guildId": "842632391000326154",
+      "triggerKey": "842632391000326154:fishraid_cooldown_ready:1789614134632",
+      "channelId": "842632391809564693",
+      "markedAt": "2026-09-17T03:03:14.307Z"
+    },
+    "tips_tricks_random_30:842632391000326154:842632391000326154:29826946": {
+      "routineId": "tips_tricks_random_30",
+      "guildId": "842632391000326154",
+      "triggerKey": "842632391000326154:29826946",
+      "channelId": "842632391809564693",
+      "markedAt": "2026-09-17T03:46:23.458Z"
+    },
+    "tips_tricks_random_30:1543804160120717423:1543804160120717423:29826946": {
+      "routineId": "tips_tricks_random_30",
+      "guildId": "1543804160120717423",
+      "triggerKey": "1543804160120717423:29826946",
+      "channelId": "1543804160611319880",
+      "markedAt": "2026-09-17T03:46:24.682Z"
     }
   }
 }

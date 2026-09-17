@@ -201,6 +201,43 @@ function isPlayFabConflict(error) {
   return error?.message?.includes("conflict occurred trying to make multiple edits");
 }
 
+function isPlayFabTooManyKeys(error) {
+  return String(error?.message || "").includes("TooManyKeys");
+}
+
+function managedChunkKeyInfo(key) {
+  const match = String(key || "").match(/_rev_(\d+)_([a-z0-9]+)_chunk_(\d+)$/i);
+  return match ? { createdAt: Number(match[1]), index: Number(match[3]) } : null;
+}
+
+async function removeOrphanedTitleDataChunks() {
+  const result = await callPlayFab("Server", "GetTitleData", {}, true).catch(() => ({ Data: {} }));
+  const data = result.Data && typeof result.Data === "object" ? result.Data : {};
+  const referencedKeys = new Set();
+  for (const value of Object.values(data)) {
+    const manifest = parseAssetManifest(value);
+    if (manifest?.storage !== "title_data_chunks" || !manifest.key) {
+      continue;
+    }
+    for (let index = 0; index < manifest.chunks; index += 1) {
+      referencedKeys.add(chunkKeyFor(manifest.key, index));
+    }
+  }
+
+  const staleBefore = Date.now() - 10 * 60_000;
+  const orphanedKeys = Object.keys(data).filter((key) => {
+    const info = managedChunkKeyInfo(key);
+    return info && info.createdAt < staleBefore && !referencedKeys.has(key);
+  });
+  let removedCount = 0;
+  for (const key of orphanedKeys) {
+    await setTitleData(key, null).then(() => {
+      removedCount += 1;
+    }).catch(() => {});
+  }
+  return removedCount;
+}
+
 async function setTitleData(key, value) {
   const maxAttempts = 5;
 
@@ -1045,6 +1082,15 @@ function cleanEvent(event) {
   }
 
   const bannerUrl = String(event.bannerUrl || "").trim();
+  const announcementMove = event.announcementMove && typeof event.announcementMove === "object"
+    ? {
+      fromChannelId: String(event.announcementMove.fromChannelId || "").trim(),
+      fromGuildId: String(event.announcementMove.fromGuildId || "").trim(),
+      toChannelId: String(event.announcementMove.toChannelId || "").trim(),
+      wasAnnounced: event.announcementMove.wasAnnounced === true,
+      movedAt: String(event.announcementMove.movedAt || "").trim()
+    }
+    : null;
   const startAt = String(event.startAt || event.deployedAt || "").trim();
   const durationMinutes = Math.max(1, Number(event.durationMinutes || 60));
   const endsAt = String(event.endsAt || (startAt ? new Date(Date.parse(startAt) + durationMinutes * 60_000).toISOString() : "")).trim();
@@ -1073,7 +1119,8 @@ function cleanEvent(event) {
     isAnnounced: event.isAnnounced === true,
     stoppedAt: String(event.stoppedAt || "").trim(),
     deployedAt: String(event.deployedAt || "").trim(),
-    questIds: [...new Set((Array.isArray(event.questIds) ? event.questIds : event.questId ? [event.questId] : []).map(String).filter(Boolean))]
+    questIds: [...new Set((Array.isArray(event.questIds) ? event.questIds : event.questId ? [event.questId] : []).map(String).filter(Boolean))],
+    announcementMove
   };
 }
 
@@ -1213,6 +1260,15 @@ function parseAssetManifest(value) {
   }
 }
 
+async function clearManifestChunks(manifest) {
+  if (manifest?.storage !== "title_data_chunks" || !manifest.key) {
+    return;
+  }
+  for (let index = 0; index < manifest.chunks; index += 1) {
+    await setTitleData(chunkKeyFor(manifest.key, index), null).catch(() => {});
+  }
+}
+
 async function saveTitleAsset(key, value) {
   const assetValue = String(value || "");
   if (!assetValue) {
@@ -1226,14 +1282,60 @@ async function saveTitleAsset(key, value) {
 
   const previousResult = await callPlayFab("Server", "GetTitleData", { Keys: [key] }, true).catch(() => ({ Data: {} }));
   const previousManifest = parseAssetManifest(previousResult.Data?.[key] || "");
+
+  // Most configuration and runtime-state documents are small enough to fit in
+  // one Title Data value. Keeping them inline avoids creating a temporary new
+  // chunk key on every edit, which can hit PlayFab's title-data key quota.
+  if (assetValue.length <= titleDataChunkSize) {
+    await setTitleData(key, assetValue);
+    await clearManifestChunks(previousManifest);
+    return { storage: "inline" };
+  }
+
   const revisionKey = `${key}_rev_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
   const chunks = [];
   for (let index = 0; index < assetValue.length; index += titleDataChunkSize) {
     chunks.push(assetValue.slice(index, index + titleDataChunkSize));
   }
 
-  for (const [index, chunk] of chunks.entries()) {
-    await setTitleData(chunkKeyFor(revisionKey, index), chunk);
+  let writtenChunkCount = 0;
+  try {
+    for (const [index, chunk] of chunks.entries()) {
+      await setTitleData(chunkKeyFor(revisionKey, index), chunk);
+      writtenChunkCount = index + 1;
+    }
+  } catch (error) {
+    // If the title is already at PlayFab's key limit, reuse the current
+    // revision when it has enough chunks instead of needing one extra key.
+    // This keeps an edit possible while retaining the normal atomic revision
+    // flow whenever the title has room for it.
+    if (!isPlayFabTooManyKeys(error)) {
+      throw error;
+    }
+
+    await clearManifestChunks({ storage: "title_data_chunks", key: revisionKey, chunks: writtenChunkCount });
+    if (await removeOrphanedTitleDataChunks()) {
+      return saveTitleAsset(key, assetValue);
+    }
+    if (previousManifest?.storage !== "title_data_chunks" || chunks.length > previousManifest.chunks) {
+      throw error;
+    }
+
+    for (const [index, chunk] of chunks.entries()) {
+      await setTitleData(chunkKeyFor(previousManifest.key, index), chunk);
+    }
+    const reusedManifest = {
+      storage: "title_data_chunks",
+      key: previousManifest.key,
+      chunks: chunks.length
+    };
+    await setTitleData(key, JSON.stringify(reusedManifest));
+    if (previousManifest.chunks > chunks.length) {
+      for (let index = chunks.length; index < previousManifest.chunks; index += 1) {
+        await setTitleData(chunkKeyFor(previousManifest.key, index), null).catch(() => {});
+      }
+    }
+    return reusedManifest;
   }
 
   const manifest = {
@@ -1247,9 +1349,7 @@ async function saveTitleAsset(key, value) {
   // The manifest is switched only after every new chunk exists, so readers can
   // never observe a half-written JSON document. Old chunks are best-effort cleanup.
   if (previousManifest?.storage === "title_data_chunks" && previousManifest.key !== revisionKey) {
-    for (let index = 0; index < previousManifest.chunks; index += 1) {
-      await setTitleData(chunkKeyFor(previousManifest.key, index), "").catch(() => {});
-    }
+    await clearManifestChunks(previousManifest);
   }
 
   return manifest;
@@ -1259,13 +1359,9 @@ async function clearTitleAsset(key) {
   const result = await callPlayFab("Server", "GetTitleData", { Keys: [key] }, true).catch(() => ({ Data: {} }));
   const manifest = parseAssetManifest(result.Data?.[key] || "");
 
-  if (manifest?.storage === "title_data_chunks") {
-    for (let index = 0; index < manifest.chunks; index += 1) {
-      await setTitleData(chunkKeyFor(manifest.key, index), "");
-    }
-  }
+  await clearManifestChunks(manifest);
 
-  await setTitleData(key, "");
+  await setTitleData(key, null);
 }
 
 function parseDataImageSource(dataUrl) {

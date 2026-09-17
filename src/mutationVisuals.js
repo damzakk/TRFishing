@@ -2,6 +2,7 @@ const crypto = require("node:crypto");
 const { AttachmentBuilder } = require("discord.js");
 const { Jimp } = require("jimp");
 const { GifFrame, GifCodec, GifUtil } = require("gifwrap");
+const { resolveDiscordStoredImage } = require("./discordStorage");
 const {
   getCachedImageForItem,
   getCachedImageForUrl,
@@ -273,6 +274,19 @@ async function getBaseImage(item) {
     return dataImage;
   }
 
+  if (item?.iconRef || item?.iconMessageUrl) {
+    const storedImage = await resolveDiscordStoredImage({
+      ref: item?.iconRef,
+      messageUrl: item?.iconMessageUrl,
+      fallbackUrl: item?.iconUrl,
+      fileName: item?.iconRef?.fileName || `fish-${item?.id || "icon"}.png`
+    }).catch(() => null);
+    if (storedImage?.buffer?.length) {
+      rememberCachedImageForItem(item, storedImage, { source: storedImage.source || "discord_stored" });
+      return storedImage;
+    }
+  }
+
   if (item?.iconUrl) {
     const image = await fetchImageBuffer(item.iconUrl);
     rememberCachedImageForUrl(item.iconUrl, image, { source: "mutation_visual_url", fileName: `fish-${item.id || "icon"}.${image.extension}` });
@@ -286,9 +300,20 @@ async function getOverlayImage(overlay) {
   const dataImage = parseDataImage(overlay?.base64);
   if (dataImage?.buffer?.length) return dataImage;
   const sourceUrl = String(overlay?.url || "").trim();
+  if (sourceUrl) {
+    const cached = getCachedImageForUrl(sourceUrl);
+    if (cached?.buffer?.length) return cached;
+  }
+  if (overlay?.ref || overlay?.messageUrl) {
+    const storedImage = await resolveDiscordStoredImage({
+      ref: overlay?.ref,
+      messageUrl: overlay?.messageUrl,
+      fallbackUrl: sourceUrl,
+      fileName: overlay?.ref?.fileName || `mutation-overlay-${overlay?.id || "image"}.png`
+    }).catch(() => null);
+    if (storedImage?.buffer?.length) return storedImage;
+  }
   if (!sourceUrl) return null;
-  const cached = getCachedImageForUrl(sourceUrl);
-  if (cached?.buffer?.length) return cached;
   const image = await fetchImageBuffer(sourceUrl);
   rememberCachedImageForUrl(sourceUrl, image, { source: "mutation_overlay_url", fileName: `mutation-overlay-${overlay?.id || "image"}.${image.extension}` });
   return image;
@@ -402,4 +427,96 @@ async function makeMutationIconAttachment(item, mutationId, namePrefix = "fish",
   }
 }
 
-module.exports = { makeMutationIconAttachment };
+function mutationVisualCacheKey(mutation) {
+  const mutationKey = JSON.stringify({
+    id: mutation?.id || "",
+    color: mutation?.color,
+    visual: mutation?.visual,
+    enabled: mutation?.enabled,
+    overlays: (mutation?.customOverlays || []).map((overlay) => ({
+      id: overlay?.id,
+      name: overlay?.name,
+      base64: overlay?.base64
+        ? crypto.createHash("sha256").update(overlay.base64).digest("hex")
+        : "",
+      url: overlay?.url,
+      scale: overlay?.scale,
+      x: overlay?.x,
+      y: overlay?.y,
+      opacity: overlay?.opacity,
+      motion: overlay?.motion,
+      motionSpeed: overlay?.motionSpeed,
+      enabled: overlay?.enabled
+    }))
+  });
+  return crypto.createHash("sha256").update(`mutation-visual|${mutationKey}`).digest("hex");
+}
+
+async function makeMutationVisualAttachment(mutationId, namePrefix = "mutation", rawMutations = null) {
+  const mutation = getMutationDefinition(mutationId, rawMutations);
+  if (!mutation) return null;
+
+  const cacheKey = mutationVisualCacheKey(mutation);
+  const cached = getCachedImageByKey(cacheKey);
+  const fileName = `${namePrefix}-${mutation.id}.gif`;
+  if (cached?.buffer?.length) {
+    return {
+      attachment: new AttachmentBuilder(cached.buffer, { name: fileName }),
+      url: `attachment://${fileName}`,
+      source: "mutation_visual_cache",
+      buffer: cached.buffer,
+      contentType: "image/gif",
+      cache: cached
+    };
+  }
+
+  try {
+    const overlays = await Promise.all((mutation.customOverlays || [])
+      .filter((overlay) => overlay?.enabled !== false)
+      .map(async (overlay) => ({
+        settings: overlay,
+        image: await getOverlayImage(overlay).catch(() => null)
+      })));
+    const frames = [];
+    for (let frameIndex = 0; frameIndex < mutationFrameCount; frameIndex += 1) {
+      const frameImage = new Jimp({
+        width: maxMutationIconSize,
+        height: maxMutationIconSize,
+        color: 0x00000000
+      });
+      applyVisualPreset(frameImage, mutation, frameIndex);
+      for (const overlay of overlays) {
+        if (overlay.image) applyCustomOverlay(frameImage, overlay.image, overlay.settings, frameIndex);
+      }
+      frames.push(new GifFrame(frameImage.bitmap, {
+        delayCentisecs: mutationFrameDelay,
+        disposalMethod: 2
+      }));
+    }
+    GifUtil.quantizeDekker(frames, 256);
+    const gif = await new GifCodec().encodeGif(frames, { loops: 0 });
+    const generated = rememberCachedImageByKey(cacheKey, {
+      buffer: gif.buffer,
+      contentType: "image/gif",
+      extension: "gif"
+    }, {
+      source: "mutation_visual_generated",
+      mutationId: mutation.id,
+      fileName
+    });
+    const buffer = generated?.buffer || gif.buffer;
+    return {
+      attachment: new AttachmentBuilder(buffer, { name: fileName }),
+      url: `attachment://${fileName}`,
+      source: "mutation_visual_generated",
+      buffer,
+      contentType: "image/gif",
+      cache: generated
+    };
+  } catch (error) {
+    console.warn(`Mutation visual generation failed for ${mutation.id}: ${error.message}`);
+    return null;
+  }
+}
+
+module.exports = { makeMutationIconAttachment, makeMutationVisualAttachment };

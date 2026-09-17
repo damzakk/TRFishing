@@ -33,7 +33,7 @@ const {
 const { adminListPlayers, adminSaveEventData, adminSaveRoutineState, getGameData, getPlayer, savePlayer } = require("./playfab");
 const { makeFishShowoffBanner } = require("./fishShowoffBanner");
 const { makeIconAttachment, parseDataImage } = require("./imageUtils");
-const { makeMutationIconAttachment } = require("./mutationVisuals");
+const { makeMutationIconAttachment, makeMutationVisualAttachment } = require("./mutationVisuals");
 const {
   ensurePlayerMutationData,
   getMutationDefinition,
@@ -188,6 +188,7 @@ const finishedCompetitionLogs = new Map();
 let announcementState = {
   activeEvents: {},
   endedEvents: {},
+  eventMoves: {},
   routines: {}
 };
 const fishVoiceChannels = new Map();
@@ -303,6 +304,7 @@ function loadAnnouncementState() {
   announcementState = {
     activeEvents: saved.activeEvents && typeof saved.activeEvents === "object" && !Array.isArray(saved.activeEvents) ? saved.activeEvents : {},
     endedEvents: saved.endedEvents && typeof saved.endedEvents === "object" && !Array.isArray(saved.endedEvents) ? saved.endedEvents : {},
+    eventMoves: saved.eventMoves && typeof saved.eventMoves === "object" && !Array.isArray(saved.eventMoves) ? saved.eventMoves : {},
     routines: saved.routines && typeof saved.routines === "object" && !Array.isArray(saved.routines) ? saved.routines : {}
   };
   for (const eventKey of Object.keys(announcementState.activeEvents)) {
@@ -318,24 +320,41 @@ function saveAnnouncementState() {
     savedAt: new Date().toISOString(),
     activeEvents: announcementState.activeEvents,
     endedEvents: announcementState.endedEvents,
+    eventMoves: announcementState.eventMoves,
     routines: announcementState.routines
   });
 }
 
 function eventAnnouncementKey(event, phase = "start") {
   const marker = phase === "end" ? getEventEndedAt(event) || event.stoppedAt || event.endsAt : event.deployedAt || event.startAt || event.endsAt || "";
-  return `${event?.id || event?.title || "event"}:${phase}:${marker}`;
+  const baseKey = `${event?.id || event?.title || "event"}:${phase}:${marker}`;
+  if (String(event?.announcementChannelId || "").trim()) {
+    return baseKey;
+  }
+  return `${baseKey}:global`;
 }
 
-function isEventAnnouncementLocallyMarked(event, phase = "start") {
-  const key = eventAnnouncementKey(event, phase);
+function eventMoveAnnouncementKey(event, move) {
+  return `${event?.id || event?.title || "event"}:move:${move?.movedAt || ""}:${move?.fromChannelId || ""}:${move?.toChannelId || ""}`;
+}
+
+function isEventAnnouncementLocallyMarked(event, phase = "start", guildId = "", channelId = "") {
+  const globalEvent = !String(event?.announcementChannelId || "").trim();
+  const baseKey = eventAnnouncementKey(event, phase);
+  const key = globalEvent
+    ? `${baseKey}:${guildId || "guild"}:${channelId || "channel"}`
+    : baseKey;
   return phase === "end"
-    ? Boolean(announcementState.endedEvents[key] || announcedEndedEvents.has(key) || announcedEndedEvents.has(event.id))
-    : Boolean(announcementState.activeEvents[key] || announcedEvents.has(key) || announcedEvents.has(event.id));
+    ? Boolean(announcementState.endedEvents[key] || announcedEndedEvents.has(key) || (!globalEvent && announcedEndedEvents.has(event.id)))
+    : Boolean(announcementState.activeEvents[key] || announcedEvents.has(key) || (!globalEvent && announcedEvents.has(event.id)));
 }
 
 function markEventAnnouncementLocal(event, phase = "start", guildId = "", channelId = "") {
-  const key = eventAnnouncementKey(event, phase);
+  const globalEvent = !String(event?.announcementChannelId || "").trim();
+  const baseKey = eventAnnouncementKey(event, phase);
+  const key = globalEvent
+    ? `${baseKey}:${guildId || "guild"}:${channelId || "channel"}`
+    : baseKey;
   const target = phase === "end" ? announcementState.endedEvents : announcementState.activeEvents;
   target[key] = {
     eventId: event?.id || "",
@@ -346,10 +365,14 @@ function markEventAnnouncementLocal(event, phase = "start", guildId = "", channe
   };
   if (phase === "end") {
     announcedEndedEvents.add(key);
-    announcedEndedEvents.add(event.id);
+    if (!globalEvent) {
+      announcedEndedEvents.add(event.id);
+    }
   } else {
     announcedEvents.add(key);
-    announcedEvents.add(event.id);
+    if (!globalEvent) {
+      announcedEvents.add(event.id);
+    }
   }
   saveAnnouncementState();
 }
@@ -866,6 +889,61 @@ async function resolveParentTextChannel(channel) {
   return null;
 }
 
+function getBotGuildIds() {
+  return [...client.guilds.cache.keys()].filter(Boolean);
+}
+
+function canBotSendToChannel(channel) {
+  if (!channel || typeof channel.send !== "function") {
+    return false;
+  }
+  const me = channel.guild?.members?.me;
+  if (!me || typeof channel.permissionsFor !== "function") {
+    return true;
+  }
+  const permissions = channel.permissionsFor(me);
+  return !permissions || permissions.has(PermissionFlagsBits.SendMessages);
+}
+
+function isGuildBroadcastChannel(channel, guildId = "") {
+  return Boolean(
+    channel?.isTextBased?.()
+    && !channel.isThread?.()
+    && (!guildId || channel.guildId === guildId)
+    && canBotSendToChannel(channel)
+  );
+}
+
+async function fetchGuildBroadcastChannel(guildId, preferredChannelId = "") {
+  const selectedChannelId = String(preferredChannelId || "").trim();
+  if (selectedChannelId) {
+    const selectedChannel = await client.channels.fetch(selectedChannelId).catch(() => null);
+    const resolvedSelectedChannel = await resolveParentTextChannel(selectedChannel);
+    return isGuildBroadcastChannel(resolvedSelectedChannel, guildId) ? resolvedSelectedChannel : null;
+  }
+
+  const configuredChannelId = defaultFishingChannels.get(guildId);
+  if (configuredChannelId) {
+    const configuredChannel = await client.channels.fetch(configuredChannelId).catch(() => null);
+    const resolvedConfiguredChannel = await resolveParentTextChannel(configuredChannel);
+    if (isGuildBroadcastChannel(resolvedConfiguredChannel, guildId)) {
+      return resolvedConfiguredChannel;
+    }
+  }
+
+  const guild = client.guilds.cache.get(guildId) || await client.guilds.fetch(guildId).catch(() => null);
+  if (!guild?.channels?.cache) {
+    return null;
+  }
+
+  const candidates = [
+    guild.systemChannel,
+    ...guild.channels.cache.values()
+  ].filter((channel, index, channels) => channel && channels.indexOf(channel) === index);
+  candidates.sort((left, right) => Number(left.rawPosition || 0) - Number(right.rawPosition || 0));
+  return candidates.find((channel) => isGuildBroadcastChannel(channel, guildId)) || null;
+}
+
 function pendingMessageDeleteKey(channelId, messageId) {
   return `${channelId}:${messageId}`;
 }
@@ -979,15 +1057,15 @@ async function fetchMainTextChannel(player = null, guildId = "", fallbackChannel
 async function fetchRoutineMessageChannel(routine, guildId = "") {
   const channelId = String(routine?.channelId || "").trim();
   if (channelId) {
-    return resolveParentTextChannel(await client.channels.fetch(channelId).catch(() => null));
+    const channel = await client.channels.fetch(channelId).catch(() => null);
+    if (!channel?.guildId || (guildId && channel.guildId !== guildId)) {
+      return null;
+    }
+    const resolvedChannel = await resolveParentTextChannel(channel);
+    return canBotSendToChannel(resolvedChannel) ? resolvedChannel : null;
   }
 
-  const defaultChannelId = defaultFishingChannels.get(guildId);
-  if (!defaultChannelId) {
-    return null;
-  }
-
-  return resolveParentTextChannel(await client.channels.fetch(defaultChannelId).catch(() => null));
+  return fetchGuildBroadcastChannel(guildId);
 }
 
 async function createFishingPopupThread(channel) {
@@ -1289,7 +1367,7 @@ function getEventEndedAt(event) {
 }
 
 function isEventEnded(event) {
-  return Boolean(event?.title && event?.announcementChannelId && event?.deployedAt && getEventEndedAt(event));
+  return Boolean(event?.title && event?.deployedAt && getEventEndedAt(event));
 }
 
 function getAllQuests() {
@@ -1449,7 +1527,7 @@ function getEventStartMs(event) {
 function getNextUnannouncedEventStartMs() {
   const now = Date.now();
   return getEvents()
-    .filter((event) => event?.title && event.announcementChannelId && event.deployedAt && !event.isAnnounced && !event.stoppedAt)
+    .filter((event) => event?.title && event.deployedAt && !event.isAnnounced && !event.stoppedAt)
     .map(getEventStartMs)
     .filter((startsAt) => startsAt > now)
     .sort((a, b) => a - b)[0] || 0;
@@ -1472,7 +1550,8 @@ function scheduleNextEventAnnouncement() {
 }
 
 function getActiveEvents(guildId = "") {
-  return getEvents().filter((event) => isEventRunning(event) && event.guildId && event.guildId === guildId);
+  return getEvents().filter((event) => isEventRunning(event)
+    && (!String(event.announcementChannelId || "").trim() || (event.guildId && event.guildId === guildId)));
 }
 
 function getEventMultiplier(type, guildId = "", fishId = "", player = null) {
@@ -2013,7 +2092,7 @@ function getSelectedShowcaseMutationChoice(player, fishEntry, dexEntry = null) {
   const caughtMutationIds = new Set(caughtMutations.map((mutation) => normalizeMutationId(mutation.mutationId)).filter(Boolean));
   const showcasedFishId = String(player?.showcasedFishId || "").trim();
   const showcasedMutationId = normalizeMutationId(player?.showcasedMutationId);
-  if (showcasedFishId === fishEntry.id && showcasedMutationId === fishDexNoMutationValue) {
+  if (showcasedFishId === fishEntry.id && (!showcasedMutationId || showcasedMutationId === fishDexNoMutationValue)) {
     return fishDexNoMutationValue;
   }
   if (showcasedFishId === fishEntry.id && caughtMutationIds.has(showcasedMutationId)) {
@@ -2904,7 +2983,7 @@ async function ensureFishCompRolesForGuilds() {
 }
 
 async function hydrateEventGuild(event) {
-  if (!event?.announcementChannelId || event.guildId) {
+  if (!event?.announcementChannelId) {
     return;
   }
 
@@ -2912,52 +2991,85 @@ async function hydrateEventGuild(event) {
     console.error(`Could not fetch event announcement channel ${event.announcementChannelId} for event ${event.id || event.title || "unknown"}:`, error);
     return null;
   });
-  if (channel?.guildId) {
+  if (channel?.guildId && channel.guildId !== event.guildId) {
     event.guildId = channel.guildId;
     await markEventGuild(event.id, channel.guildId);
   }
 }
 
+async function getEventAnnouncementTargets(event) {
+  const channelId = String(event?.announcementChannelId || "").trim();
+  const targetGuildIds = channelId
+    ? (event.guildId ? [event.guildId] : getBotGuildIds())
+    : getBotGuildIds();
+  const targets = [];
+
+  for (const guildId of targetGuildIds) {
+    const channel = channelId
+      ? await client.channels.fetch(channelId).catch(() => null)
+      : await fetchGuildBroadcastChannel(guildId);
+    if (!channel?.isTextBased?.()) {
+      continue;
+    }
+    if (!channel.guildId || (guildId && channel.guildId !== guildId)) {
+      continue;
+    }
+    targets.push({ guildId: guildId || channel.guildId || "", channel });
+  }
+
+  if (!targets.length && channelId && !event.guildId) {
+    const channel = await client.channels.fetch(channelId).catch(() => null);
+    if (channel?.isTextBased?.() && channel.guildId) {
+      targets.push({ guildId: channel.guildId || "", channel });
+    }
+  }
+  return targets;
+}
+
 async function announceActiveEvent() {
   for (const event of getEvents().filter(isEventRunning)) {
     await hydrateEventGuild(event);
-    if (!event?.announcementChannelId || !event.deployedAt || event.isAnnounced || isEventAnnouncementLocallyMarked(event, "start")) {
+    if (!event?.deployedAt) {
       continue;
     }
 
-    const channel = await client.channels.fetch(event.announcementChannelId).catch((error) => {
-      console.error(`Could not fetch event announcement channel ${event.announcementChannelId} for event ${event.id || event.title || "unknown"}:`, error);
-      return null;
-    });
-    if (!channel?.isTextBased()) {
-      console.warn(`Event ${event.id || event.title || "unknown"} announcement channel ${event.announcementChannelId} is not available or is not text based.`);
-      continue;
-    }
+    const globalEvent = !String(event.announcementChannelId || "").trim();
+    const targets = await getEventAnnouncementTargets(event);
+    let sentToAtLeastOneGuild = false;
+    for (const { guildId, channel } of targets) {
+      if (globalEvent
+        ? isEventAnnouncementLocallyMarked(event, "start", guildId, channel.id)
+        : event.isAnnounced || isEventAnnouncementLocallyMarked(event, "start", guildId, channel.id)) {
+        continue;
+      }
 
-    if (!event.guildId && channel.guildId) {
-      event.guildId = channel.guildId;
-      await markEventGuild(event.id, channel.guildId);
-    }
-
-    const eventMessage = makeEventEmbed(event);
-    try {
-      logBotAction("Event start announcement sending", {
-        guild: guildLogName(channel, event.guildId),
+      const eventMessage = makeEventEmbed(event);
+      try {
+        logBotAction("Event start announcement sending", {
+          guild: guildLogName(channel, guildId),
+          channel: channelLogName(channel),
+          extra: `event=${event.id || event.title || "unknown"}${globalEvent ? " scope=global" : ""}`
+        });
+        await channel.send({ embeds: [eventMessage.embed], files: eventMessage.files });
+      } catch (error) {
+        console.error(`Could not send announcement for event ${event.id || event.title || "unknown"} to channel ${channel.id}: ${error.message}`);
+        continue;
+      }
+      logBotAction("Event start announcement sent", {
+        guild: guildLogName(channel, guildId),
         channel: channelLogName(channel),
-        extra: `event=${event.id || event.title || "unknown"}`
+        extra: `event=${event.id || event.title || "unknown"}${globalEvent ? " scope=global" : ""}`
       });
-      await channel.send({ embeds: [eventMessage.embed], files: eventMessage.files });
-    } catch (error) {
-      console.error(`Could not send announcement for event ${event.id || event.title || "unknown"} to channel ${event.announcementChannelId}: ${error.message}`);
-      continue;
+      markEventAnnouncementLocal(event, "start", guildId, channel.id);
+      sentToAtLeastOneGuild = true;
+      if (!globalEvent) {
+        await markEventAnnounced(event.id, guildId);
+      }
     }
-    logBotAction("Event start announcement sent", {
-      guild: guildLogName(channel, event.guildId),
-      channel: channelLogName(channel),
-      extra: `event=${event.id || event.title || "unknown"}`
-    });
-    markEventAnnouncementLocal(event, "start", event.guildId || channel.guildId || "", channel.id);
-    await markEventAnnounced(event.id, event.guildId || channel.guildId || "");
+
+    if (globalEvent && sentToAtLeastOneGuild) {
+      await markEventAnnounced(event.id, "");
+    }
   }
 }
 
@@ -2969,7 +3081,7 @@ async function markEventGuild(eventId, guildId = "") {
   }
 
   const applyGuildMark = (event) => (
-    event?.id === selectedEventId && !event.guildId
+    event?.id === selectedEventId && event.guildId !== selectedGuildId
       ? { ...event, guildId: selectedGuildId }
       : event
   );
@@ -2987,7 +3099,11 @@ async function markEventAnnounced(eventId, guildId = "") {
   const selectedEventId = String(eventId || "");
   const applyAnnouncementMark = (event) => (
     event?.id === selectedEventId
-      ? { ...event, guildId: event.guildId || guildId, isAnnounced: true }
+      ? {
+        ...event,
+        guildId: String(event.announcementChannelId || "").trim() ? (event.guildId || guildId) : "",
+        isAnnounced: true
+      }
       : event
   );
 
@@ -3000,39 +3116,159 @@ async function markEventAnnounced(eventId, guildId = "") {
   await adminSaveEventData(gameData.activeEvent, gameData.events);
 }
 
+function clearEventAnnouncementMove(eventId) {
+  const selectedEventId = String(eventId || "");
+  let changed = false;
+  const clearMove = (event) => {
+    if (event?.id !== selectedEventId || !event.announcementMove) {
+      return event;
+    }
+    changed = true;
+    return { ...event, announcementMove: null };
+  };
+  gameData = {
+    ...gameData,
+    activeEvent: clearMove(gameData.activeEvent),
+    events: Array.isArray(gameData.events) ? gameData.events.map(clearMove) : []
+  };
+  announcedEvents.delete(selectedEventId);
+  return changed;
+}
+
+async function announceMovedEvents() {
+  let changed = false;
+  for (const event of getEvents()) {
+    const move = event?.announcementMove;
+    const movingGlobalEventToSpecificChannel = Boolean(
+      move
+      && !move.fromChannelId
+      && (move.toChannelId || event.announcementChannelId)
+    );
+    if (!move || (!move.fromChannelId && !movingGlobalEventToSpecificChannel) || move.fromChannelId === event.announcementChannelId) {
+      if (move && clearEventAnnouncementMove(event.id)) changed = true;
+      continue;
+    }
+
+    const moveKey = eventMoveAnnouncementKey(event, move);
+    if (announcementState.eventMoves[moveKey]) {
+      if (clearEventAnnouncementMove(event.id)) changed = true;
+      continue;
+    }
+
+    let moveHandled = !move.wasAnnounced;
+    if (move.wasAnnounced) {
+      if (movingGlobalEventToSpecificChannel) {
+        let stopFailed = false;
+        const oldGlobalEvent = { ...event, announcementChannelId: "", guildId: "" };
+        for (const guildId of getBotGuildIds()) {
+          const oldChannel = await fetchGuildBroadcastChannel(guildId);
+          if (!oldChannel?.isTextBased?.()) {
+            continue;
+          }
+          if (isEventAnnouncementLocallyMarked(oldGlobalEvent, "move-stop", guildId, oldChannel.id)) {
+            continue;
+          }
+          const eventMessage = makeEventEndedEmbed(event);
+          logBotAction("Event move stop announcement sending", {
+            guild: guildLogName(oldChannel, guildId),
+            channel: channelLogName(oldChannel),
+            extra: `event=${event.id || event.title || "unknown"} scope=global`
+          });
+          try {
+            await oldChannel.send({ embeds: [eventMessage.embed], files: eventMessage.files });
+            markEventAnnouncementLocal(oldGlobalEvent, "move-stop", guildId, oldChannel.id);
+            logBotAction("Event move stop announcement sent", {
+              guild: guildLogName(oldChannel, guildId),
+              channel: channelLogName(oldChannel),
+              extra: `event=${event.id || event.title || "unknown"} scope=global`
+            });
+          } catch (error) {
+            stopFailed = true;
+            console.error(`Could not send global event move stop announcement for ${event.id || event.title || "unknown"} to channel ${oldChannel.id}: ${error.message}`);
+          }
+        }
+        moveHandled = !stopFailed;
+      } else {
+        const oldChannel = await client.channels.fetch(move.fromChannelId).catch((error) => {
+          console.error(`Could not fetch previous event channel ${move.fromChannelId} for event ${event.id || event.title || "unknown"}: ${error.message}`);
+          return null;
+        });
+        if (!oldChannel) {
+          continue;
+        }
+        if (oldChannel?.isTextBased()) {
+          const eventMessage = makeEventEndedEmbed(event);
+          logBotAction("Event move stop announcement sending", {
+            guild: guildLogName(oldChannel, move.fromGuildId),
+            channel: channelLogName(oldChannel),
+            extra: `event=${event.id || event.title || "unknown"}`
+          });
+          await oldChannel.send({ embeds: [eventMessage.embed], files: eventMessage.files }).then(() => {
+            moveHandled = true;
+            logBotAction("Event move stop announcement sent", {
+              guild: guildLogName(oldChannel, move.fromGuildId),
+              channel: channelLogName(oldChannel),
+              extra: `event=${event.id || event.title || "unknown"}`
+            });
+          }).catch((error) => {
+            console.error(`Could not send event move stop announcement for ${event.id || event.title || "unknown"} to channel ${move.fromChannelId}: ${error.message}`);
+          });
+        } else {
+          moveHandled = true;
+        }
+      }
+    }
+
+    if (!moveHandled) {
+      continue;
+    }
+    announcementState.eventMoves[moveKey] = {
+      eventId: event.id || "",
+      fromChannelId: move.fromChannelId,
+      toChannelId: move.toChannelId || event.announcementChannelId || "",
+      markedAt: new Date().toISOString()
+    };
+    saveAnnouncementState();
+    if (clearEventAnnouncementMove(event.id)) changed = true;
+  }
+
+  if (changed) {
+    await adminSaveEventData(gameData.activeEvent, gameData.events);
+  }
+}
+
 async function announceEndedEvents() {
   for (const event of getEvents().filter(isEventEnded)) {
     const endedAt = getEventEndedAt(event);
-    if (endedAt < processStartedAt || isEventAnnouncementLocallyMarked(event, "end")) {
+    if (endedAt < processStartedAt) {
       continue;
     }
 
-    const channel = await client.channels.fetch(event.announcementChannelId).catch(() => null);
-    if (!channel?.isTextBased()) {
-      continue;
-    }
+    const targets = await getEventAnnouncementTargets(event);
+    for (const { guildId, channel } of targets) {
+      if (isEventAnnouncementLocallyMarked(event, "end", guildId, channel.id)) {
+        continue;
+      }
 
-    if (!event.guildId && channel.guildId) {
-      event.guildId = channel.guildId;
+      const eventMessage = makeEventEndedEmbed(event);
+      logBotAction("Event end announcement sending", {
+        guild: guildLogName(channel, guildId),
+        channel: channelLogName(channel),
+        extra: `event=${event.id || event.title || "unknown"}${!event.announcementChannelId ? " scope=global" : ""}`
+      });
+      await channel.send({ embeds: [eventMessage.embed], files: eventMessage.files });
+      logBotAction("Event end announcement sent", {
+        guild: guildLogName(channel, guildId),
+        channel: channelLogName(channel),
+        extra: `event=${event.id || event.title || "unknown"}${!event.announcementChannelId ? " scope=global" : ""}`
+      });
+      markEventAnnouncementLocal(event, "end", guildId, channel.id);
     }
-
-    const eventMessage = makeEventEndedEmbed(event);
-    logBotAction("Event end announcement sending", {
-      guild: guildLogName(channel, event.guildId),
-      channel: channelLogName(channel),
-      extra: `event=${event.id || event.title || "unknown"}`
-    });
-    await channel.send({ embeds: [eventMessage.embed], files: eventMessage.files });
-    logBotAction("Event end announcement sent", {
-      guild: guildLogName(channel, event.guildId),
-      channel: channelLogName(channel),
-      extra: `event=${event.id || event.title || "unknown"}`
-    });
-    markEventAnnouncementLocal(event, "end", event.guildId || channel.guildId || "", channel.id);
   }
 }
 
 async function announceEventUpdates() {
+  await announceMovedEvents();
   await announceActiveEvent();
   await announceEndedEvents();
   scheduleNextEventAnnouncement();
@@ -3047,7 +3283,12 @@ function getRoutineGuildIds(routine) {
   if (guildId) {
     return [guildId];
   }
-  return [...defaultFishingChannels.keys()];
+  const channelId = String(routine.channelId || "").trim();
+  const cachedChannel = channelId ? client.channels.cache.get(channelId) : null;
+  if (cachedChannel?.guildId) {
+    return [cachedChannel.guildId];
+  }
+  return getBotGuildIds();
 }
 
 function routineTriggerKey(routine, guildId, now = new Date()) {
@@ -3079,7 +3320,7 @@ function isRoutineDueForGuild(routine, guildId, now = new Date()) {
   const condition = routine.condition || {};
   const nowMs = now.getTime();
   const guildState = getRoutineGuildState(routine, guildId);
-  const lastSentMs = Date.parse(guildState.lastSentAt || routine.lastSentAt || 0) || 0;
+  const lastSentMs = Date.parse(guildState.lastSentAt || (routine.guildId ? routine.lastSentAt : "") || 0) || 0;
   if (condition.type === "fishraid_cooldown_ready") {
     const state = normalizeDailyRaidState(guildId);
     if (fishRaids.has(guildId) || state.fulfilledAt || !Number(state.lastRaidEndedAt || 0)) {
@@ -3184,7 +3425,7 @@ function scheduleRoutineMessages() {
 }
 
 async function hydrateActiveEventGuilds() {
-  for (const event of getEvents().filter(isEventRunning)) {
+  for (const event of getEvents().filter((entry) => entry?.announcementChannelId)) {
     await hydrateEventGuild(event);
   }
 }
@@ -3803,6 +4044,8 @@ const fishDexPageSize = 25;
 const unknownFishName = "????????";
 const unknownFishValue = "??????";
 const fishDexNoMutationValue = "no_mutation";
+const unknownMutationName = "????????";
+const unknownMutationValue = "??????";
 
 function getFishDexPageCount(guildId = "") {
   return Math.max(1, Math.ceil(getAvailableFish(guildId).length / fishDexPageSize));
@@ -3820,7 +4063,7 @@ function getFishDexPageFish(guildId = "", page = 0) {
   };
 }
 
-async function makeFishDexEmbed(user, player, selectedFishId = "", guildId = "", page = 0) {
+async function makeFishDexEmbed(user, player, selectedFishId = "", guildId = "", page = 0, selectedMutationChoiceOverride = null) {
   const pageData = getFishDexPageFish(guildId, page);
   const selectedFish = getAvailableFish(guildId).find((fishEntry) => fishEntry.id === selectedFishId)
     || pageData.fish[0]
@@ -3828,7 +4071,9 @@ async function makeFishDexEmbed(user, player, selectedFishId = "", guildId = "",
   const dexEntry = selectedFish ? getFishDexEntry(player, selectedFish) : null;
   const caught = Boolean(dexEntry?.caught);
   const selectedMutationChoice = caught
-    ? getSelectedShowcaseMutationChoice(player, selectedFish, dexEntry)
+    ? selectedMutationChoiceOverride !== null
+      ? normalizeMutationId(selectedMutationChoiceOverride) || fishDexNoMutationValue
+      : getSelectedShowcaseMutationChoice(player, selectedFish, dexEntry)
     : "";
   const selectedMutationId = selectedMutationChoice === fishDexNoMutationValue ? "" : selectedMutationChoice;
   const mutationLines = caught && dexEntry.mutations?.length
@@ -3916,16 +4161,26 @@ function makeFishDexMutationOptions(player, selectedFish, selectedMutationChoice
   ];
 }
 
-function makeFishDexActionRow(player, userId, page = 0, selectedFish = null, caught = false) {
+function makeFishDexActionRow(player, userId, page = 0, selectedFish = null, caught = false, selectedMutationChoice = "") {
   const selectedFishId = selectedFish?.id || "none";
+  const normalizedSelectedMutationChoice = normalizeMutationId(selectedMutationChoice) || fishDexNoMutationValue;
+  const currentShowcaseMutationChoice = selectedFish && caught
+    ? getSelectedShowcaseMutationChoice(player, selectedFish)
+    : "";
+  const isSameShowcase = Boolean(
+    selectedFish?.id
+    && caught
+    && String(player?.showcasedFishId || "").trim() === selectedFish.id
+    && currentShowcaseMutationChoice === normalizedSelectedMutationChoice
+  );
   return new ActionRowBuilder().addComponents(
     new ButtonBuilder()
-      .setCustomId(`fishdex_choose:${userId}:${page}:${selectedFishId}`)
+      .setCustomId(`fdc:${userId}:${page}:${selectedFishId}:${normalizedSelectedMutationChoice}`)
       .setLabel("Pilih Ikan")
       .setStyle(ButtonStyle.Secondary)
-      .setDisabled(!selectedFish?.id || !caught || player.showcasedFishId === selectedFish.id),
+      .setDisabled(!selectedFish?.id || !caught || isSameShowcase),
     new ButtonBuilder()
-      .setCustomId(`fishdex_showcase:${userId}:${page}:${selectedFishId}`)
+      .setCustomId(`fds:${userId}:${page}:${selectedFishId}:${normalizedSelectedMutationChoice}`)
       .setLabel("Pilih & Pamerkan")
       .setStyle(ButtonStyle.Primary)
       .setDisabled(!selectedFish?.id || !caught)
@@ -3979,8 +4234,8 @@ function makeFishDexComponents(player, userId, guildId = "", page = 0, selectedF
   return components;
 }
 
-async function makeFishDexMessage(user, player, selectedFishId = "", guildId = "", page = 0) {
-  const fishDexEmbed = await makeFishDexEmbed(user, player, selectedFishId, guildId, page);
+async function makeFishDexMessage(user, player, selectedFishId = "", guildId = "", page = 0, selectedMutationChoice = null) {
+  const fishDexEmbed = await makeFishDexEmbed(user, player, selectedFishId, guildId, page, selectedMutationChoice);
   const data = fishDexEmbed.embed.toJSON();
   const container = new ContainerBuilder().setAccentColor(data.color || 0x5865f2);
   const mainText = formatEmbedMainText(data);
@@ -4000,7 +4255,7 @@ async function makeFishDexMessage(user, player, selectedFishId = "", guildId = "
   }
 
   container.addTextDisplayComponents(makeTextDisplay("**Ikan Profil**"));
-  container.addActionRowComponents(makeFishDexActionRow(player, user.id, fishDexEmbed.page, fishDexEmbed.selectedFish, fishDexEmbed.caught));
+  container.addActionRowComponents(makeFishDexActionRow(player, user.id, fishDexEmbed.page, fishDexEmbed.selectedFish, fishDexEmbed.caught, fishDexEmbed.selectedMutationChoice));
 
   const controls = makeFishDexComponents(
     player,
@@ -4029,6 +4284,182 @@ async function makeFishDexMessage(user, player, selectedFishId = "", guildId = "
 
   return makeComponentsV2Message([container], {
     files: fishDexEmbed.files
+  });
+}
+
+function getFishDexMutationData(player, guildId = "") {
+  const mutations = (Array.isArray(getSettings().mutations) ? getSettings().mutations : [])
+    .filter((mutation) => mutation?.id);
+  const fish = [...getAvailableFish(guildId)].sort(compareItemRarity);
+  const fishByMutation = new Map(mutations.map((mutation) => [mutation.id, []]));
+  for (const fishEntry of fish) {
+    const dexEntry = getFishDexEntry(player, fishEntry);
+    for (const mutationEntry of getCaughtMutationEntries(dexEntry)) {
+      const mutationId = normalizeMutationId(mutationEntry.mutationId);
+      if (fishByMutation.has(mutationId)) {
+        fishByMutation.get(mutationId).push({ fish: fishEntry, dexEntry, mutationEntry });
+      }
+    }
+  }
+  return { mutations, fishByMutation, totalFishTypes: fish.length };
+}
+
+function makeMutationDexOptions(mutationData, selectedMutationId = "") {
+  const normalizedSelectedMutationId = normalizeMutationId(selectedMutationId);
+  return mutationData.mutations.slice(0, 25).map((mutation) => {
+    const caughtFishCount = mutationData.fishByMutation.get(mutation.id)?.length || 0;
+    const discovered = caughtFishCount > 0;
+    return {
+      label: truncateText(discovered ? mutation.name : unknownMutationName, 100),
+      description: truncateText(discovered ? `${caughtFishCount} jenis ikan` : unknownMutationValue, 100),
+      value: mutation.id,
+      default: mutation.id === normalizedSelectedMutationId
+    };
+  });
+}
+
+function makeFishDexMutationFishOptions(fishRows, selectedFishId = "") {
+  return fishRows.map(({ fish, mutationEntry }) => ({
+    label: truncateText(fish.name, 100),
+    description: truncateText(`Caught ${mutationEntry.count} · Best ${formatKg(mutationEntry.heaviestWeight)}`, 100),
+    value: fish.id,
+    default: fish.id === selectedFishId
+  }));
+}
+
+function getFishDexMutationPage(fishRows, selectedFishId = "", page = 0) {
+  const pageCount = Math.max(1, Math.ceil(fishRows.length / fishDexPageSize));
+  const selectedPage = Math.max(0, Math.min(pageCount - 1, Number(page) || 0));
+  const pageRows = fishRows.slice(selectedPage * fishDexPageSize, (selectedPage + 1) * fishDexPageSize);
+  const selectedRow = fishRows.find((row) => row.fish.id === selectedFishId) || pageRows[0] || null;
+  return { page: selectedPage, pageCount, rows: pageRows, selectedRow };
+}
+
+function makeFishDexMutationActionRow(player, userId, mutationId, selectedFish = null, page = 0) {
+  const normalizedMutationId = normalizeMutationId(mutationId);
+  const selectedFishId = selectedFish?.id || "none";
+  const isSameShowcase = Boolean(
+    selectedFish?.id
+    && normalizedMutationId
+    && String(player?.showcasedFishId || "").trim() === selectedFish.id
+    && getSelectedShowcaseMutationChoice(player, selectedFish) === normalizedMutationId
+  );
+  return new ActionRowBuilder().addComponents(
+    new ButtonBuilder()
+      .setCustomId(`fdm_c:${userId}:${normalizedMutationId}:${selectedFishId}:${page}`)
+      .setLabel("Pilih Ikan")
+      .setStyle(ButtonStyle.Secondary)
+      .setDisabled(!selectedFish?.id || !normalizedMutationId || isSameShowcase),
+    new ButtonBuilder()
+      .setCustomId(`fdm_s:${userId}:${normalizedMutationId}:${selectedFishId}:${page}`)
+      .setLabel("Pilih & Pamerkan")
+      .setStyle(ButtonStyle.Primary)
+      .setDisabled(!selectedFish?.id || !normalizedMutationId)
+  );
+}
+
+async function makeFishDexMutationMessage(user, player, selectedMutationId = "", selectedFishId = "", guildId = "", page = 0) {
+  const mutationData = getFishDexMutationData(player, guildId);
+  const selectedMutation = mutationData.mutations.find((mutation) => mutation.id === normalizeMutationId(selectedMutationId))
+    || mutationData.mutations[0]
+    || null;
+  const selectedMutationIdValue = selectedMutation?.id || "";
+  const fishRows = selectedMutation ? mutationData.fishByMutation.get(selectedMutationIdValue) || [] : [];
+  const mutationPage = getFishDexMutationPage(fishRows, selectedFishId, page);
+  const discovered = fishRows.length > 0;
+  const mutationName = discovered ? selectedMutation?.name || selectedMutationIdValue : unknownMutationName;
+  const mutationDescription = discovered
+    ? selectedMutation?.description || "Deskripsi mutasi belum tersedia."
+    : "Mutasi ini belum pernah kamu tangkap.";
+  const description = [
+    `**${mutationName}**`,
+    mutationDescription,
+    "",
+    `Jenis ikan dengan mutasi ini: **${discovered ? fishRows.length : 0}/${mutationData.totalFishTypes}**`,
+    mutationPage.selectedRow ? `Ikan dipilih: **${mutationPage.selectedRow.fish.name}**` : "Pilih ikan yang pernah kamu tangkap dengan mutasi ini."
+  ].join("\n");
+  const embed = new EmbedBuilder()
+    .setColor(discovered ? Number(selectedMutation?.color || 0x5865f2) : 0x5865f2)
+    .setTitle(`${user.username}'s Mutation Fishdex`)
+    .setDescription(description);
+  const icon = discovered
+    ? await makeMutationVisualAttachment(selectedMutation.id, "mutation-dex", getSettings().mutations)
+    : null;
+  if (icon?.url) embed.setThumbnail(icon.url);
+
+  const data = embed.toJSON();
+  const container = new ContainerBuilder().setAccentColor(data.color || 0x5865f2);
+  const mainText = formatEmbedMainText(data);
+  if (data.thumbnail?.url) {
+    container.addSectionComponents(
+      new SectionBuilder()
+        .addTextDisplayComponents(makeTextDisplay(mainText || "\u200b"))
+        .setThumbnailAccessory(new ThumbnailBuilder().setURL(data.thumbnail.url))
+    );
+  } else {
+    container.addTextDisplayComponents(makeTextDisplay(mainText || "\u200b"));
+  }
+
+  const mutationOptions = makeMutationDexOptions(mutationData, selectedMutationIdValue);
+  if (mutationOptions.length) {
+    container.addSeparatorComponents(new SeparatorBuilder());
+    container.addTextDisplayComponents(makeTextDisplay("**Pilih Mutasi**"));
+    container.addActionRowComponents(
+      new ActionRowBuilder().addComponents(
+        new StringSelectMenuBuilder()
+          .setCustomId(`fishdexmutation_select:${user.id}`)
+          .setPlaceholder("Pilih mutasi")
+          .addOptions(mutationOptions)
+      )
+    );
+    if (discovered) {
+      const fishOptions = makeFishDexMutationFishOptions(mutationPage.rows, mutationPage.selectedRow?.fish.id || "");
+      if (fishOptions.length) {
+        container.addTextDisplayComponents(makeTextDisplay("**Ikan dengan Mutasi Ini**"));
+        container.addActionRowComponents(
+          new ActionRowBuilder().addComponents(
+            new StringSelectMenuBuilder()
+              .setCustomId(`fishdexmutation_fish:${user.id}:${selectedMutationIdValue}:${mutationPage.page}`)
+              .setPlaceholder("Pilih ikan")
+              .addOptions(fishOptions)
+          )
+        );
+        if (mutationPage.selectedRow) {
+          container.addActionRowComponents(
+            makeFishDexMutationActionRow(
+              player,
+              user.id,
+              selectedMutationIdValue,
+              mutationPage.selectedRow.fish,
+              mutationPage.page
+            )
+          );
+        }
+      }
+      if (mutationPage.pageCount > 1) {
+        container.addTextDisplayComponents(makeTextDisplay(`Page **${mutationPage.page + 1}/${mutationPage.pageCount}**`));
+        container.addActionRowComponents(
+          new ActionRowBuilder().addComponents(
+            new ButtonBuilder()
+              .setCustomId(`fishdexmutation_page:${user.id}:${selectedMutationIdValue}:${Math.max(0, mutationPage.page - 1)}`)
+              .setLabel("Previous")
+              .setStyle(ButtonStyle.Secondary)
+              .setDisabled(mutationPage.page <= 0),
+            new ButtonBuilder()
+              .setCustomId(`fishdexmutation_page:${user.id}:${selectedMutationIdValue}:${Math.min(mutationPage.pageCount - 1, mutationPage.page + 1)}`)
+              .setLabel("Next")
+              .setStyle(ButtonStyle.Secondary)
+              .setDisabled(mutationPage.page >= mutationPage.pageCount - 1)
+          )
+        );
+      }
+    } else {
+      container.addTextDisplayComponents(makeTextDisplay("-# Belum ada ikan yang tertangkap dengan mutasi ini."));
+    }
+  }
+
+  return makeComponentsV2Message([container], {
+    files: icon?.attachment ? [icon.attachment] : []
   });
 }
 
@@ -5769,6 +6200,11 @@ function makeHelpEmbed(showAdminCommands = false) {
         inline: false
       },
       {
+        name: "/fishdexmutation",
+        value: "Melihat daftar mutasi dan ikan yang pernah kamu tangkap dengan mutasi tersebut.",
+        inline: false
+      },
+      {
         name: "/fishvoice",
         value: "Membuat bot join voice channel kamu dalam keadaan mute dan deafen, lalu mengaktifkan progress voice untuk server.",
         inline: false
@@ -6172,6 +6608,10 @@ function makeSlashCommands() {
     {
       name: "fishdex",
       description: "Lihat Fishdex ikan server secara privat."
+    },
+    {
+      name: "fishdexmutation",
+      description: "Lihat Fishdex mutasi secara privat."
     },
     {
       name: "fishvoice",
@@ -6849,7 +7289,7 @@ async function handleRoutineButton(interaction) {
     interaction.message?.delete?.().catch(() => {});
   }
 
-  if (["fishcomp", "fishraid", "fishstore", "fishdex", "fishdaily"].includes(button.action) && !isActivityAllowed()) {
+  if (["fishcomp", "fishraid", "fishstore", "fishdex", "fishdexmutation", "fishdaily"].includes(button.action) && !isActivityAllowed()) {
     await interaction.reply({ content: activityBlockedMessage(), flags: MessageFlags.Ephemeral });
     return;
   }
@@ -6870,6 +7310,11 @@ async function handleRoutineButton(interaction) {
   if (button.action === "fishdex") {
     await interaction.deferReply({ flags: MessageFlags.Ephemeral });
     await withPlayerReadOnly(interaction.user, async (player) => interaction.editReply(await makeFishDexMessage(interaction.user, player, "", interaction.guildId)));
+    return;
+  }
+  if (button.action === "fishdexmutation") {
+    await interaction.deferReply({ flags: MessageFlags.Ephemeral });
+    await withPlayerReadOnly(interaction.user, async (player) => interaction.editReply(await makeFishDexMutationMessage(interaction.user, player, "", "", interaction.guildId)));
     return;
   }
   if (button.action === "fishdaily") {
@@ -6973,6 +7418,112 @@ client.on("interactionCreate", async (interaction) => {
       return;
     }
 
+    if (interaction.isStringSelectMenu() && interaction.customId.startsWith("fishdexmutation_select:")) {
+      const [, ownerId] = interaction.customId.split(":");
+      if (ownerId && ownerId !== interaction.user.id) {
+        await interaction.reply({ content: "Mutation Fishdex ini punya pemain lain.", flags: MessageFlags.Ephemeral });
+        return;
+      }
+      await interaction.deferUpdate();
+      await withPlayerReadOnly(interaction.user, async (player) => {
+        await interaction.editReply(await makeFishDexMutationMessage(interaction.user, player, interaction.values?.[0] || "", "", interaction.guildId));
+      });
+      return;
+    }
+
+    if (interaction.isStringSelectMenu() && interaction.customId.startsWith("fishdexmutation_fish:")) {
+      const [, ownerId, mutationId, pageValue] = interaction.customId.split(":");
+      if (ownerId && ownerId !== interaction.user.id) {
+        await interaction.reply({ content: "Mutation Fishdex ini punya pemain lain.", flags: MessageFlags.Ephemeral });
+        return;
+      }
+      await interaction.deferUpdate();
+      await withPlayerReadOnly(interaction.user, async (player) => {
+        await interaction.editReply(await makeFishDexMutationMessage(interaction.user, player, mutationId, interaction.values?.[0] || "", interaction.guildId, Number(pageValue || 0)));
+      });
+      return;
+    }
+
+    if (interaction.isButton() && interaction.customId.startsWith("fishdexmutation_page:")) {
+      const [, ownerId, mutationId, pageValue] = interaction.customId.split(":");
+      if (ownerId && ownerId !== interaction.user.id) {
+        await interaction.reply({ content: "Mutation Fishdex ini punya pemain lain.", flags: MessageFlags.Ephemeral });
+        return;
+      }
+      await interaction.deferUpdate();
+      await withPlayerReadOnly(interaction.user, async (player) => {
+        await interaction.editReply(await makeFishDexMutationMessage(interaction.user, player, mutationId, "", interaction.guildId, Number(pageValue || 0)));
+      });
+      return;
+    }
+
+    if (interaction.isButton() && (interaction.customId.startsWith("fdm_c:") || interaction.customId.startsWith("fdm_s:"))) {
+      const [action, ownerId, mutationIdValue, selectedFishId, pageValue] = interaction.customId.split(":");
+      if (ownerId && ownerId !== interaction.user.id) {
+        await interaction.reply({ content: "Mutation Fishdex ini punya pemain lain.", flags: MessageFlags.Ephemeral });
+        return;
+      }
+      const mutationId = normalizeMutationId(mutationIdValue);
+      const isShowcase = action === "fdm_s";
+      await interaction.deferUpdate();
+      const preparationMessage = isShowcase
+        ? await interaction.followUp({ content: "Preparing Showoff banner", flags: MessageFlags.Ephemeral }).catch(() => null)
+        : null;
+      const member = isShowcase && interaction.guild?.members?.fetch
+        ? await interaction.guild.members.fetch(interaction.user.id).catch(() => null)
+        : null;
+      const result = await withPlayer(interaction.user, async (player) => {
+        const selectedFish = getAvailableFish(interaction.guildId).find((fishEntry) => fishEntry.id === selectedFishId);
+        const selectedFishDexEntry = selectedFish ? getFishDexEntry(player, selectedFish) : null;
+        const hasSelectedMutation = Boolean(
+          selectedFishDexEntry?.caught
+          && mutationId
+          && getCaughtMutationEntries(selectedFishDexEntry)
+            .some((entry) => normalizeMutationId(entry.mutationId) === mutationId)
+        );
+        if (!selectedFish || !hasSelectedMutation) {
+          await interaction.editReply(await makeFishDexMutationMessage(
+            interaction.user,
+            player,
+            mutationId,
+            selectedFishId,
+            interaction.guildId,
+            Number(pageValue || 0)
+          ));
+          return { save: false, showoffSent: false };
+        }
+
+        player.showcasedFishId = selectedFish.id;
+        player.showcasedMutationId = mutationId;
+        await interaction.editReply(await makeFishDexMutationMessage(
+          interaction.user,
+          player,
+          mutationId,
+          selectedFish.id,
+          interaction.guildId,
+          Number(pageValue || 0)
+        ));
+        if (!isShowcase) {
+          return { showoffSent: false };
+        }
+        const showoffMessage = await interaction.channel?.send(await makeFishShowoffMessage(
+          interaction.user,
+          player,
+          member,
+          interaction.guildId
+        )).catch((error) => {
+          console.error("Could not send fishdex mutation showcase showoff message:", error);
+          return null;
+        });
+        scheduleMessageDelete(showoffMessage);
+        return { showoffSent: Boolean(showoffMessage) };
+      });
+      if (isShowcase && result?.showoffSent) {
+        await preparationMessage?.delete?.().catch(() => {});
+      }
+      return;
+    }
+
     if (interaction.isStringSelectMenu() && interaction.customId.startsWith("fishdex_mut:")) {
       const [, ownerId, pageValue, ...fishIdParts] = interaction.customId.split(":");
       const selectedFishId = fishIdParts.join(":");
@@ -6981,21 +7532,31 @@ client.on("interactionCreate", async (interaction) => {
         return;
       }
       await interaction.deferUpdate();
-      await withPlayer(interaction.user, async (player) => {
+      await withPlayerReadOnly(interaction.user, async (player) => {
         const selectedFish = getAvailableFish(interaction.guildId).find((fishEntry) => fishEntry.id === selectedFishId);
         const selectedFishDexEntry = selectedFish ? getFishDexEntry(player, selectedFish) : null;
-        const selectedMutationChoice = normalizeMutationId(interaction.values?.[0]);
+        const selectedMutationChoice = normalizeMutationId(interaction.values?.[0]) || fishDexNoMutationValue;
         const isNoMutation = selectedMutationChoice === fishDexNoMutationValue;
         const isCaughtMutation = isNoMutation || getCaughtMutationEntries(selectedFishDexEntry)
           .some((entry) => normalizeMutationId(entry.mutationId) === selectedMutationChoice);
         if (!selectedFish || !selectedFishDexEntry?.caught || !isCaughtMutation) {
-          await interaction.editReply(await makeFishDexMessage(interaction.user, player, selectedFishId, interaction.guildId, Number(pageValue || 0)));
+          await interaction.editReply(await makeFishDexMessage(
+            interaction.user,
+            player,
+            selectedFishId,
+            interaction.guildId,
+            Number(pageValue || 0)
+          ));
           return { save: false };
         }
-        player.showcasedFishId = selectedFish.id;
-        player.showcasedMutationId = selectedMutationChoice;
-        await interaction.editReply(await makeFishDexMessage(interaction.user, player, selectedFish.id, interaction.guildId, Number(pageValue || 0)));
-        return undefined;
+        await interaction.editReply(await makeFishDexMessage(
+          interaction.user,
+          player,
+          selectedFish.id,
+          interaction.guildId,
+          Number(pageValue || 0),
+          selectedMutationChoice
+        ));
       });
       return;
     }
@@ -7023,6 +7584,69 @@ client.on("interactionCreate", async (interaction) => {
       await withPlayer(interaction.user, async (player) => {
         await interaction.editReply(await makeFishDexMessage(interaction.user, player, "", interaction.guildId, Number(pageValue || 0)));
       });
+      return;
+    }
+
+    if (interaction.isButton() && (interaction.customId.startsWith("fdc:") || interaction.customId.startsWith("fds:"))) {
+      const [action, ownerId, pageValue, selectedFishId, selectedMutationChoiceValue] = interaction.customId.split(":");
+      if (ownerId && ownerId !== interaction.user.id) {
+        await interaction.reply({ content: "Fishdex ini punya pemain lain.", flags: MessageFlags.Ephemeral });
+        return;
+      }
+      const selectedMutationChoice = normalizeMutationId(selectedMutationChoiceValue) || fishDexNoMutationValue;
+      const isShowcase = action === "fds";
+      await interaction.deferUpdate();
+      const preparationMessage = isShowcase
+        ? await interaction.followUp({ content: "Preparing Showoff banner", flags: MessageFlags.Ephemeral }).catch(() => null)
+        : null;
+      const member = isShowcase && interaction.guild?.members?.fetch
+        ? await interaction.guild.members.fetch(interaction.user.id).catch(() => null)
+        : null;
+      const result = await withPlayer(interaction.user, async (player) => {
+        const selectedFish = getAvailableFish(interaction.guildId).find((fishEntry) => fishEntry.id === selectedFishId);
+        const selectedFishDexEntry = selectedFish ? getFishDexEntry(player, selectedFish) : null;
+        const isNoMutation = selectedMutationChoice === fishDexNoMutationValue;
+        const isCaughtMutation = isNoMutation || getCaughtMutationEntries(selectedFishDexEntry)
+          .some((entry) => normalizeMutationId(entry.mutationId) === selectedMutationChoice);
+        if (!selectedFish || !selectedFishDexEntry?.caught || !isCaughtMutation) {
+          await interaction.editReply(await makeFishDexMessage(
+            interaction.user,
+            player,
+            selectedFishId,
+            interaction.guildId,
+            Number(pageValue || 0)
+          ));
+          return { save: false, showoffSent: false };
+        }
+
+        player.showcasedFishId = selectedFish.id;
+        player.showcasedMutationId = selectedMutationChoice;
+        await interaction.editReply(await makeFishDexMessage(
+          interaction.user,
+          player,
+          selectedFish.id,
+          interaction.guildId,
+          Number(pageValue || 0),
+          selectedMutationChoice
+        ));
+        if (!isShowcase) {
+          return { showoffSent: false };
+        }
+        const showoffMessage = await interaction.channel?.send(await makeFishShowoffMessage(
+          interaction.user,
+          player,
+          member,
+          interaction.guildId
+        )).catch((error) => {
+          console.error("Could not send fishdex showcase showoff message:", error);
+          return null;
+        });
+        scheduleMessageDelete(showoffMessage);
+        return { showoffSent: Boolean(showoffMessage) };
+      });
+      if (isShowcase && result?.showoffSent) {
+        await preparationMessage?.delete?.().catch(() => {});
+      }
       return;
     }
 
@@ -7058,15 +7682,19 @@ client.on("interactionCreate", async (interaction) => {
       }
 
       await interaction.deferUpdate();
+      const preparationMessage = await interaction.followUp({
+        content: "Preparing Showoff banner",
+        flags: MessageFlags.Ephemeral
+      }).catch(() => null);
       const member = interaction.guild?.members?.fetch
         ? await interaction.guild.members.fetch(interaction.user.id).catch(() => null)
         : null;
-      await withPlayer(interaction.user, async (player) => {
+      const result = await withPlayer(interaction.user, async (player) => {
         const selectedFish = getAvailableFish(interaction.guildId).find((fishEntry) => fishEntry.id === selectedFishId);
         const selectedFishDexEntry = selectedFish ? getFishDexEntry(player, selectedFish) : null;
         if (!selectedFish || !selectedFishDexEntry?.caught) {
           await interaction.editReply(await makeFishDexMessage(interaction.user, player, selectedFishId, interaction.guildId, Number(pageValue || 0)));
-          return { save: false };
+          return { save: false, showoffSent: false };
         }
         const showcasedMutationId = getSelectedShowcaseMutationChoice(player, selectedFish, selectedFishDexEntry);
         player.showcasedFishId = selectedFish.id;
@@ -7077,8 +7705,11 @@ client.on("interactionCreate", async (interaction) => {
           return null;
         });
         scheduleMessageDelete(showoffMessage);
-        return undefined;
+        return { showoffSent: Boolean(showoffMessage) };
       });
+      if (result?.showoffSent) {
+        await preparationMessage?.delete?.().catch(() => {});
+      }
       return;
     }
 
@@ -7378,7 +8009,7 @@ client.on("interactionCreate", async (interaction) => {
       return;
     }
 
-    if (["sellfish", "fishstore", "fishdex", "fishvoice", "fishshowoff", "fishdaily", "fishentot", "fishcomp", "fishduel", "fishraid"].includes(interaction.commandName) && !isActivityAllowed()) {
+    if (["sellfish", "fishstore", "fishdex", "fishdexmutation", "fishvoice", "fishshowoff", "fishdaily", "fishentot", "fishcomp", "fishduel", "fishraid"].includes(interaction.commandName) && !isActivityAllowed()) {
       await interaction.reply({ content: activityBlockedMessage(), flags: MessageFlags.Ephemeral });
       return;
     }
@@ -7495,6 +8126,14 @@ client.on("interactionCreate", async (interaction) => {
       await interaction.deferReply({ flags: MessageFlags.Ephemeral });
       await withPlayerReadOnly(interaction.user, async (player) => {
         await interaction.editReply(await makeFishDexMessage(interaction.user, player, "", interaction.guildId));
+      });
+      return;
+    }
+
+    if (interaction.commandName === "fishdexmutation") {
+      await interaction.deferReply({ flags: MessageFlags.Ephemeral });
+      await withPlayerReadOnly(interaction.user, async (player) => {
+        await interaction.editReply(await makeFishDexMutationMessage(interaction.user, player, "", "", interaction.guildId));
       });
       return;
     }

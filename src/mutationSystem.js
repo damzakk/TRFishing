@@ -3,20 +3,20 @@ const NO_MUTATION_ID = "";
 // Mutation IDs and safe defaults live in code, while all balance/display values
 // are copied into the manager-editable settings object at runtime.
 const defaultMutationDefinitions = [
-  { id: "stone", name: "Stone", chance: 2.4, goldMultiplier: 1.15, expMultiplier: 1.1, sizeMultiplier: 1.35, color: 0x8d99ae, visual: "stone" },
-  { id: "gold", name: "Gold", chance: 2.0, goldMultiplier: 2, expMultiplier: 1.25, sizeMultiplier: 1.1, color: 0xffd700, visual: "gold" },
-  { id: "freezing", name: "Freezing", chance: 1.7, goldMultiplier: 1.5, expMultiplier: 1.35, sizeMultiplier: 0.9, color: 0x74d7ff, visual: "freezing" },
-  { id: "ghost", name: "Ghost", chance: 1.45, goldMultiplier: 2.25, expMultiplier: 1.5, sizeMultiplier: 1, color: 0xc7b8ff, visual: "ghost" },
-  { id: "radioactive", name: "Radioactive", chance: 1.2, goldMultiplier: 3, expMultiplier: 1.75, sizeMultiplier: 1.1, color: 0x7dff68, visual: "radioactive" },
-  { id: "lightning", name: "Lightning", chance: 1, goldMultiplier: 2.75, expMultiplier: 2, sizeMultiplier: 0.95, color: 0xfff36b, visual: "lightning" },
-  { id: "midnight", name: "Midnight", chance: 0.85, goldMultiplier: 3.5, expMultiplier: 2, sizeMultiplier: 1.05, color: 0x313b8f, visual: "midnight" },
-  { id: "fairy_dust", name: "Fairy Dust", chance: 0.75, goldMultiplier: 4, expMultiplier: 2.25, sizeMultiplier: 0.95, color: 0xff9fea, visual: "fairy_dust" },
-  { id: "gemstone", name: "Gemstone", chance: 0.65, goldMultiplier: 5, expMultiplier: 2.5, sizeMultiplier: 1.2, color: 0x7be7ff, visual: "gemstone" },
-  { id: "corrupt", name: "Corrupt", chance: 0.55, goldMultiplier: 6, expMultiplier: 3, sizeMultiplier: 0.8, color: 0x8f45bd, visual: "corrupt" },
-  { id: "galaxy", name: "Galaxy", chance: 0.45, goldMultiplier: 8, expMultiplier: 3.5, sizeMultiplier: 1.25, color: 0x8a63ff, visual: "galaxy" },
-  { id: "bloodmoon", name: "Bloodmoon", chance: 0.35, goldMultiplier: 10, expMultiplier: 4, sizeMultiplier: 1.5, color: 0xd93654, visual: "bloodmoon" },
-  { id: "minty", name: "Minty", chance: 0.3, goldMultiplier: 1.25, expMultiplier: 1.15, sizeMultiplier: 1, color: 0x8fffd2, visual: "minty" },
-  { id: "jawa", name: "Jawa", chance: 0.2, goldMultiplier: 15, expMultiplier: 5, sizeMultiplier: 1.35, color: 0xff8a3d, visual: "jawa" }
+  { id: "stone", name: "Stone", description: "Mengeraskan tubuh ikan seperti batu dan membuatnya lebih berat.", chance: 2.4, goldMultiplier: 1.15, expMultiplier: 1.1, sizeMultiplier: 1.35, color: 0x8d99ae, visual: "stone" },
+  { id: "gold", name: "Gold", description: "Melapisi ikan dengan emas berkilau dan menggandakan nilai jualnya.", chance: 2.0, goldMultiplier: 2, expMultiplier: 1.25, sizeMultiplier: 1.1, color: 0xffd700, visual: "gold" },
+  { id: "freezing", name: "Freezing", description: "Membekukan ikan dengan aura es yang membuatnya sedikit lebih ringan.", chance: 1.7, goldMultiplier: 1.5, expMultiplier: 1.35, sizeMultiplier: 0.9, color: 0x74d7ff, visual: "freezing" },
+  { id: "ghost", name: "Ghost", description: "Memberi ikan aura hantu transparan dengan bonus nilai jual yang besar.", chance: 1.45, goldMultiplier: 2.25, expMultiplier: 1.5, sizeMultiplier: 1, color: 0xc7b8ff, visual: "ghost" },
+  { id: "radioactive", name: "Radioactive", description: "Menyelimuti ikan dengan energi radioaktif untuk meningkatkan EXP dan nilai jual.", chance: 1.2, goldMultiplier: 3, expMultiplier: 1.75, sizeMultiplier: 1.1, color: 0x7dff68, visual: "radioactive" },
+  { id: "lightning", name: "Lightning", description: "Mengaliri ikan dengan petir dan memberikan bonus EXP yang sangat tinggi.", chance: 1, goldMultiplier: 2.75, expMultiplier: 2, sizeMultiplier: 0.95, color: 0xfff36b, visual: "lightning" },
+  { id: "midnight", name: "Midnight", description: "Memberi ikan aura malam gelap dengan bonus EXP dan nilai jual.", chance: 0.85, goldMultiplier: 3.5, expMultiplier: 2, sizeMultiplier: 1.05, color: 0x313b8f, visual: "midnight" },
+  { id: "fairy_dust", name: "Fairy Dust", description: "Menaburkan debu peri berkilau dengan bonus EXP dan nilai jual yang besar.", chance: 0.75, goldMultiplier: 4, expMultiplier: 2.25, sizeMultiplier: 0.95, color: 0xff9fea, visual: "fairy_dust" },
+  { id: "gemstone", name: "Gemstone", description: "Mengubah ikan menjadi permata berkilau dengan bonus hadiah yang sangat besar.", chance: 0.65, goldMultiplier: 5, expMultiplier: 2.5, sizeMultiplier: 1.2, color: 0x7be7ff, visual: "gemstone" },
+  { id: "corrupt", name: "Corrupt", description: "Menyelimuti ikan dengan energi korup yang meningkatkan EXP dan nilai jual secara ekstrem.", chance: 0.55, goldMultiplier: 6, expMultiplier: 3, sizeMultiplier: 0.8, color: 0x8f45bd, visual: "corrupt" },
+  { id: "galaxy", name: "Galaxy", description: "Memberi ikan aura galaksi dengan bonus EXP dan nilai jual yang sangat tinggi.", chance: 0.45, goldMultiplier: 8, expMultiplier: 3.5, sizeMultiplier: 1.25, color: 0x8a63ff, visual: "galaxy" },
+  { id: "bloodmoon", name: "Bloodmoon", description: "Memberi ikan aura bulan darah dengan bonus hadiah yang luar biasa.", chance: 0.35, goldMultiplier: 10, expMultiplier: 4, sizeMultiplier: 1.5, color: 0xd93654, visual: "bloodmoon" },
+  { id: "minty", name: "Minty", description: "Memberi ikan aura mint segar dengan bonus kecil pada EXP dan nilai jual.", chance: 0.3, goldMultiplier: 1.25, expMultiplier: 1.15, sizeMultiplier: 1, color: 0x8fffd2, visual: "minty" },
+  { id: "jawa", name: "Jawa", description: "Mutasi yang sangat langka dengan bonus EXP dan nilai jual terbesar.", chance: 0.2, goldMultiplier: 15, expMultiplier: 5, sizeMultiplier: 1.35, color: 0xff8a3d, visual: "jawa" }
 ];
 
 const mutationById = new Map(defaultMutationDefinitions.map((mutation) => [mutation.id, mutation]));
@@ -125,6 +125,7 @@ function normalizeMutationDefinition(rawMutation, fallback) {
   return {
     id: fallback.id,
     name: String(source.name ?? fallback.name).trim() || fallback.name,
+    description: String(source.description ?? fallback.description ?? "").trim(),
     chance: Math.max(0, cleanNumber(source.chance ?? fallback.chance, fallback.chance)),
     goldMultiplier: Math.max(0, cleanNumber(source.goldMultiplier ?? fallback.goldMultiplier, fallback.goldMultiplier)),
     expMultiplier: Math.max(0, cleanNumber(source.expMultiplier ?? fallback.expMultiplier, fallback.expMultiplier)),

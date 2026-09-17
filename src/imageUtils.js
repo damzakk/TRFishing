@@ -13,6 +13,25 @@ function ensureImageCacheDirectory() {
   fs.mkdirSync(imageCacheDirectory, { recursive: true });
 }
 
+function waitForImageCacheRetry() {
+  const signal = new Int32Array(new SharedArrayBuffer(4));
+  Atomics.wait(signal, 0, 0, 20);
+}
+
+function writeImageCacheFile(filePath, contents) {
+  let lastError = null;
+  for (let attempt = 0; attempt < 4; attempt += 1) {
+    try {
+      fs.writeFileSync(filePath, contents);
+      return;
+    } catch (error) {
+      lastError = error;
+      if (attempt < 3) waitForImageCacheRetry();
+    }
+  }
+  throw lastError;
+}
+
 function readImageCacheMeta() {
   try {
     if (!fs.existsSync(imageCacheMetaPath)) {
@@ -27,7 +46,7 @@ function readImageCacheMeta() {
 
 function writeImageCacheMeta(meta) {
   ensureImageCacheDirectory();
-  fs.writeFileSync(imageCacheMetaPath, JSON.stringify(meta, null, 2));
+  writeImageCacheFile(imageCacheMetaPath, JSON.stringify(meta, null, 2));
 }
 
 function extensionFromContentType(contentType) {
@@ -157,10 +176,7 @@ function rememberCachedImageByKey(cacheKey, image, metadata = {}) {
   const contentType = String(image.contentType || metadata.contentType || "image/png").split(";")[0].trim().toLowerCase();
   const extension = image.extension || metadata.extension || extensionFromContentType(contentType);
   const fileName = sanitizeFileNamePart(metadata.fileName || `image-${cacheKey.slice(0, 12)}.${extension}`);
-  ensureImageCacheDirectory();
-  fs.writeFileSync(imageCacheFilePath(cacheKey), image.buffer);
-  const meta = readImageCacheMeta();
-  meta[cacheKey] = {
+  const cacheEntry = {
     ...metadata,
     contentType,
     extension,
@@ -169,8 +185,18 @@ function rememberCachedImageByKey(cacheKey, image, metadata = {}) {
     savedAt: new Date().toISOString(),
     size: image.buffer.length
   };
-  writeImageCacheMeta(meta);
-  return getCachedImageByKey(cacheKey);
+  try {
+    ensureImageCacheDirectory();
+    writeImageCacheFile(imageCacheFilePath(cacheKey), image.buffer);
+    const meta = readImageCacheMeta();
+    meta[cacheKey] = cacheEntry;
+    writeImageCacheMeta(meta);
+    return getCachedImageByKey(cacheKey) || { ...cacheEntry, buffer: image.buffer };
+  } catch {
+    // Image caching is an optimization. A transient file-lock or permissions
+    // problem must not make callers fall back to an unmodified image.
+    return { ...cacheEntry, buffer: image.buffer };
+  }
 }
 
 function getCachedImageForItem(item) {

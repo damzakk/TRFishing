@@ -353,7 +353,7 @@ function isEventRunning(event) {
 
 function getManagerEventMultiplier(data, type, guildId = "", fishId = "") {
   const events = cleanEvents(data.events, data.activeEvent);
-  return events.filter((event) => isEventRunning(event) && event.guildId && event.guildId === guildId).reduce((multiplier, event) => {
+  return events.filter((event) => isEventRunning(event) && (!event.guildId || event.guildId === guildId)).reduce((multiplier, event) => {
     const eventMultiplier = normalizeEventBonuses(event)
       .filter((bonus) => bonus.type === type)
       .filter((bonus) => type !== "fish_chance" || !bonus.fishId || bonus.fishId === fishId)
@@ -693,6 +693,15 @@ function cleanEvent(event) {
   }
 
   const bannerUrl = String(event.bannerUrl || "").trim();
+  const announcementMove = event.announcementMove && typeof event.announcementMove === "object"
+    ? {
+      fromChannelId: String(event.announcementMove.fromChannelId || "").trim(),
+      fromGuildId: String(event.announcementMove.fromGuildId || "").trim(),
+      toChannelId: String(event.announcementMove.toChannelId || "").trim(),
+      wasAnnounced: event.announcementMove.wasAnnounced === true,
+      movedAt: String(event.announcementMove.movedAt || "").trim()
+    }
+    : null;
   const startAt = String(event.startAt || event.deployedAt || "").trim();
   const durationMinutes = Math.max(1, cleanNumber(event.durationMinutes, 60));
   const endsAt = String(event.endsAt || (startAt ? new Date(Date.parse(startAt) + durationMinutes * 60_000).toISOString() : "")).trim();
@@ -721,7 +730,8 @@ function cleanEvent(event) {
     isAnnounced: event.isAnnounced === true,
     stoppedAt: String(event.stoppedAt || "").trim(),
     deployedAt: String(event.deployedAt || "").trim(),
-    questIds: [...new Set((Array.isArray(event.questIds) ? event.questIds : event.questId ? [event.questId] : []).map(String).filter(Boolean))]
+    questIds: [...new Set((Array.isArray(event.questIds) ? event.questIds : event.questId ? [event.questId] : []).map(String).filter(Boolean))],
+    announcementMove
   };
 }
 
@@ -1518,7 +1528,8 @@ async function handleApi(request, response) {
         id: data.activeEvent?.id || String(Date.now()),
         startAt: data.activeEvent?.startAt || new Date().toISOString(),
         isAnnounced: false,
-        deployedAt: new Date().toISOString()
+        deployedAt: new Date().toISOString(),
+        announcementMove: null
       };
       deployedEvent.endsAt = new Date(Date.parse(deployedEvent.startAt) + Math.max(1, Number(deployedEvent.durationMinutes || 60)) * 60_000).toISOString();
       data.events = [
@@ -1541,7 +1552,7 @@ async function handleApi(request, response) {
         return;
       }
 
-      const originalId = String(body.originalId || draft.id || "").trim();
+      const originalId = String(body.originalId || "").trim();
       const sourceEvents = cleanEvents(data.events, data.activeEvent);
       const saveAs = body.saveAs === true;
       const existingEvent = sourceEvents.find((event) => event.id === originalId);
@@ -1567,7 +1578,8 @@ async function handleApi(request, response) {
           id: newId,
           deployedAt,
           isAnnounced: false,
-          stoppedAt: ""
+          stoppedAt: "",
+          announcementMove: null
         };
         if (savedEvent.startAt) {
           savedEvent.endsAt = new Date(Date.parse(savedEvent.startAt) + Math.max(1, Number(savedEvent.durationMinutes || 60)) * 60_000).toISOString();
@@ -1578,6 +1590,24 @@ async function handleApi(request, response) {
         savedEvent = { ...existingEvent, ...draft, id: existingEvent.id };
         if (savedEvent.startAt) {
           savedEvent.endsAt = new Date(Date.parse(savedEvent.startAt) + Math.max(1, Number(savedEvent.durationMinutes || 60)) * 60_000).toISOString();
+        }
+        const previousChannelId = String(existingEvent.announcementChannelId || "").trim();
+        const nextChannelId = String(savedEvent.announcementChannelId || "").trim();
+        if (previousChannelId !== nextChannelId) {
+          savedEvent.guildId = "";
+          if (isEventRunning(existingEvent)) {
+            savedEvent.isAnnounced = false;
+            savedEvent.deployedAt = new Date().toISOString();
+            savedEvent.announcementMove = {
+              fromChannelId: previousChannelId,
+              fromGuildId: String(existingEvent.guildId || "").trim(),
+              toChannelId: nextChannelId,
+              wasAnnounced: existingEvent.isAnnounced === true,
+              movedAt: new Date().toISOString()
+            };
+          } else {
+            savedEvent.announcementMove = null;
+          }
         }
         events = sourceEvents.map((event) => event.id === originalId ? savedEvent : event);
         activeEvent = data.activeEvent?.id === originalId ? savedEvent : data.activeEvent || null;
@@ -1980,6 +2010,25 @@ const html = `<!doctype html>
       overflow-y: auto;
       padding-right: 4px;
       align-content: start;
+    }
+    .event-quest-editor,
+    .event-quest-list {
+      display: grid;
+      gap: 8px;
+    }
+    .event-quest-editor > .button-row select {
+      flex: 1 1 280px;
+      min-width: 0;
+    }
+    .event-quest-row {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 10px;
+      padding: 8px 10px;
+      border: 1px solid var(--line);
+      border-radius: 6px;
+      background: var(--panel-2);
     }
     .warning { color: var(--warn); }
     .player-layout,
@@ -2558,6 +2607,7 @@ const html = `<!doctype html>
           ...mutation,
           id,
           name: String(mutation.name || id.replace(/_/g, " ")).trim() || id,
+          description: String(mutation.description || "").trim(),
           chance: Math.max(0, numberOr(mutation.chance, 0)),
           goldMultiplier: Math.max(0, numberOr(mutation.goldMultiplier, 1)),
           expMultiplier: Math.max(0, numberOr(mutation.expMultiplier, 1)),
@@ -3365,6 +3415,7 @@ const html = `<!doctype html>
               <div class="mutation-setting-layout">
                 <div class="fields mutation-parameter-fields">
                 <label>Name<input type="text" data-mutation-index="\${index}" data-mutation-key="name" value="\${escapeHtml(mutation.name || mutation.id)}"></label>
+                <label class="wide">Description<textarea data-mutation-index="\${index}" data-mutation-key="description">\${escapeHtml(mutation.description || "")}</textarea></label>
                 <label>Chance Weight (%)<input type="number" min="0" step="0.01" data-mutation-index="\${index}" data-mutation-key="chance" value="\${escapeHtml(String(mutation.chance ?? 0))}"></label>
                 <label>Sell Price ×<input type="number" min="0" step="0.01" data-mutation-index="\${index}" data-mutation-key="goldMultiplier" value="\${escapeHtml(String(mutation.goldMultiplier ?? 1))}"></label>
                 <label>EXP ×<input type="number" min="0" step="0.01" data-mutation-index="\${index}" data-mutation-key="expMultiplier" value="\${escapeHtml(String(mutation.expMultiplier ?? 1))}"></label>
@@ -3879,6 +3930,37 @@ const html = `<!doctype html>
       }).join(", ") || "No bonus";
     }
 
+    function eventQuestListTemplate(event) {
+      const questIds = Array.isArray(event.questIds) ? event.questIds : [];
+      const eventQuests = Array.isArray(state.quests.event) ? state.quests.event : [];
+      const selectedQuests = questIds.map((questId) => ({
+        id: String(questId || ""),
+        quest: eventQuests.find((entry) => String(entry.id || "") === String(questId || ""))
+      }));
+      const availableQuests = eventQuests.filter((quest) => !questIds.includes(String(quest.id || "")));
+      return \`
+        <div class="wide event-quest-editor">
+          <div class="topline">
+            <strong>Event Quests</strong>
+            <span class="small">Add the quests players should receive while this event is running.</span>
+          </div>
+          <div class="button-row">
+            <select data-event-quest-select aria-label="Event quest to add">
+              <option value="">Select an event quest…</option>
+              \${availableQuests.map((quest) => \`<option value="\${escapeHtml(quest.id)}">\${escapeHtml(quest.name)} (\${escapeHtml(quest.id)})</option>\`).join("")}
+            </select>
+            <button data-add-event-quest type="button" \${availableQuests.length ? "" : "disabled"}>Add Quest</button>
+          </div>
+          <div class="event-quest-list">
+            \${selectedQuests.length ? selectedQuests.map(({ id, quest }) => \`
+              <div class="event-quest-row">
+                <span>\${escapeHtml(quest?.name || "Unknown quest")} <span class="small">(\${escapeHtml(id)})</span></span>
+                <button class="danger" data-remove-event-quest="\${escapeHtml(id)}" type="button">Remove</button>
+              </div>\`).join("") : '<div class="small">No event quests selected.</div>'}
+          </div>
+        </div>\`;
+    }
+
     function eventListTemplate() {
       const events = [...(state.events || [])].map(normalizeEvent).sort((a, b) => Date.parse(b.startAt || b.deployedAt || 0) - Date.parse(a.startAt || a.deployedAt || 0));
       const rows = events.length ? events.map((event) => {
@@ -3897,7 +3979,7 @@ const html = `<!doctype html>
             \${event.questIds?.length ? \`<div class="small">Quests: \${escapeHtml(event.questIds.join(", "))}</div>\` : ""}
             \${event.description ? \`<div class="small event-description-preview">\${escapeHtml(event.description)}</div>\` : ""}
             <div class="small">Start: \${escapeHtml(start)} · End: \${escapeHtml(end)}</div>
-            <div class="small">Announcement Channel: \${escapeHtml(event.announcementChannelId || "-")} · Server: \${escapeHtml(event.guildId || "resolved by bot after announce")}</div>
+            <div class="small">Announcement Channel: \${escapeHtml(event.announcementChannelId || "all bot servers (automatic channel)")} · Server: \${escapeHtml(event.announcementChannelId ? (event.guildId || "resolved from channel by bot") : "all bot servers")}</div>
             <div class="button-row">
               <button data-edit-event="\${escapeHtml(event.id)}" type="button">Edit</button>
               \${canStop ? \`<button class="danger" data-stop-event="\${escapeHtml(event.id)}">\${running ? "Stop Event" : "Cancel Event"}</button>\` : \`<button class="danger" data-remove-event="\${escapeHtml(event.id)}">Remove</button>\`}
@@ -3933,9 +4015,9 @@ const html = `<!doctype html>
           \${field("Title", "title", event.title, 0)}
           \${field("Start At", "startAt", event.startAt, 0, "datetime-local")}
           \${field("Duration, minutes", "durationMinutes", event.durationMinutes, 0, "number", "1")}
-          \${field("Announcement Channel ID", "announcementChannelId", event.announcementChannelId, 0)}
-          <label class="wide">Event Quests<select multiple size="6" data-event-quest-ids>\${(state.quests.event || []).map((quest) => \`<option value="\${escapeHtml(quest.id)}" \${(event.questIds || []).includes(quest.id) ? "selected" : ""}>\${escapeHtml(quest.name)} (\${escapeHtml(quest.id)})</option>\`).join("")}</select></label>
-          <div class="wide small">The bot applies this event across the whole server that contains the announcement channel.</div>
+          \${field("Announcement Channel ID (optional; blank = all bot servers)", "announcementChannelId", event.announcementChannelId, 0)}
+          \${eventQuestListTemplate(event)}
+          <div class="wide small">Set a channel ID for one server. Leave it blank to make a global event: the bot applies it to every server it is in and sends each server’s start/stop message to its configured fishing popup channel or first writable text channel.</div>
           <div class="wide fields">
             <div class="wide topline">
               <strong>Bonuses</strong>
@@ -3956,7 +4038,7 @@ const html = `<!doctype html>
           </div>
           <div class="button-row">
             <button class="primary" data-deploy-event>\${editing ? "Save Event" : "Deploy Event"}</button>
-            <button data-save-as-event type="button">Save As</button>
+            \${editing ? '<button data-save-as-event type="button">Save As</button>' : ""}
           </div>
         </div>\`;
     }
@@ -4037,7 +4119,7 @@ const html = `<!doctype html>
           <div class="small">Condition: \${escapeHtml(routineConditionText(routine))}</div>
           <div class="small">Random messages: \${escapeHtml(String((routine.messageVariants || []).length || 0))}</div>
           <div class="small">Buttons: \${escapeHtml((routine.buttons || []).map((button) => button.label || button.action).join(", ") || "None")}</div>
-          <div class="small">Server: \${escapeHtml(routine.guildId || "all configured popup servers")} · Channel override: \${escapeHtml(routine.channelId || "popup parent channel")}</div>
+          <div class="small">Server: \${escapeHtml(routine.guildId || "all bot servers when channel is blank")} · Channel: \${escapeHtml(routine.channelId || "each server’s popup/fallback channel")}</div>
           \${routine.lastSentAt ? \`<div class="small">Last sent: \${escapeHtml(new Date(routine.lastSentAt).toLocaleString())}</div>\` : ""}
           <div class="button-row">
             <button data-edit-routine="\${escapeHtml(routine.id)}" type="button">Edit</button>
@@ -4086,8 +4168,9 @@ const html = `<!doctype html>
           \${condition.type === "interval" ? \`<label>Interval Minutes<input type="number" min="1" step="1" data-routine-condition-key="intervalMinutes" value="\${escapeHtml(String(condition.intervalMinutes || 60))}"></label>\` : ""}
           \${condition.type === "idle_since_activity" ? \`<label>Idle Minutes<input type="number" min="1" step="1" data-routine-condition-key="idleMinutes" value="\${escapeHtml(String(condition.idleMinutes || 120))}"></label>\` : ""}
           \${condition.type === "specific_datetime" ? \`<label>Date Time<input type="datetime-local" data-routine-condition-key="dateTime" value="\${escapeHtml(condition.dateTime || "")}"></label>\` : ""}
-          \${routineField("Discord Server ID, optional", "guildId", routine.guildId || "")}
-          \${routineField("Channel ID Override, optional", "channelId", routine.channelId || "")}
+          \${routineField("Discord Server ID (optional; blank = all bot servers)", "guildId", routine.guildId || "")}
+          \${routineField("Channel ID Override (optional; blank = each server’s popup/fallback channel)", "channelId", routine.channelId || "")}
+          <div class="wide small">Leave both IDs blank to run this routine independently on every server the bot is in. Each server checks its own condition state—for example, its own FishRaid cooldown—and sends only when that server is due. A channel override points to that channel’s server.</div>
           <label class="wide toggle-row"><input type="checkbox" data-routine-bool-key="enabled" \${routine.enabled !== false ? "checked" : ""}> Enabled</label>
           <label class="wide toggle-row"><input type="checkbox" data-routine-bool-key="deleteAfterButtonClick" \${routine.deleteAfterButtonClick ? "checked" : ""}> Delete message from Discord after a routine button is clicked</label>
           <label class="wide">Default Embed Description<textarea class="event-description-input" data-routine-key="description">\${escapeHtml(routine.description || "")}</textarea></label>
@@ -4127,6 +4210,7 @@ const html = `<!doctype html>
                 ["fishraid", "Start FishRaid"],
                 ["fishstore", "Open Fish Store"],
                 ["fishdex", "Open FishDex"],
+                ["fishdexmutation", "Open Mutation FishDex"],
                 ["fishdaily", "Use Fish Daily"],
                 ["fishguide", "Open Fish Guide"],
                 ["fishprofile", "Open Fish Profile"],
@@ -5433,15 +5517,16 @@ const html = `<!doctype html>
 
     async function saveEventData(saveAs = false) {
       const eventState = getEvent();
-      const originalId = eventState.id || String(Date.now());
       const editing = isEventDraftEditing();
+      const originalId = editing ? eventState.id : "";
+      const requestedSaveAs = saveAs && editing;
       const eventDraft = cloneEventForEdit(eventState);
-      if (saveAs) {
+      if (requestedSaveAs) {
         eventDraft.id = makeNewItemId(originalId, state.events);
         eventDraft.isAnnounced = false;
         eventDraft.stoppedAt = "";
       }
-      setStatus(saveAs ? "Saving event as a new item to PlayFab..." : editing ? "Saving event changes to PlayFab..." : "Deploying event to PlayFab...");
+      setStatus(requestedSaveAs ? "Saving event as a new item to PlayFab..." : editing ? "Saving event changes to PlayFab..." : "Deploying event to PlayFab...");
       if (eventDraft.announcementChannelId) {
         state.lastAnnouncementChannelId = eventDraft.announcementChannelId;
         localStorage.setItem("trfishing:lastAnnouncementChannelId", state.lastAnnouncementChannelId);
@@ -5449,7 +5534,7 @@ const html = `<!doctype html>
       const response = await fetch("/api/event/save", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ activeEvent: state.activeEvent, events: state.events, eventDraft, originalId, saveAs })
+        body: JSON.stringify({ activeEvent: state.activeEvent, events: state.events, eventDraft, originalId, saveAs: requestedSaveAs })
       });
       const payload = await response.json();
       if (!response.ok) throw new Error(payload.error || "Could not save event.");
@@ -5458,7 +5543,7 @@ const html = `<!doctype html>
       state.eventDraft = null;
       state.createModal = null;
       delete state.uploadNames.eventBanner;
-      setStatus(saveAs ? "Event saved as a new item. The original event was kept." : editing ? "Event changes saved. The bot is being refreshed now." : "Event deployed. The bot is being refreshed now.");
+      setStatus(requestedSaveAs ? "Event saved as a new item. The original event was kept." : editing ? "Event changes saved. The bot is being refreshed now." : "Event deployed. The bot is being refreshed now.");
       render();
     }
 
@@ -6259,6 +6344,7 @@ const html = `<!doctype html>
           expMultiplier: 1,
           sizeMultiplier: 1,
           color: 0xffffff,
+          description: "",
          visual: "none",
          enabled: true,
           customOverlays: []
@@ -6754,6 +6840,25 @@ const html = `<!doctype html>
       if (removeEventButton) {
         if (!confirm("Remove this event from the manager?")) return;
         runWithLoading("Removing event…", () => removeEvent(removeEventButton.dataset.removeEvent)).catch((error) => setStatus(error.message, true));
+        return;
+      }
+      const addEventQuestButton = event.target.closest("[data-add-event-quest]");
+      if (addEventQuestButton) {
+        const questSelect = grid.querySelector("[data-event-quest-select]");
+        const questId = String(questSelect?.value || "").trim();
+        if (!questId) return;
+        const eventState = getEvent();
+        eventState.questIds = Array.isArray(eventState.questIds) ? eventState.questIds : [];
+        if (!eventState.questIds.includes(questId)) eventState.questIds.push(questId);
+        render();
+        return;
+      }
+      const removeEventQuestButton = event.target.closest("[data-remove-event-quest]");
+      if (removeEventQuestButton) {
+        const questId = String(removeEventQuestButton.dataset.removeEventQuest || "");
+        const eventState = getEvent();
+        eventState.questIds = (Array.isArray(eventState.questIds) ? eventState.questIds : []).filter((id) => String(id) !== questId);
+        render();
         return;
       }
       if (event.target.closest("[data-add-bonus]")) {
