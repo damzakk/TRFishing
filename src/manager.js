@@ -42,6 +42,7 @@ const fishEntotRefreshSignalPath = path.join(runtimeDirectory, "fish-entot-refre
 const defaultFishingChannelsPath = path.join(runtimeDirectory, "default-fishing-channels.json");
 const fishRaidStatePath = path.join(runtimeDirectory, "fish-raid-state.json");
 const fishRaidSignalPath = path.join(runtimeDirectory, "fish-raid-signal.json");
+const worldTournamentSignalPath = path.join(runtimeDirectory, "world-fish-tournament-signal.json");
 const massLuckSaturation = 20;
 const massLuckBiasScale = 3.85;
 
@@ -564,6 +565,39 @@ function cleanSettings(settings) {
     fishCompLogIntervalMs: Math.max(0, cleanNumber(source.fishCompLogIntervalMs, 2500)),
     fishCompExpReward: Math.max(0, cleanNumber(source.fishCompExpReward, 50)),
     fishCompGoldReward: Math.max(0, cleanNumber(source.fishCompGoldReward, 0)),
+    worldFishCompRegistrationMinutes: Math.max(1, Math.min(10080, Math.floor(cleanNumber(source.worldFishCompRegistrationMinutes, 300)))),
+    worldFishCompReminderMinutes: Math.max(0, Math.min(1440, Math.floor(cleanNumber(source.worldFishCompReminderMinutes, 60)))),
+    worldFishCompMinParticipants: Math.max(3, Math.min(100, Math.floor(cleanNumber(source.worldFishCompMinParticipants, 3)))),
+    worldFishCompMaxParticipants: Math.max(3, Math.min(100, Math.floor(cleanNumber(source.worldFishCompMaxParticipants, 100)))),
+    worldFishCompGroupSize: Math.max(2, Math.min(25, Math.floor(cleanNumber(source.worldFishCompGroupSize, 5)))),
+    worldFishCompStandardTurns: Math.max(1, Math.min(100, Math.floor(cleanNumber(source.worldFishCompStandardTurns, 15)))),
+    worldFishCompFinalTurns: Math.max(1, Math.min(200, Math.floor(cleanNumber(source.worldFishCompFinalTurns, 25)))),
+    worldFishCompLogIntervalMs: Math.max(0, Math.min(60000, Math.floor(cleanNumber(source.worldFishCompLogIntervalMs, 1000)))),
+    worldFishCompGroupDelayMs: Math.max(0, Math.min(300000, Math.floor(cleanNumber(source.worldFishCompGroupDelayMs, 3000)))),
+    worldFishCompPublicPlacementCount: Math.max(1, Math.min(10, Math.floor(cleanNumber(source.worldFishCompPublicPlacementCount, 3)))),
+    worldFishCompHistoryLogHours: Math.max(0, Math.min(720, Math.floor(cleanNumber(source.worldFishCompHistoryLogHours, 168)))),
+    worldFishCompParticipantExpReward: Math.max(0, cleanNumber(source.worldFishCompParticipantExpReward, 25)),
+    worldFishCompParticipantGoldReward: Math.max(0, cleanNumber(source.worldFishCompParticipantGoldReward, 0)),
+    worldFishCompFirstExpReward: Math.max(0, cleanNumber(source.worldFishCompFirstExpReward, 250)),
+    worldFishCompFirstGoldReward: Math.max(0, cleanNumber(source.worldFishCompFirstGoldReward, 0)),
+    worldFishCompSecondExpReward: Math.max(0, cleanNumber(source.worldFishCompSecondExpReward, 150)),
+    worldFishCompSecondGoldReward: Math.max(0, cleanNumber(source.worldFishCompSecondGoldReward, 0)),
+    worldFishCompThirdExpReward: Math.max(0, cleanNumber(source.worldFishCompThirdExpReward, 100)),
+    worldFishCompThirdGoldReward: Math.max(0, cleanNumber(source.worldFishCompThirdGoldReward, 0)),
+    worldFishCompChampionServerExpReward: Math.max(0, cleanNumber(source.worldFishCompChampionServerExpReward, 50)),
+    worldFishCompChampionServerGoldReward: Math.max(0, cleanNumber(source.worldFishCompChampionServerGoldReward, 0)),
+    worldFishCompRegistrationBannerBase64: String(source.worldFishCompRegistrationBannerBase64 || ""),
+    worldFishCompRegistrationBannerUrl: String(source.worldFishCompRegistrationBannerUrl || "").trim(),
+    worldFishCompRegistrationBannerRef: source.worldFishCompRegistrationBannerRef && typeof source.worldFishCompRegistrationBannerRef === "object" ? source.worldFishCompRegistrationBannerRef : null,
+    worldFishCompRegistrationBannerUrlNeedsRehost: imageNeedsRehost(source, "worldFishCompRegistrationBannerUrl"),
+    worldFishCompRunningBannerBase64: String(source.worldFishCompRunningBannerBase64 || ""),
+    worldFishCompRunningBannerUrl: String(source.worldFishCompRunningBannerUrl || "").trim(),
+    worldFishCompRunningBannerRef: source.worldFishCompRunningBannerRef && typeof source.worldFishCompRunningBannerRef === "object" ? source.worldFishCompRunningBannerRef : null,
+    worldFishCompRunningBannerUrlNeedsRehost: imageNeedsRehost(source, "worldFishCompRunningBannerUrl"),
+    worldFishCompResultBannerBase64: String(source.worldFishCompResultBannerBase64 || ""),
+    worldFishCompResultBannerUrl: String(source.worldFishCompResultBannerUrl || "").trim(),
+    worldFishCompResultBannerRef: source.worldFishCompResultBannerRef && typeof source.worldFishCompResultBannerRef === "object" ? source.worldFishCompResultBannerRef : null,
+    worldFishCompResultBannerUrlNeedsRehost: imageNeedsRehost(source, "worldFishCompResultBannerUrl"),
     fishDuelExpReward: Math.max(0, cleanNumber(source.fishDuelExpReward, 40)),
     fishDuelLogIntervalMs: Math.max(0, cleanNumber(source.fishDuelLogIntervalMs, 2500)),
     fishRaidLogIntervalMs: Math.max(0, cleanNumber(source.fishRaidLogIntervalMs, 2500)),
@@ -920,6 +954,15 @@ function mergeSavedPlayerRecord(record, saved) {
 function signalFishRaid(payload) {
   fs.mkdirSync(runtimeDirectory, { recursive: true });
   fs.writeFileSync(fishRaidSignalPath, JSON.stringify({
+    id: `${Date.now()}:${Math.random().toString(36).slice(2)}`,
+    createdAt: new Date().toISOString(),
+    ...payload
+  }));
+}
+
+function signalWorldTournament(payload) {
+  fs.mkdirSync(runtimeDirectory, { recursive: true });
+  fs.writeFileSync(worldTournamentSignalPath, JSON.stringify({
     id: `${Date.now()}:${Math.random().toString(36).slice(2)}`,
     createdAt: new Date().toISOString(),
     ...payload
@@ -1452,6 +1495,22 @@ async function handleApi(request, response) {
         guildId,
         channelId: String(body.channelId || "").trim()
       });
+      sendJson(response, 200, { ok: true });
+      return;
+    }
+
+    if (request.method === "POST" && request.url === "/api/worldfishcomp/start") {
+      const body = JSON.parse(await readBody(request) || "{}");
+      const current = await adminGetManagerTabData("settings", { caller: "manager world fish competition start" });
+      const settings = cleanSettings({ ...(current.settings || {}), ...(body.settings || {}) });
+      settings.worldFishCompMaxParticipants = Math.max(settings.worldFishCompMaxParticipants, settings.worldFishCompMinParticipants);
+      signalWorldTournament({ action: "start", settings });
+      sendJson(response, 200, { ok: true, settings });
+      return;
+    }
+
+    if (request.method === "POST" && request.url === "/api/worldfishcomp/cancel") {
+      signalWorldTournament({ action: "cancel" });
       sendJson(response, 200, { ok: true });
       return;
     }
@@ -2471,7 +2530,7 @@ const html = `<!doctype html>
       rods: [],
       fishBags: [],
       adminDiscordIds: [],
-      settings: { mutations: ${JSON.stringify(normalizeMutationSettings())}, fishEntotEvents: ${JSON.stringify(defaultFishEntotSettings.fishEntotEvents)}, fishEntotCooldownMinutes: ${defaultFishEntotSettings.fishEntotCooldownMinutes}, fishEntotMessageTtlMinutes: ${defaultFishEntotSettings.fishEntotMessageTtlMinutes}, fishEntotPityEnabled: ${defaultFishEntotSettings.fishEntotPityEnabled}, fishEntotPityThreshold: ${defaultFishEntotSettings.fishEntotPityThreshold}, rodStoreImageBase64: "", rodStoreImageUrl: "", fishCompBannerBase64: "", fishCompBannerUrl: "", fishCompRegistrationBannerBase64: "", fishCompRegistrationBannerUrl: "", fishCompRunningBannerBase64: "", fishCompRunningBannerUrl: "", fishCompResultBannerBase64: "", fishCompResultBannerUrl: "", fishRaidBannerBase64: "", fishRaidBannerUrl: "", fishRaidRegistrationBannerBase64: "", fishRaidRegistrationBannerUrl: "", fishRaidRunningBannerBase64: "", fishRaidRunningBannerUrl: "", fishRaidResultBannerBase64: "", fishRaidResultBannerUrl: "", fishDuelRegistrationBannerBase64: "", fishDuelRegistrationBannerUrl: "", fishDuelRunningBannerBase64: "", fishDuelRunningBannerUrl: "", fishDuelResultBannerBase64: "", fishDuelResultBannerUrl: "", fishCompEvents: [], fishRaidEvents: [], fishDuelEvents: [], fishRaidBosses: [{ id: "big_order", name: "Big Fish Order", quotaKg: 100, description: "Pesanan ikan besar hari ini sudah menunggu.", registrationBannerBase64: "", registrationBannerUrl: "", runningBannerBase64: "", runningBannerUrl: "", resultBannerBase64: "", resultBannerUrl: "", fulfilledBannerBase64: "", fulfilledBannerUrl: "", failedBannerBase64: "", failedBannerUrl: "" }], fishCompLogIntervalMs: 2500, fishCompHistoryLogHours: 24, fishCompExpReward: 50, fishCompGoldReward: 0, fishDuelExpReward: 40, fishDuelLogIntervalMs: 2500, fishRaidLogIntervalMs: 2500, fishRaidParticipantExpReward: 25, fishRaidParticipantGoldReward: 0, fishRaidMvpExpReward: 75, fishRaidMvpGoldReward: 0, fishRaidClearParticipantExpReward: 50, fishRaidClearMvpExpReward: 150, fishRaidClearParticipantGoldReward: 0, fishRaidClearMvpGoldReward: 0, allowActivity: true, chatCooldownMs: 20000, expMultiplier: 1, levelExpMultiplier: 1, voiceExpAmount: 1, voiceExpIntervalMinutes: 15, dailyQuestCount: 3 },
+      settings: { mutations: ${JSON.stringify(normalizeMutationSettings())}, fishEntotEvents: ${JSON.stringify(defaultFishEntotSettings.fishEntotEvents)}, fishEntotCooldownMinutes: ${defaultFishEntotSettings.fishEntotCooldownMinutes}, fishEntotMessageTtlMinutes: ${defaultFishEntotSettings.fishEntotMessageTtlMinutes}, fishEntotPityEnabled: ${defaultFishEntotSettings.fishEntotPityEnabled}, fishEntotPityThreshold: ${defaultFishEntotSettings.fishEntotPityThreshold}, rodStoreImageBase64: "", rodStoreImageUrl: "", fishCompBannerBase64: "", fishCompBannerUrl: "", fishCompRegistrationBannerBase64: "", fishCompRegistrationBannerUrl: "", fishCompRunningBannerBase64: "", fishCompRunningBannerUrl: "", fishCompResultBannerBase64: "", fishCompResultBannerUrl: "", worldFishCompRegistrationBannerBase64: "", worldFishCompRegistrationBannerUrl: "", worldFishCompRunningBannerBase64: "", worldFishCompRunningBannerUrl: "", worldFishCompResultBannerBase64: "", worldFishCompResultBannerUrl: "", fishRaidBannerBase64: "", fishRaidBannerUrl: "", fishRaidRegistrationBannerBase64: "", fishRaidRegistrationBannerUrl: "", fishRaidRunningBannerBase64: "", fishRaidRunningBannerUrl: "", fishRaidResultBannerBase64: "", fishRaidResultBannerUrl: "", fishDuelRegistrationBannerBase64: "", fishDuelRegistrationBannerUrl: "", fishDuelRunningBannerBase64: "", fishDuelRunningBannerUrl: "", fishDuelResultBannerBase64: "", fishDuelResultBannerUrl: "", fishCompEvents: [], fishRaidEvents: [], fishDuelEvents: [], fishRaidBosses: [{ id: "big_order", name: "Big Fish Order", quotaKg: 100, description: "Pesanan ikan besar hari ini sudah menunggu.", registrationBannerBase64: "", registrationBannerUrl: "", runningBannerBase64: "", runningBannerUrl: "", resultBannerBase64: "", resultBannerUrl: "", fulfilledBannerBase64: "", fulfilledBannerUrl: "", failedBannerBase64: "", failedBannerUrl: "" }], fishCompLogIntervalMs: 2500, fishCompHistoryLogHours: 24, fishCompExpReward: 50, fishCompGoldReward: 0, worldFishCompRegistrationMinutes: 300, worldFishCompReminderMinutes: 60, worldFishCompMinParticipants: 3, worldFishCompMaxParticipants: 100, worldFishCompGroupSize: 5, worldFishCompStandardTurns: 15, worldFishCompFinalTurns: 25, worldFishCompLogIntervalMs: 1000, worldFishCompGroupDelayMs: 3000, worldFishCompPublicPlacementCount: 3, worldFishCompHistoryLogHours: 168, worldFishCompParticipantExpReward: 25, worldFishCompParticipantGoldReward: 0, worldFishCompFirstExpReward: 250, worldFishCompFirstGoldReward: 0, worldFishCompSecondExpReward: 150, worldFishCompSecondGoldReward: 0, worldFishCompThirdExpReward: 100, worldFishCompThirdGoldReward: 0, worldFishCompChampionServerExpReward: 50, worldFishCompChampionServerGoldReward: 0, fishDuelExpReward: 40, fishDuelLogIntervalMs: 2500, fishRaidLogIntervalMs: 2500, fishRaidParticipantExpReward: 25, fishRaidParticipantGoldReward: 0, fishRaidMvpExpReward: 75, fishRaidMvpGoldReward: 0, fishRaidClearParticipantExpReward: 50, fishRaidClearMvpExpReward: 150, fishRaidClearParticipantGoldReward: 0, fishRaidClearMvpGoldReward: 0, allowActivity: true, chatCooldownMs: 20000, expMultiplier: 1, levelExpMultiplier: 1, voiceExpAmount: 1, voiceExpIntervalMinutes: 15, dailyQuestCount: 3 },
       activeEvent: null,
       events: [],
       quests: { main: [], event: [], daily: [], fish: [] },
@@ -3508,6 +3567,39 @@ const html = `<!doctype html>
           \${field("History Log Lifetime, hours", "fishCompHistoryLogHours", state.settings.fishCompHistoryLogHours ?? 24, 0, "number", "1")}
           <label class="wide">Fish Comp Events JSON<textarea data-settings-json="fishCompEvents">\${escapeHtml(JSON.stringify(state.settings.fishCompEvents || [], null, 2))}</textarea></label>
           <div class="wide small">Use {user} and {target} in event text. Chance is percent per player turn. Types: stun, buff, debuff, empty. luckModifier changes competition luck while active. Winner rewards are multiplied by participant count.</div>
+          <section class="wide settings-card">
+            <div class="topline"><strong>World Fish Competition</strong><span class="badge">Manager launch only</span></div>
+            <div class="fields">
+              \${field("Registration Duration, minutes", "worldFishCompRegistrationMinutes", state.settings.worldFishCompRegistrationMinutes ?? 300, 1, "number", "1")}
+              \${field("Reminder Interval, minutes", "worldFishCompReminderMinutes", state.settings.worldFishCompReminderMinutes ?? 60, 0, "number", "1")}
+              \${field("Minimum Participants", "worldFishCompMinParticipants", state.settings.worldFishCompMinParticipants ?? 3, 3, "number", "1")}
+              \${field("Maximum Participants", "worldFishCompMaxParticipants", state.settings.worldFishCompMaxParticipants ?? 100, 3, "number", "1")}
+              \${field("Group Size", "worldFishCompGroupSize", state.settings.worldFishCompGroupSize ?? 5, 2, "number", "1")}
+              \${field("Normal Round Turns", "worldFishCompStandardTurns", state.settings.worldFishCompStandardTurns ?? 15, 1, "number", "1")}
+              \${field("Final Round Turns", "worldFishCompFinalTurns", state.settings.worldFishCompFinalTurns ?? 25, 1, "number", "1")}
+              \${field("Live Log Interval, ms", "worldFishCompLogIntervalMs", state.settings.worldFishCompLogIntervalMs ?? 1000, 0, "number", "100")}
+              \${field("Delay Between Groups, ms", "worldFishCompGroupDelayMs", state.settings.worldFishCompGroupDelayMs ?? 3000, 0, "number", "100")}
+              \${field("Public Placement Count", "worldFishCompPublicPlacementCount", state.settings.worldFishCompPublicPlacementCount ?? 3, 1, "number", "1")}
+              \${field("World History Lifetime, hours", "worldFishCompHistoryLogHours", state.settings.worldFishCompHistoryLogHours ?? 168, 0, "number", "1")}
+              \${field("Participant EXP Reward", "worldFishCompParticipantExpReward", state.settings.worldFishCompParticipantExpReward ?? 25, 0, "number", "1")}
+              \${field("Participant Gold Reward", "worldFishCompParticipantGoldReward", state.settings.worldFishCompParticipantGoldReward ?? 0, 0, "number", "1")}
+              \${field("1st Place EXP Reward", "worldFishCompFirstExpReward", state.settings.worldFishCompFirstExpReward ?? 250, 0, "number", "1")}
+              \${field("1st Place Gold Reward", "worldFishCompFirstGoldReward", state.settings.worldFishCompFirstGoldReward ?? 0, 0, "number", "1")}
+              \${field("2nd Place EXP Reward", "worldFishCompSecondExpReward", state.settings.worldFishCompSecondExpReward ?? 150, 0, "number", "1")}
+              \${field("2nd Place Gold Reward", "worldFishCompSecondGoldReward", state.settings.worldFishCompSecondGoldReward ?? 0, 0, "number", "1")}
+              \${field("3rd Place EXP Reward", "worldFishCompThirdExpReward", state.settings.worldFishCompThirdExpReward ?? 100, 0, "number", "1")}
+              \${field("3rd Place Gold Reward", "worldFishCompThirdGoldReward", state.settings.worldFishCompThirdGoldReward ?? 0, 0, "number", "1")}
+              \${field("Champion Server EXP Bonus", "worldFishCompChampionServerExpReward", state.settings.worldFishCompChampionServerExpReward ?? 50, 0, "number", "1")}
+              \${field("Champion Server Gold Bonus", "worldFishCompChampionServerGoldReward", state.settings.worldFishCompChampionServerGoldReward ?? 0, 0, "number", "1")}
+              <div class="wide small">World Fish Competition uses its own registration, running, and result banners. It uses the global fish pool and the FishComp event list. Its active state is checkpointed so it can resume after a bot restart.</div>
+              <div class="wide image-grid">
+                \${settingsImageFields("World Fish Registration Banner", "worldFishCompRegistrationBanner")}
+                \${settingsImageFields("World Fish Running Banner", "worldFishCompRunningBanner")}
+                \${settingsImageFields("World Fish Result Banner", "worldFishCompResultBanner")}
+              </div>
+              <div class="wide button-row"><button data-save-world-fishcomp-settings type="button">Save World Settings</button><button class="primary" data-start-world-fishcomp type="button">Start World Competition</button><button class="danger" data-cancel-world-fishcomp type="button">Cancel World Registration</button></div>
+            </div>
+          </section>
           <div class="image-grid">
             \${settingsImageFields("Fish Comp Registration Banner", "fishCompRegistrationBanner")}
             \${settingsImageFields("Fish Comp Competition Banner", "fishCompRunningBanner")}
@@ -5133,6 +5225,36 @@ const html = `<!doctype html>
       });
     }
 
+    async function saveWorldFishCompetitionSettings() {
+      if (!state.loadedTabs.settings) throw new Error("Load Settings before saving World Fish Competition settings.");
+      await saveData("settings");
+      setStatus("World Fish Competition settings saved. Start the tournament separately when ready.");
+    }
+
+    async function startWorldFishCompetition() {
+      if (!state.loadedTabs.settings) throw new Error("Load Settings before starting the World Fish Competition.");
+      if (!confirm("Start one global World Fish Competition in every bot server using the saved World settings?")) return;
+      setStatus("Sending World Fish Competition start signal...");
+      const response = await fetch("/api/worldfishcomp/start", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({})
+      });
+      const payload = await response.json();
+      if (!response.ok) throw new Error(payload.error || "Could not start World Fish Competition.");
+      state.settings = payload.settings || state.settings;
+      setStatus("World Fish Competition start signal sent to the bot.");
+      render();
+    }
+
+    async function cancelWorldFishCompetition() {
+      if (!confirm("Cancel the current World Fish Competition registration? This cannot cancel a tournament that has already started.")) return;
+      const response = await fetch("/api/worldfishcomp/cancel", { method: "POST" });
+      const payload = await response.json();
+      if (!response.ok) throw new Error(payload.error || "Could not cancel World Fish Competition.");
+      setStatus("World Fish Competition cancellation signal sent to the bot.");
+    }
+
     async function loadPlayers() {
       setStatus("Loading players from PlayFab...");
       const query = state.playerSearch ? \`?search=\${encodeURIComponent(state.playerSearch)}\` : "";
@@ -6260,6 +6382,18 @@ const html = `<!doctype html>
       if (settingsTabButton) {
         state.settingsTab = settingsTabButton.dataset.settingsTab;
         render();
+        return;
+      }
+      if (event.target.closest("[data-start-world-fishcomp]")) {
+        startWorldFishCompetition().catch((error) => setStatus(error.message, true));
+        return;
+      }
+      if (event.target.closest("[data-save-world-fishcomp-settings]")) {
+        saveWorldFishCompetitionSettings().catch((error) => setStatus(error.message, true));
+        return;
+      }
+      if (event.target.closest("[data-cancel-world-fishcomp]")) {
+        cancelWorldFishCompetition().catch((error) => setStatus(error.message, true));
         return;
       }
      const previewMutationButton = event.target.closest("[data-preview-mutation-index]");

@@ -46,6 +46,7 @@ const {
   rollMutation
 } = require("./mutationSystem");
 const { defaultFishEntotSettings, cleanFishEntotEvents } = require("./fishEntotConfig");
+const { createWorldTournamentService } = require("./worldTournament");
 
 const token = process.env.DISCORD_TOKEN;
 const prefix = process.env.PREFIX || "!";
@@ -61,6 +62,8 @@ const fishVoiceChannelsPath = path.join(runtimeDirectory, "fish-voice-channels.j
 const defaultFishingChannelsPath = path.join(runtimeDirectory, "default-fishing-channels.json");
 const fishRaidStatePath = path.join(runtimeDirectory, "fish-raid-state.json");
 const fishRaidSignalPath = path.join(runtimeDirectory, "fish-raid-signal.json");
+const worldTournamentSignalPath = path.join(runtimeDirectory, "world-fish-tournament-signal.json");
+const worldTournamentStatePath = path.join(runtimeDirectory, "world-fish-tournament.json");
 const fishDuelPendingPath = path.join(runtimeDirectory, "fish-duel-pending.json");
 const pendingMessageDeletesPath = path.join(runtimeDirectory, "pending-message-deletes.json");
 const competitionHistoryPath = path.join(runtimeDirectory, "competition-history-logs.json");
@@ -148,6 +151,33 @@ let gameData = {
     fishCompHistoryLogHours: 24,
     fishCompExpReward: 50,
     fishCompGoldReward: 0,
+    worldFishCompRegistrationMinutes: 300,
+    worldFishCompReminderMinutes: 60,
+    worldFishCompMinParticipants: 3,
+    worldFishCompMaxParticipants: 100,
+    worldFishCompGroupSize: 5,
+    worldFishCompStandardTurns: 15,
+    worldFishCompFinalTurns: 25,
+    worldFishCompLogIntervalMs: 1000,
+    worldFishCompGroupDelayMs: 3000,
+    worldFishCompPublicPlacementCount: 3,
+    worldFishCompHistoryLogHours: 168,
+    worldFishCompParticipantExpReward: 25,
+    worldFishCompParticipantGoldReward: 0,
+    worldFishCompFirstExpReward: 250,
+    worldFishCompFirstGoldReward: 0,
+    worldFishCompSecondExpReward: 150,
+    worldFishCompSecondGoldReward: 0,
+    worldFishCompThirdExpReward: 100,
+    worldFishCompThirdGoldReward: 0,
+    worldFishCompChampionServerExpReward: 50,
+    worldFishCompChampionServerGoldReward: 0,
+    worldFishCompRegistrationBannerBase64: "",
+    worldFishCompRegistrationBannerUrl: "",
+    worldFishCompRunningBannerBase64: "",
+    worldFishCompRunningBannerUrl: "",
+    worldFishCompResultBannerBase64: "",
+    worldFishCompResultBannerUrl: "",
     fishRaidLogIntervalMs: 2500,
     fishRaidCooldownMinutes: 60,
     fishRaidQuotaStreakBonusPercent: 0,
@@ -200,6 +230,7 @@ let enforcedFishingTimer = null;
 let giveMoneyTimer = null;
 let fishEntotRefreshTimer = null;
 let fishRaidSignalTimer = null;
+let worldTournamentSignalTimer = null;
 let fishRaidMidnightTimer = null;
 let eventAnnouncementTimer = null;
 let routineMessageTimer = null;
@@ -207,6 +238,7 @@ const processedEnforcedFishingIds = new Set();
 const processedGiveMoneyIds = new Set();
 const processedFishEntotRefreshIds = new Set();
 const processedFishRaidSignalIds = new Set();
+const processedWorldTournamentSignalIds = new Set();
 let leaderboardCache = { records: [], loadedAt: 0 };
 const leaderboardCacheTtlMs = 2 * 60 * 1000;
 
@@ -281,7 +313,8 @@ function loadCompetitionHistoryLogs() {
     finishedCompetitionLogs.set(String(entry.id), {
       createdAt: Math.max(0, Number(entry.createdAt || 0)),
       fileName: String(entry.fileName || "match_log.txt"),
-      content: String(entry.content || "")
+      content: String(entry.content || ""),
+      retentionHours: Math.max(0, Number(entry.retentionHours || 0))
     });
   }
   cleanupFinishedCompetitionLogs();
@@ -294,7 +327,8 @@ function saveCompetitionHistoryLogs() {
       id,
       createdAt: Math.max(0, Number(record.createdAt || 0)),
       fileName: String(record.fileName || "match_log.txt"),
-      content: String(record.content || "")
+      content: String(record.content || ""),
+      retentionHours: Math.max(0, Number(record.retentionHours || 0))
     }))
   });
 }
@@ -1366,6 +1400,14 @@ function getEventEndedAt(event) {
   return Number.isFinite(endsAt) && endsAt <= Date.now() ? endsAt : 0;
 }
 
+function isEventExpired(event, now = Date.now()) {
+  if (event?.stoppedAt) {
+    return true;
+  }
+  const endsAt = Date.parse(event?.endsAt || "");
+  return Number.isFinite(endsAt) && endsAt <= now;
+}
+
 function isEventEnded(event) {
   return Boolean(event?.title && event?.deployedAt && getEventEndedAt(event));
 }
@@ -1900,9 +1942,9 @@ function getAvailableFish(guildId = "") {
   });
 }
 
-function rollFish(rod, guildId = "", player = null) {
+function rollFish(rod, guildId = "", player = null, options = {}) {
   const rodMaxWeight = Number(rod.maxWeight || Infinity);
-  const availableFish = getAvailableFish(guildId);
+  const availableFish = Array.isArray(options.fishPool) ? options.fishPool : getAvailableFish(guildId);
   const catchableFish = availableFish.filter((entry) => Number(entry.minWeight || 0) <= rodMaxWeight);
   const fishPool = catchableFish.length ? catchableFish : availableFish;
   const weightedFish = fishPool.map((entry) => {
@@ -2755,8 +2797,8 @@ function makeRoutineMessage(routine) {
   });
 }
 
-function makeSettingsImage(baseKey, fallbackBaseKey = "") {
-  const settings = getSettings();
+function makeSettingsImage(baseKey, fallbackBaseKey = "", settingsOverride = null) {
+  const settings = settingsOverride && typeof settingsOverride === "object" ? settingsOverride : getSettings();
   const imageUrl = getPublicImageUrl(settings[`${baseKey}Url`]) || getPublicImageUrl(fallbackBaseKey ? settings[`${fallbackBaseKey}Url`] : "");
   if (imageUrl) {
     return { url: imageUrl, attachment: null };
@@ -2782,6 +2824,15 @@ function makeFishCompImage(status = "registration") {
     result: "fishCompResultBanner"
   }[status] || "fishCompRegistrationBanner";
   return makeSettingsImage(bannerKey, "fishCompBanner");
+}
+
+function makeWorldFishCompImage(status = "registration", settingsOverride = null) {
+  const bannerKey = {
+    registration: "worldFishCompRegistrationBanner",
+    running: "worldFishCompRunningBanner",
+    result: "worldFishCompResultBanner"
+  }[status] || "worldFishCompRegistrationBanner";
+  return makeSettingsImage(bannerKey, "", settingsOverride);
 }
 
 function makeFishRaidImage(status = "registration", boss = null) {
@@ -3425,7 +3476,7 @@ function scheduleRoutineMessages() {
 }
 
 async function hydrateActiveEventGuilds() {
-  for (const event of getEvents().filter((entry) => entry?.announcementChannelId)) {
+  for (const event of getEvents().filter((entry) => entry?.announcementChannelId && !isEventExpired(entry))) {
     await hydrateEventGuild(event);
   }
 }
@@ -3670,6 +3721,26 @@ async function processFishRaidSignal() {
   fs.writeFileSync(fishRaidSignalPath, JSON.stringify({ id: "", processedAt: new Date().toISOString(), processedId: request.id }));
 }
 
+async function processWorldTournamentSignal() {
+  if (!fs.existsSync(worldTournamentSignalPath)) return;
+  let request;
+  try {
+    request = JSON.parse(fs.readFileSync(worldTournamentSignalPath, "utf8"));
+  } catch (error) {
+    console.error("Could not read World Fish Competition manager signal:", error);
+    return;
+  }
+  if (!request?.id || processedWorldTournamentSignalIds.has(request.id)) return;
+  processedWorldTournamentSignalIds.add(request.id);
+  try {
+    await worldTournament.processSignal(request);
+  } catch (error) {
+    console.error("Could not process World Fish Competition manager signal:", error);
+  } finally {
+    fs.writeFileSync(worldTournamentSignalPath, JSON.stringify({ id: "", processedAt: new Date().toISOString(), processedId: request.id }));
+  }
+}
+
 async function processFishRaidMidnightReset() {
   const today = getLocalDateKey();
   for (const [guildId, state] of [...dailyFishRaids.entries()]) {
@@ -3755,6 +3826,13 @@ function watchGiveMoneySignal() {
   console.log("Watching manager give money signal.");
 }
 
+function scheduleWorldTournamentSignal() {
+  clearTimeout(worldTournamentSignalTimer);
+  worldTournamentSignalTimer = setTimeout(() => {
+    processWorldTournamentSignal().catch((error) => console.error("Could not process World Fish Competition signal:", error));
+  }, 250);
+}
+
 function watchFishEntotRefreshSignal() {
   fs.mkdirSync(runtimeDirectory, { recursive: true });
   if (!fs.existsSync(fishEntotRefreshSignalPath)) {
@@ -3774,6 +3852,16 @@ function watchFishRaidSignal() {
 
   fs.watch(fishRaidSignalPath, scheduleFishRaidSignal);
   console.log("Watching manager fish raid signal.");
+}
+
+function watchWorldTournamentSignal() {
+  fs.mkdirSync(runtimeDirectory, { recursive: true });
+  if (!fs.existsSync(worldTournamentSignalPath)) {
+    fs.writeFileSync(worldTournamentSignalPath, JSON.stringify({ id: "", createdAt: new Date().toISOString() }));
+  }
+  fs.watch(worldTournamentSignalPath, scheduleWorldTournamentSignal);
+  scheduleWorldTournamentSignal();
+  console.log("Watching manager World Fish Competition signal.");
 }
 
 function makeInventoryEmbed(user, player, guildId = "") {
@@ -4604,9 +4692,10 @@ function shuffleCompetitionParticipants(participants) {
   return shuffleList(participants);
 }
 
-function getFishCompEvents(mode = "competition") {
+function getFishCompEvents(mode = "competition", settingsOverride = null) {
   const settingsKey = mode === "duel" ? "fishDuelEvents" : mode === "raid" ? "fishRaidEvents" : "fishCompEvents";
-  return (Array.isArray(getSettings()[settingsKey]) ? getSettings()[settingsKey] : [])
+  const sourceSettings = settingsOverride && typeof settingsOverride === "object" ? settingsOverride : getSettings();
+  return (Array.isArray(sourceSettings[settingsKey]) ? sourceSettings[settingsKey] : [])
     .filter((event) => event && Number(event.chance || 0) > 0 && event.startText);
 }
 
@@ -4644,7 +4733,7 @@ function makeCompEventState(event, type, durationTurns, luckModifier, activeText
 }
 
 function pickCompetitionEvent(competition) {
-  for (const event of shuffleList(getFishCompEvents(competition?.mode))) {
+  for (const event of shuffleList(getFishCompEvents(competition?.mode, competition?.settingsSnapshot))) {
     if (Math.random() * 100 < Number(event.chance || 0)) {
       return event;
     }
@@ -5448,7 +5537,7 @@ function runCompetitionTurnForParticipant(competition, participant, turn, turnEf
     return;
   }
 
-  const catchResult = rollFish(rod, competition.guildId);
+  const catchResult = rollFish(rod, competition.guildId, null, { fishPool: competition.fishPoolOverride });
   if (!catchResult) {
     competition.logs.push(`[${turn}] ${participant.displayName} gagal mendapatkan ikan.`);
     return;
@@ -5755,18 +5844,12 @@ async function cancelCompetition(competition, reason) {
 
 function cleanupFinishedCompetitionLogs() {
   const historyHours = Math.max(0, Number(getSettings().fishCompHistoryLogHours ?? 24));
-  const maxAgeMs = historyHours * 60 * 60 * 1000;
-  if (maxAgeMs <= 0) {
-    if (finishedCompetitionLogs.size) {
-      finishedCompetitionLogs.clear();
-      saveCompetitionHistoryLogs();
-    }
-    return;
-  }
   const now = Date.now();
   let changed = false;
   for (const [logId, record] of finishedCompetitionLogs.entries()) {
-    if (now - Number(record.createdAt || 0) > maxAgeMs) {
+    const retentionHours = record.retentionHours > 0 ? record.retentionHours : historyHours;
+    const maxAgeMs = retentionHours * 60 * 60 * 1000;
+    if (maxAgeMs <= 0 || now - Number(record.createdAt || 0) > maxAgeMs) {
       finishedCompetitionLogs.delete(logId);
       changed = true;
     }
@@ -6761,6 +6844,11 @@ async function handleCommand(message) {
   const [commandName = ""] = message.content.slice(prefix.length).trim().split(/\s+/);
   const command = commandName.toLowerCase();
 
+  if (command === "fishworldcompforcestart" || command === "fishworldcompcancel") {
+    await worldTournament.handleAdminCommand(command, message);
+    return;
+  }
+
   if (command === "fishcompforcestart") {
     if (!isAdmin(message.author)) {
       await message.reply("Only admins can force-start a fishing competition.");
@@ -6912,6 +7000,23 @@ async function handleFishingProgress(message) {
   });
 }
 
+const worldTournament = createWorldTournamentService({
+  client,
+  statePath: worldTournamentStatePath,
+  getSettings,
+  getGlobalFishPool: () => getAvailableFish(""),
+  prepareCompetitionParticipant,
+  runCompetitionTurnForParticipant,
+  withPlayer,
+  getBotGuildIds,
+  fetchGuildBroadcastChannel,
+  makeWorldFishCompImage,
+  rememberCompetitionHistoryLog,
+  getCompetitionHistoryLog: (logId) => finishedCompetitionLogs.get(logId),
+  isAdmin,
+  log: (message) => console.log(`[WorldFishComp] ${message}`)
+});
+
 client.once("clientReady", async () => {
   console.log(`Logged in as ${client.user.tag}`);
   try {
@@ -6922,6 +7027,7 @@ client.once("clientReady", async () => {
   }
   await restoreFishVoiceChannels();
   await ensureFishCompRolesForGuilds();
+  await worldTournament.recover().catch((error) => console.error("Could not recover World Fish Competition:", error));
   startVoiceExpTimer();
   scheduleEnforcedFishingSignal();
 });
@@ -7342,6 +7448,11 @@ async function handleRoutineButton(interaction) {
 
 client.on("interactionCreate", async (interaction) => {
   try {
+    if (interaction.isButton() && interaction.customId.startsWith("fishworldcomp_")) {
+      await worldTournament.handleButton(interaction);
+      return;
+    }
+
     if (interaction.isButton() && interaction.customId.startsWith("routine:")) {
       await handleRoutineButton(interaction);
       return;
@@ -8524,6 +8635,7 @@ async function start() {
   watchGiveMoneySignal();
   watchFishEntotRefreshSignal();
   watchFishRaidSignal();
+  watchWorldTournamentSignal();
   scheduleFishRaidMidnightReset();
   scheduleRoutineMessages();
   setInterval(() => {
