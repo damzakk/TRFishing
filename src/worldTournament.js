@@ -653,6 +653,46 @@ function createWorldTournamentService(deps) {
     };
   }
 
+  async function autoJoinVipParticipants() {
+    const activeVipUsers = await deps.getActiveVipUsers?.({ forceRefresh: true }) || [];
+    const guilds = (deps.getBotGuildIds?.() || [])
+      .map((guildId) => deps.client.guilds.cache.get(guildId))
+      .filter(Boolean);
+    const candidates = [];
+
+    for (const vipUser of activeVipUsers) {
+      const memberships = (await Promise.all(guilds.map(async (guild) => {
+        const member = await Promise.resolve(guild.members?.fetch?.(vipUser.discordUserId)).catch(() => null);
+        return member?.user && !member.user.bot ? { guild, member } : null;
+      }))).filter(Boolean);
+      if (!memberships.length) continue;
+
+      const { guild, member } = shuffle(memberships)[0];
+      const globalName = cleanText(member.user.globalName || member.user.username, "Unknown User");
+      candidates.push(normalizeParticipant({
+        id: member.user.id,
+        username: member.user.username,
+        globalName,
+        displayName: member.displayName || globalName,
+        guildId: guild.id,
+        guildName: guild.name || guild.id
+      }));
+    }
+
+    const selected = shuffle(candidates).slice(0, state.maxParticipants);
+    for (const participant of selected) {
+      if (!state.participants[participant.id]) {
+        state.participants[participant.id] = participant;
+      }
+    }
+    return {
+      activeVipCount: activeVipUsers.length,
+      serverMemberVipCount: candidates.length,
+      selectedVipCount: selected.length,
+      skippedForCapacity: Math.max(0, candidates.length - selected.length)
+    };
+  }
+
   async function start(options = {}) {
     if (active()) throw new Error("A World Fish Competition is already active.");
     const override = options.settings && typeof options.settings === "object" ? options.settings : options;
@@ -682,11 +722,15 @@ function createWorldTournamentService(deps) {
       rewardLedger: {},
       cancelReason: ""
     };
+    const vipSummary = await autoJoinVipParticipants().catch((error) => {
+      deps.log?.(`Could not auto-join VIP World Fish Competition participants: ${error.message}`);
+      return { activeVipCount: 0, serverMemberVipCount: 0, selectedVipCount: 0, skippedForCapacity: 0 };
+    });
     writeState();
     await queueSync("registration opened");
     scheduleTimers();
-    deps.log?.(`World Fish Competition registration opened | tournament=${state.id} | minutes=${settings.registrationMinutes}`);
-    return { id: state.id, registrationEndsAt: state.registrationEndsAt, settings };
+    deps.log?.(`World Fish Competition registration opened | tournament=${state.id} | minutes=${settings.registrationMinutes} | vipCandidates=${vipSummary.serverMemberVipCount} | vipSelected=${vipSummary.selectedVipCount} | vipCapacitySkipped=${vipSummary.skippedForCapacity}`);
+    return { id: state.id, registrationEndsAt: state.registrationEndsAt, settings, vipSummary };
   }
 
   async function cancelRegistration(reason = "World Fish Competition dibatalkan oleh admin.") {

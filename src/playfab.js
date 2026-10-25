@@ -31,7 +31,8 @@ const titleDataKeys = {
   routines: "routine_config",
   routineState: "routine_runtime_state",
   legacyConfigBackup: "admin_config_backup_before_split",
-  playerIndex: "player_index"
+  playerIndex: "player_index",
+  vipState: "vip_state"
 };
 
 const defaultSettings = {
@@ -70,6 +71,8 @@ const defaultSettings = {
   fishHelpBannerUrl: "",
   sellFishBannerBase64: "",
   sellFishBannerUrl: "",
+  vipFishShowoffBannerBase64: "",
+  vipFishShowoffBannerUrl: "",
   fishCompEvents: defaultFishCompEvents,
   fishRaidEvents: defaultFishRaidEvents,
   fishRaidBosses: [
@@ -125,6 +128,7 @@ const defaultSettings = {
   fishRaidCooldownMinutes: 60,
   fishRaidQuotaStreakBonusPercent: 0,
   fishRaidRewardStreakBonusPercent: 0,
+  fishRaidFailureStreakDecrease: 2,
   fishRaidParticipantExpReward: 25,
   fishRaidParticipantGoldReward: 0,
   fishRaidMvpExpReward: 75,
@@ -133,12 +137,23 @@ const defaultSettings = {
   fishRaidClearParticipantGoldReward: 0,
   fishRaidClearMvpExpReward: 150,
   fishRaidClearMvpGoldReward: 0,
+  vipServerBoostGoldPercent: 100,
+  vipServerBoostGoldMaxPercent: 400,
+  vipServerBoostExpPercent: 100,
+  vipServerBoostExpMaxPercent: 400,
+  vipServerBoostFishingSpeedPercent: 100,
+  vipServerBoostFishingSpeedMaxPercent: 400,
+  vipServerBoostMutationChancePercent: 100,
+  vipServerBoostMutationChanceMaxPercent: 400,
+  vipServerBoostPercent: 100,
+  vipServerBoostMaxPercent: 400,
   allowActivity: true,
   chatCooldownMs: 20_000,
   expMultiplier: 1,
   levelExpMultiplier: 1,
   voiceExpAmount: 1,
   voiceExpIntervalMinutes: 15,
+  vipPassiveFishingProgressMultiplier: 2,
   dailyQuestCount: 3
 };
 const titleDataChunkSize = 8_000;
@@ -147,6 +162,22 @@ const externalRequestTimeoutMs = 30_000;
 const sessionTicketTtlMs = 45 * 60_000;
 const sessionTickets = new Map();
 const indexedDiscordUsers = new Set();
+const vipStateCacheTtlMs = 5_000;
+const vipBoostDurationMs = 5 * 60 * 60_000;
+const vipBoostPointCost = 5;
+const defaultVipBoostIncrementPercent = 100;
+const defaultVipBoostMaxPercent = 400;
+const maxVipBoostStoragePercent = 100_000;
+const vipBoostTypes = ["gold_multiplier", "exp_multiplier", "fishing_speed", "mutation_chance"];
+const vipBoostSettingKeys = {
+  gold_multiplier: { percent: "vipServerBoostGoldPercent", maxPercent: "vipServerBoostGoldMaxPercent" },
+  exp_multiplier: { percent: "vipServerBoostExpPercent", maxPercent: "vipServerBoostExpMaxPercent" },
+  fishing_speed: { percent: "vipServerBoostFishingSpeedPercent", maxPercent: "vipServerBoostFishingSpeedMaxPercent" },
+  mutation_chance: { percent: "vipServerBoostMutationChancePercent", maxPercent: "vipServerBoostMutationChanceMaxPercent" }
+};
+const maxVipDaysPerGrant = 36_500;
+const maxVipStoredNumber = Number.MAX_SAFE_INTEGER;
+let vipStateCache = { state: null, loadedAt: 0 };
 
 function requireTitleId() {
   if (!titleId) {
@@ -230,6 +261,315 @@ function isPlayFabConflict(error) {
 
 function isPlayFabTooManyKeys(error) {
   return String(error?.message || "").includes("TooManyKeys");
+}
+
+function normalizeVipBoostSettings(settings = {}) {
+  const source = settings && typeof settings === "object" ? settings : {};
+  const legacyIncrement = Number(source.incrementPercent ?? source.vipServerBoostPercent);
+  const legacyMax = Number(source.maxPercent ?? source.vipServerBoostMaxPercent);
+  const byType = {};
+  for (const type of vipBoostTypes) {
+    const keys = vipBoostSettingKeys[type];
+    const typeSource = source.byType?.[type] && typeof source.byType[type] === "object"
+      ? source.byType[type]
+      : {};
+    const configuredIncrement = Number(typeSource.incrementPercent ?? source[keys.percent] ?? legacyIncrement);
+    const configuredMax = Number(typeSource.maxPercent ?? source[keys.maxPercent] ?? legacyMax);
+    const incrementPercent = Number.isFinite(configuredIncrement)
+      ? Math.min(maxVipBoostStoragePercent, Math.max(1, Math.floor(configuredIncrement)))
+      : defaultVipBoostIncrementPercent;
+    const maxPercent = Number.isFinite(configuredMax)
+      ? Math.min(maxVipBoostStoragePercent, Math.max(incrementPercent, Math.floor(configuredMax)))
+      : Math.max(incrementPercent, defaultVipBoostMaxPercent);
+    byType[type] = { incrementPercent, maxPercent };
+  }
+  return { byType };
+}
+
+function makeDefaultVipState() {
+  return {
+    version: 1,
+    users: {},
+    serverBoosts: {}
+  };
+}
+
+function normalizeVipUserState(discordUserId, source = {}) {
+  const userId = String(discordUserId || "").trim();
+  const raw = source && typeof source === "object" && !Array.isArray(source) ? source : {};
+  const expiresAt = Number(raw.vipExpiresAt || 0);
+  const points = Number(raw.vipPoints || 0);
+  return {
+    discordUserId: userId,
+    playFabId: String(raw.playFabId || "").trim(),
+    vipExpiresAt: Number.isFinite(expiresAt)
+      ? Math.min(maxVipStoredNumber, Math.max(0, Math.floor(expiresAt)))
+      : 0,
+    vipPoints: Number.isFinite(points)
+      ? Math.min(maxVipStoredNumber, Math.max(0, Math.floor(points)))
+      : 0
+  };
+}
+
+function normalizeVipState(rawState) {
+  const source = rawState && typeof rawState === "object" && !Array.isArray(rawState) ? rawState : {};
+  const users = {};
+  const rawUsers = source.users && typeof source.users === "object" && !Array.isArray(source.users)
+    ? source.users
+    : {};
+  for (const [key, value] of Object.entries(rawUsers)) {
+    const discordUserId = String(value?.discordUserId || key || "").trim();
+    if (!discordUserId) continue;
+    const normalized = normalizeVipUserState(discordUserId, value);
+    if (normalized.playFabId || normalized.vipExpiresAt > 0 || normalized.vipPoints > 0) {
+      users[discordUserId] = normalized;
+    }
+  }
+
+  const serverBoosts = {};
+  const rawServerBoosts = source.serverBoosts && typeof source.serverBoosts === "object" && !Array.isArray(source.serverBoosts)
+    ? source.serverBoosts
+    : {};
+  for (const [key, value] of Object.entries(rawServerBoosts)) {
+    const guildId = String(key || "").trim();
+    if (!guildId) continue;
+    const rawBonusPercents = value?.bonusPercents && typeof value.bonusPercents === "object" && !Array.isArray(value.bonusPercents)
+      ? value.bonusPercents
+      : {};
+    const legacyPercent = Number(value?.bonusPercent || 0);
+    const rawEndsAt = Number(value?.endsAt || 0);
+    const bonusPercents = {};
+    for (const type of vipBoostTypes) {
+      const rawValue = rawBonusPercents[type];
+      const rawPercent = typeof rawValue === "object" ? Number(rawValue?.bonusPercent || 0) : Number(rawValue ?? legacyPercent);
+      bonusPercents[type] = Number.isFinite(rawPercent)
+        ? Math.min(maxVipBoostStoragePercent, Math.max(0, Math.floor(rawPercent)))
+        : 0;
+    }
+    serverBoosts[guildId] = {
+      bonusPercents,
+      endsAt: Number.isFinite(rawEndsAt) ? Math.max(0, Math.floor(rawEndsAt)) : 0
+    };
+  }
+
+  return { version: 1, users, serverBoosts };
+}
+
+function parseVipState(value) {
+  if (!value) return makeDefaultVipState();
+  try {
+    return normalizeVipState(JSON.parse(value));
+  } catch (error) {
+    throw new Error(`Stored VIP state is invalid JSON; refusing to replace it with defaults. ${error.message}`);
+  }
+}
+
+function cloneVipState(state) {
+  return JSON.parse(JSON.stringify(normalizeVipState(state)));
+}
+
+function cacheVipState(state) {
+  vipStateCache = { state: cloneVipState(state), loadedAt: Date.now() };
+  return cloneVipState(state);
+}
+
+async function loadVipState(options = {}) {
+  const forceRefresh = options.forceRefresh === true;
+  if (!forceRefresh && vipStateCache.state && Date.now() - vipStateCache.loadedAt < vipStateCacheTtlMs) {
+    return cloneVipState(vipStateCache.state);
+  }
+  const stored = await loadTitleAsset(titleDataKeys.vipState, true);
+  return cacheVipState(parseVipState(stored));
+}
+
+async function updateVipState(mutator) {
+  let lastConflict = null;
+  for (let attempt = 1; attempt <= 6; attempt += 1) {
+    const current = await loadVipState({ forceRefresh: true });
+    const next = cloneVipState(current);
+    const result = await mutator(next);
+    try {
+      await saveTitleAsset(titleDataKeys.vipState, JSON.stringify(next));
+      cacheVipState(next);
+      return { result, state: cloneVipState(next) };
+    } catch (error) {
+      if (!isPlayFabConflict(error) || attempt === 6) throw error;
+      lastConflict = error;
+      await sleep(250 * attempt);
+    }
+  }
+  throw lastConflict || new Error("Could not update VIP state.");
+}
+
+function effectiveVipServerBoost(entry, now = Date.now(), settings = {}) {
+  const source = entry && typeof entry === "object" ? entry : {};
+  const vipBoostSettings = normalizeVipBoostSettings(settings);
+  const endsAt = Math.max(0, Math.floor(Number(source.endsAt || 0)));
+  const rawBonusPercents = source.bonusPercents && typeof source.bonusPercents === "object" && !Array.isArray(source.bonusPercents)
+    ? source.bonusPercents
+    : {};
+  const legacyPercent = Number(source.bonusPercent || 0);
+  const bonuses = {};
+  for (const type of vipBoostTypes) {
+    const rawValue = rawBonusPercents[type];
+    const rawPercent = typeof rawValue === "object" ? Number(rawValue?.bonusPercent || 0) : Number(rawValue ?? legacyPercent);
+    const config = vipBoostSettings.byType[type];
+    const bonusPercent = Number.isFinite(rawPercent)
+      ? Math.min(config.maxPercent, Math.max(0, Math.floor(rawPercent)))
+      : 0;
+    bonuses[type] = {
+      bonusPercent,
+      multiplier: 1 + bonusPercent / 100
+    };
+  }
+  const highestBonusPercent = Math.max(...vipBoostTypes.map((type) => bonuses[type].bonusPercent), 0);
+  const active = Boolean(endsAt && endsAt > now && highestBonusPercent > 0);
+  if (!active) {
+    return { bonuses, bonusPercent: 0, multiplier: 1, endsAt: 0, active: false };
+  }
+  return {
+    bonuses,
+    bonusPercent: highestBonusPercent,
+    multiplier: 1 + highestBonusPercent / 100,
+    endsAt,
+    active
+  };
+}
+
+function makeEmptyVipUser(discordUserId = "") {
+  return normalizeVipUserState(discordUserId, {});
+}
+
+async function getPlayerVipState(discordUserId, options = {}) {
+  const userId = String(discordUserId || "").trim();
+  if (!userId) return makeEmptyVipUser();
+  const state = await loadVipState(options);
+  const user = state.users[userId] || makeEmptyVipUser(userId);
+  return {
+    ...normalizeVipUserState(userId, user),
+    active: Number(user.vipExpiresAt || 0) > Date.now()
+  };
+}
+
+async function getActiveVipUsers(options = {}) {
+  const state = await loadVipState(options);
+  const now = Date.now();
+  return Object.values(state.users)
+    .map((user) => normalizeVipUserState(user.discordUserId, user))
+    .filter((user) => user.discordUserId && user.vipExpiresAt > now)
+    .map((user) => ({ ...user, active: true }));
+}
+
+async function getServerVipBoost(guildId, options = {}) {
+  const selectedGuildId = String(guildId || "").trim();
+  if (!selectedGuildId) return effectiveVipServerBoost(null, Date.now(), options.settings);
+  const state = await loadVipState(options);
+  return effectiveVipServerBoost(state.serverBoosts[selectedGuildId], Date.now(), options.settings);
+}
+
+function getCachedServerVipBoost(guildId, settings = {}) {
+  const selectedGuildId = String(guildId || "").trim();
+  if (!selectedGuildId || !vipStateCache.state) return effectiveVipServerBoost(null, Date.now(), settings);
+  return effectiveVipServerBoost(vipStateCache.state.serverBoosts[selectedGuildId], Date.now(), settings);
+}
+
+function getCachedVipServerBoostMultiplier(guildId, type = "", settings = {}) {
+  return vipBoostTypes.includes(type)
+    ? getCachedServerVipBoost(guildId, settings).bonuses[type]?.multiplier || 1
+    : 1;
+}
+
+async function warmVipStateCache() {
+  return loadVipState({ forceRefresh: true });
+}
+
+async function adminAdjustVipDays(playFabId, days) {
+  const selectedPlayFabId = String(playFabId || "").trim();
+  const safeDays = Number(days);
+  if (!selectedPlayFabId) throw new Error("Missing PlayFab ID.");
+  if (!Number.isInteger(safeDays) || safeDays === 0 || Math.abs(safeDays) > maxVipDaysPerGrant) {
+    throw new Error(`VIP day adjustment must be a whole number from -${maxVipDaysPerGrant} to ${maxVipDaysPerGrant}, excluding 0.`);
+  }
+
+  const record = await adminGetPlayerRecord(selectedPlayFabId);
+  const discordUserId = String(record.discordUserId || record.player?.discordUserId || "").trim();
+  if (!discordUserId) throw new Error("This player does not have a saved Discord ID.");
+
+  await updateVipState((state) => {
+    const existing = normalizeVipUserState(discordUserId, state.users[discordUserId]);
+    const dayMs = 24 * 60 * 60_000;
+    const nextExpiry = safeDays > 0
+      ? Math.min(maxVipStoredNumber, Math.max(Date.now(), existing.vipExpiresAt) + safeDays * dayMs)
+      : Math.max(0, existing.vipExpiresAt - Math.abs(safeDays) * dayMs);
+    const nextPoints = safeDays > 0
+      ? Math.min(maxVipStoredNumber, existing.vipPoints + safeDays)
+      : Math.max(0, existing.vipPoints - Math.abs(safeDays));
+    state.users[discordUserId] = normalizeVipUserState(discordUserId, {
+      playFabId: selectedPlayFabId,
+      vipExpiresAt: nextExpiry,
+      vipPoints: nextPoints
+    });
+    return state.users[discordUserId];
+  });
+
+  return adminGetPlayerRecord(selectedPlayFabId);
+}
+
+async function spendVipPointsForServerBoost(discordUserId, guildId, settings = {}) {
+  const userId = String(discordUserId || "").trim();
+  const selectedGuildId = String(guildId || "").trim();
+  const vipBoostSettings = normalizeVipBoostSettings(settings);
+  if (!userId) throw new Error("Missing Discord user ID.");
+  if (!selectedGuildId) throw new Error("This command can only be used in a Discord server.");
+
+  const update = await updateVipState((state) => {
+    const user = normalizeVipUserState(userId, state.users[userId]);
+    if (user.vipPoints < vipBoostPointCost) {
+      throw new Error(`Kamu membutuhkan ${vipBoostPointCost} VIP Point. Point kamu saat ini: ${user.vipPoints}.`);
+    }
+
+    const now = Date.now();
+    const current = effectiveVipServerBoost(state.serverBoosts[selectedGuildId], now, vipBoostSettings);
+    const nextEndsAt = Math.max(now, current.endsAt) + vipBoostDurationMs;
+    const nextBonusPercents = {};
+    const cappedTypes = [];
+    for (const type of vipBoostTypes) {
+      const config = vipBoostSettings.byType[type];
+      const currentPercent = current.active ? current.bonuses[type].bonusPercent : 0;
+      const nextBonusPercent = current.active
+        ? Math.min(config.maxPercent, currentPercent + config.incrementPercent)
+        : config.incrementPercent;
+      nextBonusPercents[type] = nextBonusPercent;
+      if (nextBonusPercent >= config.maxPercent) cappedTypes.push(type);
+    }
+    user.vipPoints -= vipBoostPointCost;
+    state.users[userId] = normalizeVipUserState(userId, user);
+    state.serverBoosts[selectedGuildId] = {
+      bonusPercents: nextBonusPercents,
+      endsAt: nextEndsAt
+    };
+    return {
+      user: state.users[userId],
+      boost: effectiveVipServerBoost(state.serverBoosts[selectedGuildId], now, vipBoostSettings),
+      pointCost: vipBoostPointCost,
+      boostIncrementPercents: Object.fromEntries(vipBoostTypes.map((type) => [type, vipBoostSettings.byType[type].incrementPercent])),
+      boostMaxPercents: Object.fromEntries(vipBoostTypes.map((type) => [type, vipBoostSettings.byType[type].maxPercent])),
+      bonusCapped: cappedTypes.length === vipBoostTypes.length,
+      cappedTypes
+    };
+  });
+
+  return update.result;
+}
+
+async function adminRemoveVipForPlayer(playFabId) {
+  const selectedPlayFabId = String(playFabId || "").trim();
+  if (!selectedPlayFabId) return;
+  await updateVipState((state) => {
+    for (const [discordUserId, user] of Object.entries(state.users)) {
+      if (String(user.playFabId || "").trim() === selectedPlayFabId) delete state.users[discordUserId];
+    }
+  });
 }
 
 function managedChunkKeyInfo(key) {
@@ -383,8 +723,10 @@ function makeDefaultPlayer() {
     lastMessage: "",
     lastFishingGuildId: "",
     lastFishingChannelId: "",
+    mentionOnFishingPopup: true,
     voiceTotalMs: 0,
     voiceExpRemainderMs: 0,
+    vipPassiveFishingProgressRemainderMs: 0,
     activeQuests: [],
     completedQuestIds: [],
     fishQuestHistory: [],
@@ -464,10 +806,12 @@ function normalizePlayer(rawPlayer) {
     luckiestFish,
     voiceTotalMs: Math.max(0, Number(rawPlayer?.voiceTotalMs || 0)),
     voiceExpRemainderMs: Math.max(0, Number(rawPlayer?.voiceExpRemainderMs || 0)),
+    vipPassiveFishingProgressRemainderMs: Math.max(0, Number(rawPlayer?.vipPassiveFishingProgressRemainderMs || 0)),
     rodId: rawPlayer?.rodId === "twig" ? starterRodId : rawPlayer?.rodId || starterRodId,
     ownedRods: ownedRods.map((rodId) => (rodId === "twig" ? starterRodId : rodId)),
     fishBagId: String(rawPlayer?.fishBagId || "").trim(),
     ownedFishBags: ownedFishBags.map((bagId) => String(bagId || "").trim()).filter(Boolean),
+    mentionOnFishingPopup: rawPlayer?.mentionOnFishingPopup !== false,
     activeQuests: Array.isArray(rawPlayer?.activeQuests) ? rawPlayer.activeQuests.filter((entry) => entry && typeof entry === "object") : [],
     completedQuestIds: [...new Set((Array.isArray(rawPlayer?.completedQuestIds) ? rawPlayer.completedQuestIds : []).map(String).filter(Boolean))],
     fishQuestHistory: [...new Set((Array.isArray(rawPlayer?.fishQuestHistory) ? rawPlayer.fishQuestHistory : []).map(String).filter(Boolean))],
@@ -498,6 +842,7 @@ function applyPlayerQuestState(player, questState) {
 function extractPlayerProfile(player) {
   const profile = { ...normalizePlayer(player) };
   for (const field of playerQuestStateFields) delete profile[field];
+  delete profile.vip;
   return profile;
 }
 
@@ -538,6 +883,10 @@ async function getPlayer(discordUserId, identity = {}) {
   if (questStateValue) applyPlayerQuestState(player, parseStoredPlayerJson(questStateValue, "player quest state"));
   const profileBeforeIdentity = JSON.stringify(extractPlayerProfile(player));
   applyPlayerIdentity(player, { ...identity, discordUserId });
+  player.vip = await getPlayerVipState(discordUserId).catch((error) => {
+    console.error(`Could not load VIP state for ${discordUserId}:`, error);
+    return makeEmptyVipUser(discordUserId);
+  });
   return {
     sessionTicket,
     player,
@@ -584,6 +933,10 @@ async function adminGetPlayerRecord(playFabId) {
   const customId = userInfo.CustomIdInfo?.CustomId || "";
   const discordUserId = String(player.discordUserId || (customId.startsWith("discord:") ? customId.slice("discord:".length) : "")).trim();
   applyPlayerIdentity(player, { discordUserId });
+  const vip = await getPlayerVipState(discordUserId).catch((error) => {
+    console.error(`Could not load VIP state for ${discordUserId}:`, error);
+    return makeEmptyVipUser(discordUserId);
+  });
 
   return {
     playFabId,
@@ -592,7 +945,8 @@ async function adminGetPlayerRecord(playFabId) {
     displayName: player.discordDisplayName || player.discordGlobalName || player.discordUsername || userInfo.TitleInfo?.DisplayName || "",
     created: userInfo.Created || "",
     lastLogin: userInfo.TitleInfo?.LastLogin || "",
-    player
+    player,
+    vip
   };
 }
 
@@ -826,6 +1180,7 @@ async function adminResetPlayerData(playFabId) {
 async function adminDeletePlayer(playFabId) {
   await callPlayFab("Server", "DeletePlayer", { PlayFabId: playFabId }, true);
   await removePlayerFromAdminList(playFabId).catch((error) => console.error("Could not update player index:", error));
+  await adminRemoveVipForPlayer(playFabId).catch((error) => console.error("Could not remove deleted player VIP state:", error));
   sessionTickets.clear();
   return { ok: true, playFabId };
 }
@@ -876,6 +1231,7 @@ function imageNeedsRehost(source, key) {
 
 function cleanSettings(settings) {
   const source = settings && typeof settings === "object" ? settings : {};
+  const vipBoostSettings = normalizeVipBoostSettings(source);
   const rodStoreImageUrl = String(source.rodStoreImageUrl || "").trim();
   const fishCompBannerUrl = String(source.fishCompBannerUrl || "").trim();
   const fishCompRegistrationBannerUrl = String(source.fishCompRegistrationBannerUrl || "").trim();
@@ -891,6 +1247,7 @@ function cleanSettings(settings) {
   const fishGuideBannerUrl = String(source.fishGuideBannerUrl || "").trim();
   const fishHelpBannerUrl = String(source.fishHelpBannerUrl || "").trim();
   const sellFishBannerUrl = String(source.sellFishBannerUrl || "").trim();
+  const vipFishShowoffBannerUrl = String(source.vipFishShowoffBannerUrl || "").trim();
   return {
     mutations: normalizeMutationSettings(source.mutations),
     rodStoreImageBase64: String(source.rodStoreImageBase64 || ""),
@@ -955,6 +1312,11 @@ function cleanSettings(settings) {
     sellFishBannerUrl,
     sellFishBannerRef: source.sellFishBannerRef && typeof source.sellFishBannerRef === "object" ? source.sellFishBannerRef : null,
     sellFishBannerUrlNeedsRehost: imageNeedsRehost(source, "sellFishBannerUrl"),
+    vipFishShowoffBannerBase64: String(source.vipFishShowoffBannerBase64 || ""),
+    vipFishShowoffBannerUrl,
+    vipFishShowoffBannerContentKey: String(source.vipFishShowoffBannerContentKey || "").trim(),
+    vipFishShowoffBannerRef: source.vipFishShowoffBannerRef && typeof source.vipFishShowoffBannerRef === "object" ? source.vipFishShowoffBannerRef : null,
+    vipFishShowoffBannerUrlNeedsRehost: imageNeedsRehost(source, "vipFishShowoffBannerUrl"),
     fishEntotEvents: cleanFishEntotEvents(source.fishEntotEvents, defaultSettings.fishEntotEvents),
     fishEntotCooldownMinutes: Math.max(1, cleanNumber(source.fishEntotCooldownMinutes ?? defaultSettings.fishEntotCooldownMinutes, defaultSettings.fishEntotCooldownMinutes)),
     fishEntotMessageTtlMinutes: Math.max(1, cleanNumber(source.fishEntotMessageTtlMinutes ?? defaultSettings.fishEntotMessageTtlMinutes, defaultSettings.fishEntotMessageTtlMinutes)),
@@ -1007,6 +1369,7 @@ function cleanSettings(settings) {
     fishRaidCooldownMinutes: Math.max(0, cleanNumber(source.fishRaidCooldownMinutes ?? defaultSettings.fishRaidCooldownMinutes, defaultSettings.fishRaidCooldownMinutes)),
     fishRaidQuotaStreakBonusPercent: Math.max(0, cleanNumber(source.fishRaidQuotaStreakBonusPercent ?? defaultSettings.fishRaidQuotaStreakBonusPercent, defaultSettings.fishRaidQuotaStreakBonusPercent)),
     fishRaidRewardStreakBonusPercent: Math.max(0, cleanNumber(source.fishRaidRewardStreakBonusPercent ?? defaultSettings.fishRaidRewardStreakBonusPercent, defaultSettings.fishRaidRewardStreakBonusPercent)),
+    fishRaidFailureStreakDecrease: Math.max(0, Math.floor(cleanNumber(source.fishRaidFailureStreakDecrease ?? defaultSettings.fishRaidFailureStreakDecrease, defaultSettings.fishRaidFailureStreakDecrease))),
     fishRaidParticipantExpReward: Math.max(0, cleanNumber(source.fishRaidParticipantExpReward ?? defaultSettings.fishRaidParticipantExpReward, defaultSettings.fishRaidParticipantExpReward)),
     fishRaidParticipantGoldReward: Math.max(0, cleanNumber(source.fishRaidParticipantGoldReward ?? defaultSettings.fishRaidParticipantGoldReward, defaultSettings.fishRaidParticipantGoldReward)),
     fishRaidMvpExpReward: Math.max(0, cleanNumber(source.fishRaidMvpExpReward ?? defaultSettings.fishRaidMvpExpReward, defaultSettings.fishRaidMvpExpReward)),
@@ -1015,12 +1378,21 @@ function cleanSettings(settings) {
     fishRaidClearParticipantGoldReward: Math.max(0, cleanNumber(source.fishRaidClearParticipantGoldReward ?? defaultSettings.fishRaidClearParticipantGoldReward, defaultSettings.fishRaidClearParticipantGoldReward)),
     fishRaidClearMvpExpReward: Math.max(0, cleanNumber(source.fishRaidClearMvpExpReward ?? defaultSettings.fishRaidClearMvpExpReward, defaultSettings.fishRaidClearMvpExpReward)),
     fishRaidClearMvpGoldReward: Math.max(0, cleanNumber(source.fishRaidClearMvpGoldReward ?? defaultSettings.fishRaidClearMvpGoldReward, defaultSettings.fishRaidClearMvpGoldReward)),
+    vipServerBoostGoldPercent: vipBoostSettings.byType.gold_multiplier.incrementPercent,
+    vipServerBoostGoldMaxPercent: vipBoostSettings.byType.gold_multiplier.maxPercent,
+    vipServerBoostExpPercent: vipBoostSettings.byType.exp_multiplier.incrementPercent,
+    vipServerBoostExpMaxPercent: vipBoostSettings.byType.exp_multiplier.maxPercent,
+    vipServerBoostFishingSpeedPercent: vipBoostSettings.byType.fishing_speed.incrementPercent,
+    vipServerBoostFishingSpeedMaxPercent: vipBoostSettings.byType.fishing_speed.maxPercent,
+    vipServerBoostMutationChancePercent: vipBoostSettings.byType.mutation_chance.incrementPercent,
+    vipServerBoostMutationChanceMaxPercent: vipBoostSettings.byType.mutation_chance.maxPercent,
     allowActivity: source.allowActivity !== false,
     chatCooldownMs: Math.max(0, Number(source.chatCooldownMs ?? defaultSettings.chatCooldownMs) || defaultSettings.chatCooldownMs),
     expMultiplier: Math.max(0, Number(source.expMultiplier ?? defaultSettings.expMultiplier) || defaultSettings.expMultiplier),
     levelExpMultiplier: Math.max(0.01, Number(source.levelExpMultiplier ?? defaultSettings.levelExpMultiplier) || defaultSettings.levelExpMultiplier),
     voiceExpAmount: Math.max(0, cleanNumber(source.voiceExpAmount ?? defaultSettings.voiceExpAmount, defaultSettings.voiceExpAmount)),
     voiceExpIntervalMinutes: Math.max(1, cleanNumber(source.voiceExpIntervalMinutes ?? defaultSettings.voiceExpIntervalMinutes, defaultSettings.voiceExpIntervalMinutes)),
+    vipPassiveFishingProgressMultiplier: Math.max(1, cleanNumber(source.vipPassiveFishingProgressMultiplier ?? defaultSettings.vipPassiveFishingProgressMultiplier, defaultSettings.vipPassiveFishingProgressMultiplier)),
     dailyQuestCount: Math.max(0, Math.floor(cleanNumber(source.dailyQuestCount ?? defaultSettings.dailyQuestCount, defaultSettings.dailyQuestCount)))
   };
 }
@@ -1714,6 +2086,8 @@ function withoutConfigAssets(config) {
       fishGuideBannerBase64: "",
       fishHelpBannerBase64: "",
       sellFishBannerBase64: "",
+      vipFishShowoffBannerBase64: "",
+      vipFishShowoffBannerContentKey: "",
       fishRaidBosses: settings.fishRaidBosses.map((boss) => ({
         ...boss,
         registrationBannerBase64: "",
@@ -1816,6 +2190,8 @@ async function attachConfigAssets(config, useSecretKey = false, caller = "") {
       fishHelpBannerUrl: await getStoredImageUrl(settings.fishHelpBannerRef, settings.fishHelpBannerUrl, "", withImageCaller("fish help banner", caller)),
       sellFishBannerBase64: "",
       sellFishBannerUrl: await getStoredImageUrl(settings.sellFishBannerRef, settings.sellFishBannerUrl, "", withImageCaller("sell fish banner", caller)),
+      vipFishShowoffBannerBase64: "",
+      vipFishShowoffBannerUrl: await getStoredImageUrl(settings.vipFishShowoffBannerRef, settings.vipFishShowoffBannerUrl, settings.vipFishShowoffBannerContentKey, withImageCaller("VIP fish showoff banner", caller)),
       fishRaidBosses
     },
     activeEvent: activeEvent
@@ -2152,6 +2528,15 @@ async function adminSaveGameData({ fish, rods, fishBags, adminDiscordIds, settin
     keyForExtension: (extension) => settingsImageContentKeyFor("sell-fish-banner", extension),
     forceRehost: cleanSettingsValue.sellFishBannerUrlNeedsRehost
   });
+  const vipFishShowoffBanner = await saveContentImage({
+    currentUrl: cleanSettingsValue.vipFishShowoffBannerUrl,
+    currentRef: cleanSettingsValue.vipFishShowoffBannerRef,
+    legacyContentKey: cleanSettingsValue.vipFishShowoffBannerContentKey,
+    dataUrl: cleanSettingsValue.vipFishShowoffBannerBase64,
+    sourceUrl: cleanSettingsValue.vipFishShowoffBannerUrl,
+    keyForExtension: (extension) => settingsImageContentKeyFor("vip-fish-showoff-banner", extension),
+    forceRehost: cleanSettingsValue.vipFishShowoffBannerUrlNeedsRehost
+  });
   const eventBannerCache = new Map();
   async function saveEventBanner(event) {
     if (!event) {
@@ -2295,7 +2680,9 @@ async function adminSaveGameData({ fish, rods, fishBags, adminDiscordIds, settin
       fishHelpBannerUrl: fishHelpBanner.url,
       fishHelpBannerRef: fishHelpBanner.ref,
       sellFishBannerUrl: sellFishBanner.url,
-      sellFishBannerRef: sellFishBanner.ref
+      sellFishBannerRef: sellFishBanner.ref,
+      vipFishShowoffBannerUrl: vipFishShowoffBanner.url,
+      vipFishShowoffBannerRef: vipFishShowoffBanner.ref
     },
     activeEvent: cleanEventValue
       ? {
@@ -2371,7 +2758,8 @@ async function saveSettingsSection(settings) {
     ["fishDuelResultBanner", (extension) => settingsImageContentKeyFor("fish-duel-result-banner", extension)],
     ["fishGuideBanner", (extension) => settingsImageContentKeyFor("fish-guide-banner", extension)],
     ["fishHelpBanner", (extension) => settingsImageContentKeyFor("fish-help-banner", extension)],
-    ["sellFishBanner", (extension) => settingsImageContentKeyFor("sell-fish-banner", extension)]
+    ["sellFishBanner", (extension) => settingsImageContentKeyFor("sell-fish-banner", extension)],
+    ["vipFishShowoffBanner", (extension) => settingsImageContentKeyFor("vip-fish-showoff-banner", extension)]
   ];
   const savedImages = {};
   for (const [baseKey, keyForExtension, legacyKey] of imageDefinitions) {
@@ -2553,11 +2941,13 @@ async function adminSaveManagerTabData(tab, data) {
 }
 
 module.exports = {
+  adminAdjustVipDays,
   adminGetManagerTabData,
   adminGetGameData,
   adminDeletePlayer,
   adminGetPlayerRecord,
   adminListPlayers,
+  adminRemoveVipForPlayer,
   adminResetPlayerData,
   adminSavePlayerData,
   adminSaveGameData,
@@ -2565,8 +2955,16 @@ module.exports = {
   adminSaveEventData,
   adminSaveRoutineState,
   defaultSettings,
+  getActiveVipUsers,
+  getCachedServerVipBoost,
+  getCachedVipServerBoostMultiplier,
   getGameData,
   getPlayer,
+  getPlayerVipState,
+  getServerVipBoost,
   makeDefaultPlayer,
-  savePlayer
+  normalizeVipBoostSettings,
+  savePlayer,
+  spendVipPointsForServerBoost,
+  warmVipStateCache
 };

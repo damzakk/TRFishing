@@ -60,21 +60,23 @@ The manager also has:
 - Admin Control: add admin Discord IDs or usernames for testing commands.
 - Settings: split into General, FishComp, FishRaid, Fishentot, and Mutations panels for command banners, competition banners, raid rewards, per-boss raid banners, boss quota data, raid controls, events, chat cooldown, EXP multipliers, voice progress, and mutation balance/visual presets. The Mutations panel includes a live fish/mutation preview beside each mutation, editable chance/stat/color settings, built-in effects, multiple custom overlay uploads or URLs, configurable overlay motion, and visual copy/paste controls.
 - Event: list deployed events, create server-scoped timed events with start time and duration, add multiple bonus types, and stop running events.
-- Player Management: list and search players by Discord ID or username, edit profile and quest data through separate save actions, refresh Daily Quests for one player or every player, reset a player, delete a player from the PlayFab title, make a player admin, force one fishing catch, and reset or delete all loaded players.
+- Player Management: list and search players by Discord ID or username, edit profile and quest data through separate save actions, adjust VIP days and permanent VIP Points with positive or negative values, refresh Daily Quests for one player or every player, reset a player, delete a player from the PlayFab title, make a player admin, force one fishing catch, and reset or delete all loaded players.
 - Quest System: browse each quest category in a scrollable name list and edit the selected quest in a dedicated detail panel.
 
 ## Commands
 
 - `/fishprofile` - Show your level, gold, rod, total catches, heaviest fish, and fishing progress privately in the channel.
-- `/fishshowoff` - Membuat banner publik dengan avatar Discord, ikan pameran, dan statistik utama.
+- `/fishshowoff` - Membuat banner publik dengan avatar Discord, ikan pameran, dan statistik utama. VIP aktif memakai banner VIP khusus; banner tersebut dapat diatur dari Manager → Settings → General.
 - `/fishdaily` - Mengambil hadiah harian; reward adalah 35 gold dikali daily streak dan reset setiap jam 12:00.
 - `/fishentot` - Memicu satu event acak bersama ikan yang tampil di profil; event, bobot chance, hadiah, pesan, cooldown, dan pity system dapat diatur dari Settings → Fishentot di Manager.
 - `/fishinventory` - Melihat daftar ikan yang kamu punya secara privat.
 - `/fishstore` - Melihat toko pancingan secara privat.
 - `/fishdex` - Melihat Fishdex ikan server secara privat; ikan yang belum tertangkap tetap tersembunyi.
 - `/fishvoice` - Membuat bot join voice channel kamu dalam keadaan mute/deafen dan mengaktifkan voice progress server.
+- `/fishrejoinvoice` - Memaksa bot rejoin ke voice channel yang sebelumnya disetel dengan `/fishvoice` jika bot sedang tidak terhubung.
 - `/fishsetpopupchannel channel:<channel>` - Admin command untuk membuat thread `Fishing!` dan mengirim semua popup fishing server ke thread itu.
 - `/fishserver` - Menampilkan status server TRFishing.
+- `/fishboostserver` - Menggunakan 5 VIP Point untuk menambah VIP Server Boost selama 5 jam. Bonus per penggunaan dan batas maksimum untuk Gold, EXP, Fishing Speed, dan Mutation Chance dapat diatur terpisah dari Manager → Settings → General; durasi boost terus bertambah.
 - `/fishleaderboard` - Menampilkan leaderboard jumlah ikan, ikan terbesar, luck score ikan tersulit, dan level.
 - `/sellfish` - Menjual semua ikan secara privat.
 - `/sellfish fish:<fish name or id>` - Menjual satu jenis ikan secara privat.
@@ -84,6 +86,7 @@ The manager also has:
 - `!fishtest` - Admin command untuk test popup fishing tanpa menyimpan ikan, EXP, atau progress.
 - `!fishcompforcestart` - Admin command untuk memaksa kompetisi yang sedang registrasi agar mulai lebih cepat.
 - `!fishraidforcestart` - Admin command untuk memaksa raid yang sedang registrasi agar mulai lebih cepat.
+- `!SetFishRaidStreak <count>` - Admin command untuk mengubah streak FishRaid server dan menghitung ulang quota hari ini.
 
 ## How Fishing Works
 
@@ -113,7 +116,7 @@ Each catch also shows a Luck Score. The fish data still keeps its original decim
 
 When a player's EXP reaches a new fishing level, the bot sends a level-up message with that member's Discord server avatar.
 
-Voice progress starts after someone uses `/fishvoice` in a server voice channel. The bot stays in that channel muted/deafened, and non-bot members in non-AFK voice channels on that server gain fishing progress based on the manager setting. By default this is 1 progress every 15 minutes.
+Voice progress starts after someone uses `/fishvoice` in a server voice channel. The bot stays in that channel muted/deafened, and non-bot members in non-AFK voice channels on that server gain fishing progress based on the manager setting. By default this is 1 progress every 15 minutes. Active VIP users who are not in a counted voice channel also gain passive progress at a slower configurable interval; the default VIP passive interval multiplier is 2x. Joining a counted voice channel switches that user back to normal voice progression.
 
 The editable starter balance sheet is in `GAME_DATA.txt`.
 
@@ -123,6 +126,10 @@ During competitions, caught fish do not enter inventory and do not give normal f
 
 Fish Raid uses the competition-style registration and turn flow, but all caught fish weight fills a shared daily boss quota. Only one raid can run at once in a server, raids have a 1 hour cooldown after each run, and the daily boss/quota resets at midnight. During a live raid, rankings show only that run; the result shows all participants and total contribution for the whole day.
 
+Active VIP users who are members of the server are automatically added when Fish Raid registration opens. The raid remains limited to 25 participants; if more than 25 eligible VIP members are found, 25 are selected at random before normal users can join.
+
+The same automatic VIP join behavior applies to FishComp. World Fish Competition automatically adds active VIP members found across the bot's servers up to its configured maximum participant limit; if there are more eligible VIPs than the limit, the selected VIP participants are randomized.
+
 FishRaid settings include a raid boss editor. Each boss can have its own registration, running, finish, quota fulfilled, and failed-at-midnight banners. The manager can also reset today's raid or force-clear today's quota for a server.
 
-Each boss quota is the 100% base target. FishRaid settings can increase the next day's quota and rewards by separate percentages for every consecutive daily completion; an uncompleted raid day resets the streak. Rods and fish bags support multiple manager-edited contextual bonuses, and rods have a default-on store visibility toggle for secret items. Store and FishDex item menus are ordered by rarity.
+Each boss quota is the 100% base target. FishRaid settings can increase the next day's quota and rewards by separate percentages for every consecutive daily completion; an uncompleted raid day decreases the streak by the configured failure amount, which defaults to 2. Rods and fish bags support multiple manager-edited contextual bonuses, and rods have a default-on store visibility toggle for secret items. Store and FishDex item menus are ordered by rarity.

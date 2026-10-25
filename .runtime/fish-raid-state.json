@@ -1,7 +1,7 @@
 {
   "guilds": {
     "891474628122394634": {
-      "dateKey": "2026-09-18",
+      "dateKey": "2026-10-25",
       "boss": {
         "id": "mbg_hendrik",
         "name": "MBG HENDRIK",
@@ -64,31 +64,21 @@
         }
       },
       "baseQuotaKg": 500,
-      "quotaKg": 1400,
-      "streak": 9,
-      "filledKg": 334.0342236253399,
+      "quotaKg": 5100,
+      "streak": 46,
+      "filledKg": 502.74418096839423,
       "participants": {
-        "367669792993181697": {
-          "id": "367669792993181697",
-          "username": "paktuki",
-          "globalName": "PakTuki",
-          "displayName": "<@367669792993181697>",
-          "logName": "TR | Ebol Ebol",
-          "count": 24,
-          "totalWeight": 140.4512015466073,
-          "heaviestWeight": 46.41323250961612,
-          "heaviestName": "Ikan Ambisi Budidaya Bakteri Pelepas Dahaga"
-        },
-        "215382509851115520": {
-          "id": "215382509851115520",
-          "username": "zect52",
-          "globalName": "Zect",
-          "displayName": "<@215382509851115520>",
-          "logName": "Discord",
-          "count": 10,
-          "totalWeight": 70.79904179656532,
-          "heaviestWeight": 32.9979793918416,
-          "heaviestName": "Ikan Ambisi Budidaya Bakteri Pelepas Dahaga"
+        "759085513331441664": {
+          "id": "759085513331441664",
+          "username": "evelyn_azure",
+          "globalName": "Kira",
+          "displayName": "<@759085513331441664>",
+          "logName": "Kira",
+          "count": 8,
+          "totalWeight": 113.54825296713915,
+          "heaviestWeight": 71.28438747893966,
+          "heaviestName": "Ikan Ambisi Budidaya Bakteri Pelepas Dahaga",
+          "raidJoins": 1
         },
         "363275626662330369": {
           "id": "363275626662330369",
@@ -96,29 +86,43 @@
           "globalName": "Miradh",
           "displayName": "<@363275626662330369>",
           "logName": "TR | Celup (Adhiet)",
-          "count": 11,
-          "totalWeight": 62.74916861316063,
-          "heaviestWeight": 32.77103734443924,
-          "heaviestName": "Ikan Hell Rina"
+          "count": 12,
+          "totalWeight": 75.2534718920272,
+          "heaviestWeight": 9.402148494282942,
+          "heaviestName": "Adhiet",
+          "raidJoins": 1
         },
-        "451776326723174401": {
-          "id": "451776326723174401",
-          "username": "azaralea",
-          "globalName": "Azara",
-          "displayName": "<@451776326723174401>",
-          "logName": "TR | Aktor (Adam) (Awiwir)",
-          "count": 11,
-          "totalWeight": 60.03481166900657,
-          "heaviestWeight": 14.93240956901243,
-          "heaviestName": "Ikan Venomenom"
+        "367669792993181697": {
+          "id": "367669792993181697",
+          "username": "paktuki",
+          "globalName": "PakTuki",
+          "displayName": "<@367669792993181697>",
+          "logName": "TR | Ebol Ebol",
+          "count": 14,
+          "totalWeight": 217.35785566307692,
+          "heaviestWeight": 131.95978941456522,
+          "heaviestName": "Ikan Kajian Ajimat Cinta Asrama Pesantren Gorontalo",
+          "raidJoins": 1
+        },
+        "337858521771278338": {
+          "id": "337858521771278338",
+          "username": "truekakgeri",
+          "globalName": "KakGeri",
+          "displayName": "<@337858521771278338>",
+          "logName": "TR | Klepon (KakGeri)",
+          "count": 15,
+          "totalWeight": 96.58460044615093,
+          "heaviestWeight": 20.97999009835189,
+          "heaviestName": "Ikan Kelinci Imut",
+          "raidJoins": 1
         }
       },
       "fulfilledAt": "",
-      "lastRaidEndedAt": 1789692204869,
-      "channelId": "891474628122394637"
+      "lastRaidEndedAt": 1792861981871,
+      "channelId": "1550741379532070964"
     },
     "842632391000326154": {
-      "dateKey": "2026-09-18",
+      "dateKey": "2026-10-25",
       "boss": {
         "id": "mbg_hendrik",
         "name": "MBG HENDRIK",
@@ -181,25 +185,194 @@
         }
       },
       "baseQuotaKg": 500,
-      "quotaKg": 700,
-      "streak": 2,
-      "filledKg": 30.548072285544006,
+      "quotaKg": 3300,
+      "streak": 28,
+      "filledKg": 247.30084645116216,
       "participants": {
-        "215382509851115520": {
-          "id": "215382509851115520",
-          "username": "zect52",
-          "globalName": "Zect",
-          "displayName": "<@215382509851115520>",
-          "logName": "Zect",
-          "count": 9,
-          "totalWeight": 30.548072285544006,
-          "heaviestWeight": 6.161882294194779,
-          "heaviestName": "Kepiting"
+        "409293098959634433": {
+          "id": "409293098959634433",
+          "username": "riiura",
+          "globalName": "Riiura",
+          "displayName": "<@409293098959634433>",
+          "logName": "Riiura",
+          "count": 10,
+          "totalWeight": 49.73704268192343,
+          "heaviestWeight": 11.986043120704977,
+          "heaviestName": "Ikan Crazy Killer",
+          "raidJoins": 1
+        },
+        "759085513331441664": {
+          "id": "759085513331441664",
+          "username": "evelyn_azure",
+          "globalName": "Kira",
+          "displayName": "<@759085513331441664>",
+          "logName": "Kira",
+          "count": 11,
+          "totalWeight": 47.579643648024,
+          "heaviestWeight": 14.569804500548907,
+          "heaviestName": "Ikan Butiran Debu Kosmik",
+          "raidJoins": 1
+        },
+        "369841174367830019": {
+          "id": "369841174367830019",
+          "username": "deagst",
+          "globalName": "Ned",
+          "displayName": "<@369841174367830019>",
+          "logName": "Ned",
+          "count": 16,
+          "totalWeight": 149.98416012121476,
+          "heaviestWeight": 72.62071179360723,
+          "heaviestName": "Ikan Ambisi Budidaya Bakteri Pelepas Dahaga",
+          "raidJoins": 1
         }
       },
       "fulfilledAt": "",
-      "lastRaidEndedAt": 1789689327326,
+      "lastRaidEndedAt": 1792862945403,
       "channelId": "1550097771686666361"
+    },
+    "1543804160120717423": {
+      "dateKey": "2026-10-25",
+      "boss": {
+        "id": "mbg_hendrik",
+        "name": "MBG HENDRIK",
+        "description": "Pikirkan anak anak yang kelaparan!\n\nSelesaikan pesanan ikan untuk dapur MBG Pak Hendrik sebelum hari esok, agar beliau bisa joget lalu membuat anak-anak Indonesia tumbuh sehat dan kuat!",
+        "quotaKg": 500,
+        "registrationBannerBase64": "",
+        "registrationBannerUrl": "https://cdn.discordapp.com/attachments/1543874293258260550/1546321525840551956/mbg_hendrik-registrationbanner.png?ex=6a9f5ba5&is=6a9e0a25&hm=01c2933e8fb177cc3828598a53fec7b47ed24a1b48b6d253e097eb2b9e3b45a9&",
+        "registrationBannerRef": {
+          "storage": "discord_attachment",
+          "channelId": "1543874293258260550",
+          "messageId": "1546321526012387361",
+          "messageUrl": "",
+          "attachmentId": "1546321525840551956",
+          "fileName": "mbg_hendrik-registrationbanner.png",
+          "contentType": "image/png"
+        },
+        "runningBannerBase64": "",
+        "runningBannerUrl": "https://cdn.discordapp.com/attachments/1543874293258260550/1546321546732372019/mbg_hendrik-runningbanner.png?ex=6a9f5baa&is=6a9e0a2a&hm=73e4b911167ac29726911c974dcc76a45ca19a111deca69ca77af99e6df466e6&",
+        "runningBannerRef": {
+          "storage": "discord_attachment",
+          "channelId": "1543874293258260550",
+          "messageId": "1546321546975518760",
+          "messageUrl": "",
+          "attachmentId": "1546321546732372019",
+          "fileName": "mbg_hendrik-runningbanner.png",
+          "contentType": "image/png"
+        },
+        "resultBannerBase64": "",
+        "resultBannerUrl": "https://cdn.discordapp.com/attachments/1543874293258260550/1546321566332227624/mbg_hendrik-resultbanner.png?ex=6a9f5bae&is=6a9e0a2e&hm=879d305e3c6fa29eb74925d681134f8814059cb4395d437f1412f9da0f9b29d6&",
+        "resultBannerRef": {
+          "storage": "discord_attachment",
+          "channelId": "1543874293258260550",
+          "messageId": "1546321566181097514",
+          "messageUrl": "",
+          "attachmentId": "1546321566332227624",
+          "fileName": "mbg_hendrik-resultbanner.png",
+          "contentType": "image/png"
+        },
+        "fulfilledBannerBase64": "",
+        "fulfilledBannerUrl": "https://cdn.discordapp.com/attachments/1543874293258260550/1546321586993496074/mbg_hendrik-fulfilledbanner.png?ex=6a9f5bb3&is=6a9e0a33&hm=a123196944850595c274c463fc6cca2162cb4577753a38aa720ef20fa8972a96&",
+        "fulfilledBannerRef": {
+          "storage": "discord_attachment",
+          "channelId": "1543874293258260550",
+          "messageId": "1546321586829922378",
+          "messageUrl": "",
+          "attachmentId": "1546321586993496074",
+          "fileName": "mbg_hendrik-fulfilledbanner.png",
+          "contentType": "image/png"
+        },
+        "failedBannerBase64": "",
+        "failedBannerUrl": "https://cdn.discordapp.com/attachments/1543874293258260550/1546321748989976647/mbg_hendrik-failedbanner.png?ex=6a9f5bda&is=6a9e0a5a&hm=9a2d46c63d9b5285614188c8e8eec2ffa2b3d7e9903e2a9a8feeab1bc014f06c&",
+        "failedBannerRef": {
+          "storage": "discord_attachment",
+          "channelId": "1543874293258260550",
+          "messageId": "1546321749208076389",
+          "messageUrl": "",
+          "attachmentId": "1546321748989976647",
+          "fileName": "mbg_hendrik-failedbanner.png",
+          "contentType": "image/png"
+        }
+      },
+      "baseQuotaKg": 500,
+      "quotaKg": 500,
+      "streak": 0,
+      "filledKg": 0,
+      "participants": {},
+      "fulfilledAt": "",
+      "lastRaidEndedAt": 0,
+      "channelId": "1543804160611319880"
+    },
+    "1549237540991668387": {
+      "dateKey": "2026-10-25",
+      "boss": {
+        "id": "mbg_hendrik",
+        "name": "MBG HENDRIK",
+        "description": "Pikirkan anak anak yang kelaparan!\n\nSelesaikan pesanan ikan untuk dapur MBG Pak Hendrik sebelum hari esok, agar beliau bisa joget lalu membuat anak-anak Indonesia tumbuh sehat dan kuat!",
+        "quotaKg": 500,
+        "registrationBannerBase64": "",
+        "registrationBannerUrl": "https://cdn.discordapp.com/attachments/1543874293258260550/1546321525840551956/mbg_hendrik-registrationbanner.png?ex=6a9f5ba5&is=6a9e0a25&hm=01c2933e8fb177cc3828598a53fec7b47ed24a1b48b6d253e097eb2b9e3b45a9&",
+        "registrationBannerRef": {
+          "storage": "discord_attachment",
+          "channelId": "1543874293258260550",
+          "messageId": "1546321526012387361",
+          "messageUrl": "",
+          "attachmentId": "1546321525840551956",
+          "fileName": "mbg_hendrik-registrationbanner.png",
+          "contentType": "image/png"
+        },
+        "runningBannerBase64": "",
+        "runningBannerUrl": "https://cdn.discordapp.com/attachments/1543874293258260550/1546321546732372019/mbg_hendrik-runningbanner.png?ex=6a9f5baa&is=6a9e0a2a&hm=73e4b911167ac29726911c974dcc76a45ca19a111deca69ca77af99e6df466e6&",
+        "runningBannerRef": {
+          "storage": "discord_attachment",
+          "channelId": "1543874293258260550",
+          "messageId": "1546321546975518760",
+          "messageUrl": "",
+          "attachmentId": "1546321546732372019",
+          "fileName": "mbg_hendrik-runningbanner.png",
+          "contentType": "image/png"
+        },
+        "resultBannerBase64": "",
+        "resultBannerUrl": "https://cdn.discordapp.com/attachments/1543874293258260550/1546321566332227624/mbg_hendrik-resultbanner.png?ex=6a9f5bae&is=6a9e0a2e&hm=879d305e3c6fa29eb74925d681134f8814059cb4395d437f1412f9da0f9b29d6&",
+        "resultBannerRef": {
+          "storage": "discord_attachment",
+          "channelId": "1543874293258260550",
+          "messageId": "1546321566181097514",
+          "messageUrl": "",
+          "attachmentId": "1546321566332227624",
+          "fileName": "mbg_hendrik-resultbanner.png",
+          "contentType": "image/png"
+        },
+        "fulfilledBannerBase64": "",
+        "fulfilledBannerUrl": "https://cdn.discordapp.com/attachments/1543874293258260550/1546321586993496074/mbg_hendrik-fulfilledbanner.png?ex=6a9f5bb3&is=6a9e0a33&hm=a123196944850595c274c463fc6cca2162cb4577753a38aa720ef20fa8972a96&",
+        "fulfilledBannerRef": {
+          "storage": "discord_attachment",
+          "channelId": "1543874293258260550",
+          "messageId": "1546321586829922378",
+          "messageUrl": "",
+          "attachmentId": "1546321586993496074",
+          "fileName": "mbg_hendrik-fulfilledbanner.png",
+          "contentType": "image/png"
+        },
+        "failedBannerBase64": "",
+        "failedBannerUrl": "https://cdn.discordapp.com/attachments/1543874293258260550/1546321748989976647/mbg_hendrik-failedbanner.png?ex=6a9f5bda&is=6a9e0a5a&hm=9a2d46c63d9b5285614188c8e8eec2ffa2b3d7e9903e2a9a8feeab1bc014f06c&",
+        "failedBannerRef": {
+          "storage": "discord_attachment",
+          "channelId": "1543874293258260550",
+          "messageId": "1546321749208076389",
+          "messageUrl": "",
+          "attachmentId": "1546321748989976647",
+          "fileName": "mbg_hendrik-failedbanner.png",
+          "contentType": "image/png"
+        }
+      },
+      "baseQuotaKg": 500,
+      "quotaKg": 500,
+      "streak": 0,
+      "filledKg": 0,
+      "participants": {},
+      "fulfilledAt": "",
+      "lastRaidEndedAt": 0,
+      "channelId": ""
     }
   }
 }

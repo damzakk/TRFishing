@@ -399,6 +399,47 @@ function makeStatsPanel(width, height) {
   return panel;
 }
 
+async function readShowoffTemplate({ templateUrl = "", templateRef = null, templateBase64 = "", imageTrace = {} } = {}) {
+  const parsed = parseDataImage(templateBase64);
+  if (parsed?.buffer?.length) {
+    imageTrace.templateSource = "manager upload";
+    return Jimp.read(parsed.buffer);
+  }
+
+  const selectedUrl = String(templateUrl || "").trim();
+  if (selectedUrl || templateRef) {
+    const storedImage = await resolveDiscordStoredImage({
+      ref: templateRef,
+      fallbackUrl: selectedUrl,
+      fileName: "vip-fishshowoff-template.png"
+    }).catch((error) => {
+      imageTrace.templateError = error.message;
+      return null;
+    });
+    if (storedImage?.buffer?.length) {
+      imageTrace.templateSource = storedImage.source || "configured banner";
+      return Jimp.read(storedImage.buffer);
+    }
+  }
+
+  imageTrace.templateSource = "default template";
+  return Jimp.read(templatePath);
+}
+
+function drawVipBadge(base, fonts) {
+  const badgeWidth = 238;
+  const badgeHeight = 76;
+  const badge = makeImage(badgeWidth, badgeHeight, rgba(218, 166, 54, 238));
+  applyRoundedCorners(badge, 24);
+  base.composite(badge, Math.max(20, base.bitmap.width - badgeWidth - 48), 36);
+  base.print({
+    font: fonts.title,
+    x: Math.max(20, base.bitmap.width - badgeWidth - 48) + 28,
+    y: 54,
+    text: "VIP"
+  });
+}
+
 async function drawStats(base, fonts, stats) {
   const panelX = 54;
   const panelY = 612;
@@ -413,9 +454,9 @@ async function drawStats(base, fonts, stats) {
   base.print({ font: fonts.body, x: panelX + 30, y: panelY + 174, text: `Max weight: ${stats.fishMaxWeight || "-"}  |  Luck Score: ${stats.fishLuckScore || "-"}` });
 }
 
-async function makeFishShowoffBanner({ avatarUrl, fish, rod = null, fishBag = null, mutationId = "", mutationSettings = null, stats, imageTrace = {} }) {
+async function makeFishShowoffBanner({ avatarUrl, fish, rod = null, fishBag = null, mutationId = "", mutationSettings = null, stats, imageTrace = {}, vip = false, templateUrl = "", templateRef = null, templateBase64 = "" }) {
   const [base, fonts, avatar, fishFrames, rodImage, fishBagImage] = await Promise.all([
-    Jimp.read(templatePath),
+    readShowoffTemplate({ templateUrl: vip ? templateUrl : "", templateRef: vip ? templateRef : null, templateBase64: vip ? templateBase64 : "", imageTrace }),
     Promise.all([
       loadFont(fontPaths.title),
       loadFont(fontPaths.body),
@@ -433,6 +474,7 @@ async function makeFishShowoffBanner({ avatarUrl, fish, rod = null, fishBag = nu
     readImageFromItem(fishBag, {}, "fish-bag").catch(() => null)
   ]);
 
+  if (vip) drawVipBadge(base, fonts);
   const avatarOverlay = await makeOverlayImage(avatar, avatarSlot);
   compositeCentered(base, avatarOverlay, avatarSlot.centerX, avatarSlot.centerY);
   makeEquipmentCard(base, fonts, rodImage, rod, "rod", equipmentCard.firstX);

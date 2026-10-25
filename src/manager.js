@@ -4,6 +4,7 @@ const http = require("node:http");
 const fs = require("node:fs");
 const path = require("node:path");
 const {
+  adminAdjustVipDays,
   adminDeletePlayer,
   adminGetManagerTabData,
   adminGetGameData,
@@ -12,7 +13,8 @@ const {
   adminResetPlayerData,
   adminSaveManagerTabData,
   adminSavePlayerData,
-  makeDefaultPlayer
+  makeDefaultPlayer,
+  normalizeVipBoostSettings
 } = require("./playfab");
 const { defaultFish, defaultRods, defaultFishBags } = require("./defaultData");
 const { defaultFishEntotSettings, cleanFishEntotEvents } = require("./fishEntotConfig");
@@ -266,8 +268,10 @@ function cleanPlayer(player) {
     lastMessage: String(source.lastMessage || ""),
     lastFishingGuildId: String(source.lastFishingGuildId || "").trim(),
     lastFishingChannelId: String(source.lastFishingChannelId || "").trim(),
+    mentionOnFishingPopup: source.mentionOnFishingPopup !== false,
     voiceTotalMs: Math.max(0, cleanNumber(source.voiceTotalMs, 0)),
     voiceExpRemainderMs: Math.max(0, cleanNumber(source.voiceExpRemainderMs, 0)),
+    vipPassiveFishingProgressRemainderMs: Math.max(0, cleanNumber(source.vipPassiveFishingProgressRemainderMs, 0)),
     dailyLastClaimedAt: Math.max(0, cleanNumber(source.dailyLastClaimedAt, 0)),
     dailyStreak: Math.max(0, Math.floor(cleanNumber(source.dailyStreak, 0))),
     activeQuests: Array.isArray(source.activeQuests) ? source.activeQuests : [],
@@ -491,6 +495,8 @@ function cleanSettings(settings) {
   const fishGuideBannerUrl = String(source.fishGuideBannerUrl || "").trim();
   const fishHelpBannerUrl = String(source.fishHelpBannerUrl || "").trim();
   const sellFishBannerUrl = String(source.sellFishBannerUrl || "").trim();
+  const vipFishShowoffBannerUrl = String(source.vipFishShowoffBannerUrl || "").trim();
+  const vipBoostSettings = normalizeVipBoostSettings(source);
   return {
     mutations: normalizeMutationSettings(source.mutations),
     rodStoreImageBase64: String(source.rodStoreImageBase64 || ""),
@@ -553,6 +559,11 @@ function cleanSettings(settings) {
     sellFishBannerUrl,
     sellFishBannerRef: source.sellFishBannerRef && typeof source.sellFishBannerRef === "object" ? source.sellFishBannerRef : null,
     sellFishBannerUrlNeedsRehost: imageNeedsRehost(source, "sellFishBannerUrl"),
+    vipFishShowoffBannerBase64: String(source.vipFishShowoffBannerBase64 || ""),
+    vipFishShowoffBannerUrl,
+    vipFishShowoffBannerContentKey: String(source.vipFishShowoffBannerContentKey || "").trim(),
+    vipFishShowoffBannerRef: source.vipFishShowoffBannerRef && typeof source.vipFishShowoffBannerRef === "object" ? source.vipFishShowoffBannerRef : null,
+    vipFishShowoffBannerUrlNeedsRehost: imageNeedsRehost(source, "vipFishShowoffBannerUrl"),
     fishEntotEvents: cleanFishEntotEvents(source.fishEntotEvents, defaultFishEntotSettings.fishEntotEvents),
     fishEntotCooldownMinutes: Math.max(1, cleanNumber(source.fishEntotCooldownMinutes ?? defaultFishEntotSettings.fishEntotCooldownMinutes, defaultFishEntotSettings.fishEntotCooldownMinutes)),
     fishEntotMessageTtlMinutes: Math.max(1, cleanNumber(source.fishEntotMessageTtlMinutes ?? defaultFishEntotSettings.fishEntotMessageTtlMinutes, defaultFishEntotSettings.fishEntotMessageTtlMinutes)),
@@ -604,6 +615,7 @@ function cleanSettings(settings) {
     fishRaidCooldownMinutes: Math.max(0, cleanNumber(source.fishRaidCooldownMinutes, 60)),
     fishRaidQuotaStreakBonusPercent: Math.max(0, cleanNumber(source.fishRaidQuotaStreakBonusPercent, 0)),
     fishRaidRewardStreakBonusPercent: Math.max(0, cleanNumber(source.fishRaidRewardStreakBonusPercent, 0)),
+    fishRaidFailureStreakDecrease: Math.max(0, Math.floor(cleanNumber(source.fishRaidFailureStreakDecrease, 2))),
     fishRaidParticipantExpReward: Math.max(0, cleanNumber(source.fishRaidParticipantExpReward, 25)),
     fishRaidParticipantGoldReward: Math.max(0, cleanNumber(source.fishRaidParticipantGoldReward, 0)),
     fishRaidMvpExpReward: Math.max(0, cleanNumber(source.fishRaidMvpExpReward, 75)),
@@ -612,12 +624,21 @@ function cleanSettings(settings) {
     fishRaidClearParticipantGoldReward: Math.max(0, cleanNumber(source.fishRaidClearParticipantGoldReward, 0)),
     fishRaidClearMvpExpReward: Math.max(0, cleanNumber(source.fishRaidClearMvpExpReward, 150)),
     fishRaidClearMvpGoldReward: Math.max(0, cleanNumber(source.fishRaidClearMvpGoldReward, 0)),
+    vipServerBoostGoldPercent: vipBoostSettings.byType.gold_multiplier.incrementPercent,
+    vipServerBoostGoldMaxPercent: vipBoostSettings.byType.gold_multiplier.maxPercent,
+    vipServerBoostExpPercent: vipBoostSettings.byType.exp_multiplier.incrementPercent,
+    vipServerBoostExpMaxPercent: vipBoostSettings.byType.exp_multiplier.maxPercent,
+    vipServerBoostFishingSpeedPercent: vipBoostSettings.byType.fishing_speed.incrementPercent,
+    vipServerBoostFishingSpeedMaxPercent: vipBoostSettings.byType.fishing_speed.maxPercent,
+    vipServerBoostMutationChancePercent: vipBoostSettings.byType.mutation_chance.incrementPercent,
+    vipServerBoostMutationChanceMaxPercent: vipBoostSettings.byType.mutation_chance.maxPercent,
     allowActivity: source.allowActivity !== false,
     chatCooldownMs: Math.max(0, cleanNumber(source.chatCooldownMs, 20_000)),
     expMultiplier: Math.max(0, cleanNumber(source.expMultiplier, 1)),
     levelExpMultiplier: Math.max(0.01, cleanNumber(source.levelExpMultiplier, 1)),
     voiceExpAmount: Math.max(0, cleanNumber(source.voiceExpAmount, 1)),
     voiceExpIntervalMinutes: Math.max(1, cleanNumber(source.voiceExpIntervalMinutes, 15)),
+    vipPassiveFishingProgressMultiplier: Math.max(1, cleanNumber(source.vipPassiveFishingProgressMultiplier, 2)),
     dailyQuestCount: Math.max(0, Math.floor(cleanNumber(source.dailyQuestCount, 3)))
   };
 }
@@ -1087,6 +1108,20 @@ async function handleApi(request, response) {
       return;
     }
 
+    if (request.method === "POST" && request.url === "/api/player/add-vip") {
+      const body = JSON.parse(await readBody(request));
+      const playFabId = String(body.playFabId || "").trim();
+      const days = Number(body.days);
+      if (!playFabId) throw new Error("Missing PlayFab ID.");
+      if (!Number.isInteger(days) || days === 0) throw new Error("VIP day adjustment must be a non-zero whole number.");
+      const player = await adminAdjustVipDays(playFabId, days);
+      signalBotConfigRefresh();
+      const user = String(player.displayName || player.username || player.discordUserId || playFabId).trim();
+      logManagerAction("VIP adjusted", { user, playFabId, extra: `days=${days} vipPoints=${player.vip?.vipPoints || 0}` });
+      sendJson(response, 200, { ok: true, player });
+      return;
+    }
+
     if (request.method === "POST" && request.url === "/api/player/save") {
       const body = JSON.parse(await readBody(request));
       const playFabId = String(body.playFabId || "").trim();
@@ -1218,6 +1253,9 @@ async function handleApi(request, response) {
           channelId: messageChannel.channelId,
           catches: catches.map((entry) => ({
             discordUserId,
+            discordGlobalName: saved.player?.discordGlobalName || saved.player?.discordUsername || saved.username || "",
+            discordUsername: saved.player?.discordUsername || saved.username || "",
+            mentionOnFishingPopup: saved.player?.mentionOnFishingPopup !== false,
             guildId: messageChannel.guildId,
             channelId: messageChannel.channelId,
             fish: entry.fish,
@@ -1296,6 +1334,9 @@ async function handleApi(request, response) {
               for (const { catchResult, gain } of playerCatches) {
                 catches.push({
                   discordUserId,
+                  discordGlobalName: saved.player?.discordGlobalName || saved.player?.discordUsername || saved.username || "",
+                  discordUsername: saved.player?.discordUsername || saved.username || "",
+                  mentionOnFishingPopup: saved.player?.mentionOnFishingPopup !== false,
                   guildId: messageChannel.guildId,
                   channelId: messageChannel.channelId,
                   fish: catchResult.fish,
@@ -2530,7 +2571,7 @@ const html = `<!doctype html>
       rods: [],
       fishBags: [],
       adminDiscordIds: [],
-      settings: { mutations: ${JSON.stringify(normalizeMutationSettings())}, fishEntotEvents: ${JSON.stringify(defaultFishEntotSettings.fishEntotEvents)}, fishEntotCooldownMinutes: ${defaultFishEntotSettings.fishEntotCooldownMinutes}, fishEntotMessageTtlMinutes: ${defaultFishEntotSettings.fishEntotMessageTtlMinutes}, fishEntotPityEnabled: ${defaultFishEntotSettings.fishEntotPityEnabled}, fishEntotPityThreshold: ${defaultFishEntotSettings.fishEntotPityThreshold}, rodStoreImageBase64: "", rodStoreImageUrl: "", fishCompBannerBase64: "", fishCompBannerUrl: "", fishCompRegistrationBannerBase64: "", fishCompRegistrationBannerUrl: "", fishCompRunningBannerBase64: "", fishCompRunningBannerUrl: "", fishCompResultBannerBase64: "", fishCompResultBannerUrl: "", worldFishCompRegistrationBannerBase64: "", worldFishCompRegistrationBannerUrl: "", worldFishCompRunningBannerBase64: "", worldFishCompRunningBannerUrl: "", worldFishCompResultBannerBase64: "", worldFishCompResultBannerUrl: "", fishRaidBannerBase64: "", fishRaidBannerUrl: "", fishRaidRegistrationBannerBase64: "", fishRaidRegistrationBannerUrl: "", fishRaidRunningBannerBase64: "", fishRaidRunningBannerUrl: "", fishRaidResultBannerBase64: "", fishRaidResultBannerUrl: "", fishDuelRegistrationBannerBase64: "", fishDuelRegistrationBannerUrl: "", fishDuelRunningBannerBase64: "", fishDuelRunningBannerUrl: "", fishDuelResultBannerBase64: "", fishDuelResultBannerUrl: "", fishCompEvents: [], fishRaidEvents: [], fishDuelEvents: [], fishRaidBosses: [{ id: "big_order", name: "Big Fish Order", quotaKg: 100, description: "Pesanan ikan besar hari ini sudah menunggu.", registrationBannerBase64: "", registrationBannerUrl: "", runningBannerBase64: "", runningBannerUrl: "", resultBannerBase64: "", resultBannerUrl: "", fulfilledBannerBase64: "", fulfilledBannerUrl: "", failedBannerBase64: "", failedBannerUrl: "" }], fishCompLogIntervalMs: 2500, fishCompHistoryLogHours: 24, fishCompExpReward: 50, fishCompGoldReward: 0, worldFishCompRegistrationMinutes: 300, worldFishCompReminderMinutes: 60, worldFishCompMinParticipants: 3, worldFishCompMaxParticipants: 100, worldFishCompGroupSize: 5, worldFishCompStandardTurns: 15, worldFishCompFinalTurns: 25, worldFishCompLogIntervalMs: 1000, worldFishCompGroupDelayMs: 3000, worldFishCompPublicPlacementCount: 3, worldFishCompHistoryLogHours: 168, worldFishCompParticipantExpReward: 25, worldFishCompParticipantGoldReward: 0, worldFishCompFirstExpReward: 250, worldFishCompFirstGoldReward: 0, worldFishCompSecondExpReward: 150, worldFishCompSecondGoldReward: 0, worldFishCompThirdExpReward: 100, worldFishCompThirdGoldReward: 0, worldFishCompChampionServerExpReward: 50, worldFishCompChampionServerGoldReward: 0, fishDuelExpReward: 40, fishDuelLogIntervalMs: 2500, fishRaidLogIntervalMs: 2500, fishRaidParticipantExpReward: 25, fishRaidParticipantGoldReward: 0, fishRaidMvpExpReward: 75, fishRaidMvpGoldReward: 0, fishRaidClearParticipantExpReward: 50, fishRaidClearMvpExpReward: 150, fishRaidClearParticipantGoldReward: 0, fishRaidClearMvpGoldReward: 0, allowActivity: true, chatCooldownMs: 20000, expMultiplier: 1, levelExpMultiplier: 1, voiceExpAmount: 1, voiceExpIntervalMinutes: 15, dailyQuestCount: 3 },
+      settings: { mutations: ${JSON.stringify(normalizeMutationSettings())}, fishEntotEvents: ${JSON.stringify(defaultFishEntotSettings.fishEntotEvents)}, fishEntotCooldownMinutes: ${defaultFishEntotSettings.fishEntotCooldownMinutes}, fishEntotMessageTtlMinutes: ${defaultFishEntotSettings.fishEntotMessageTtlMinutes}, fishEntotPityEnabled: ${defaultFishEntotSettings.fishEntotPityEnabled}, fishEntotPityThreshold: ${defaultFishEntotSettings.fishEntotPityThreshold}, rodStoreImageBase64: "", rodStoreImageUrl: "", fishCompBannerBase64: "", fishCompBannerUrl: "", fishCompRegistrationBannerBase64: "", fishCompRegistrationBannerUrl: "", fishCompRunningBannerBase64: "", fishCompRunningBannerUrl: "", fishCompResultBannerBase64: "", fishCompResultBannerUrl: "", worldFishCompRegistrationBannerBase64: "", worldFishCompRegistrationBannerUrl: "", worldFishCompRunningBannerBase64: "", worldFishCompRunningBannerUrl: "", worldFishCompResultBannerBase64: "", worldFishCompResultBannerUrl: "", fishRaidBannerBase64: "", fishRaidBannerUrl: "", fishRaidRegistrationBannerBase64: "", fishRaidRegistrationBannerUrl: "", fishRaidRunningBannerBase64: "", fishRaidRunningBannerUrl: "", fishRaidResultBannerBase64: "", fishRaidResultBannerUrl: "", fishDuelRegistrationBannerBase64: "", fishDuelRegistrationBannerUrl: "", fishDuelRunningBannerBase64: "", fishDuelRunningBannerUrl: "", fishDuelResultBannerBase64: "", fishDuelResultBannerUrl: "", fishCompEvents: [], fishRaidEvents: [], fishDuelEvents: [], fishRaidBosses: [{ id: "big_order", name: "Big Fish Order", quotaKg: 100, description: "Pesanan ikan besar hari ini sudah menunggu.", registrationBannerBase64: "", registrationBannerUrl: "", runningBannerBase64: "", runningBannerUrl: "", resultBannerBase64: "", resultBannerUrl: "", fulfilledBannerBase64: "", fulfilledBannerUrl: "", failedBannerBase64: "", failedBannerUrl: "" }], fishCompLogIntervalMs: 2500, fishCompHistoryLogHours: 24, fishCompExpReward: 50, fishCompGoldReward: 0, worldFishCompRegistrationMinutes: 300, worldFishCompReminderMinutes: 60, worldFishCompMinParticipants: 3, worldFishCompMaxParticipants: 100, worldFishCompGroupSize: 5, worldFishCompStandardTurns: 15, worldFishCompFinalTurns: 25, worldFishCompLogIntervalMs: 1000, worldFishCompGroupDelayMs: 3000, worldFishCompPublicPlacementCount: 3, worldFishCompHistoryLogHours: 168, worldFishCompParticipantExpReward: 25, worldFishCompParticipantGoldReward: 0, worldFishCompFirstExpReward: 250, worldFishCompFirstGoldReward: 0, worldFishCompSecondExpReward: 150, worldFishCompSecondGoldReward: 0, worldFishCompThirdExpReward: 100, worldFishCompThirdGoldReward: 0, worldFishCompChampionServerExpReward: 50, worldFishCompChampionServerGoldReward: 0, fishDuelExpReward: 40, fishDuelLogIntervalMs: 2500, fishRaidLogIntervalMs: 2500, fishRaidFailureStreakDecrease: 2, fishRaidParticipantExpReward: 25, fishRaidParticipantGoldReward: 0, fishRaidMvpExpReward: 75, fishRaidMvpGoldReward: 0, fishRaidClearParticipantExpReward: 50, fishRaidClearParticipantGoldReward: 0, fishRaidClearMvpExpReward: 150, fishRaidClearMvpGoldReward: 0, allowActivity: true, chatCooldownMs: 20000, expMultiplier: 1, levelExpMultiplier: 1, voiceExpAmount: 1, voiceExpIntervalMinutes: 15, vipPassiveFishingProgressMultiplier: 2, dailyQuestCount: 3 },
       activeEvent: null,
       events: [],
       quests: { main: [], event: [], daily: [], fish: [] },
@@ -2573,6 +2614,8 @@ const html = `<!doctype html>
       players: [],
       playerSearch: "",
       selectedPlayerId: "",
+      vipModalOpen: false,
+      vipDays: 7,
       enforceModalOpen: false,
       enforceFishSelections: [{ fishId: "", mutationId: "", quantity: 1 }],
       enforceTestOnly: false,
@@ -3001,6 +3044,40 @@ const html = `<!doctype html>
       return state.players.find((player) => player.playFabId === state.selectedPlayerId) || state.players[0] || null;
     }
 
+    function vipStatusText(record) {
+      const vip = record?.vip || {};
+      const expiresAt = Number(vip.vipExpiresAt || 0);
+      return expiresAt > Date.now()
+        ? "Active until " + new Date(expiresAt).toLocaleString()
+        : "Not active";
+    }
+
+    function vipModalTemplate(record) {
+      const vip = record?.vip || {};
+      const currentPoints = Math.max(0, Math.floor(Number(vip.vipPoints || 0)));
+      return \`
+        <div class="modal-overlay" data-close-vip-modal-overlay>
+          <section class="modal-panel" role="dialog" aria-modal="true" aria-label="Add VIP">
+            <div class="modal-header">
+              <div>
+                <strong>Adjust VIP</strong>
+                <div class="small">\${escapeHtml(record?.displayName || record?.username || record?.playFabId || "Selected Player")}</div>
+              </div>
+              <button class="icon-button" data-close-vip-modal type="button" aria-label="Close">x</button>
+            </div>
+            <div class="small">Positive numbers add VIP time and the same number of permanent VIP Points. Negative numbers remove VIP time and remove the same number of VIP Points. Values are clamped safely at zero.</div>
+            <label>VIP day adjustment
+              <input type="number" min="-36500" max="36500" step="1" data-vip-days value="\${escapeHtml(String(state.vipDays || 7))}">
+            </label>
+            <div class="small">Current VIP Points: <strong>\${currentPoints.toLocaleString()}</strong></div>
+            <div class="modal-actions">
+              <button data-close-vip-modal type="button">Cancel</button>
+              <button class="primary" data-add-vip type="button">Apply VIP Change</button>
+            </div>
+          </section>
+        </div>\`;
+    }
+
     function playerManagementTemplate() {
       const selected = selectedPlayerRecord();
       const rows = state.players.length ? state.players.map((record) => playerRowTemplate(record, selected?.playFabId === record.playFabId)).join("") : '<div class="small">No players loaded.</div>';
@@ -3026,6 +3103,7 @@ const html = `<!doctype html>
           <article class="item">
             \${selected ? playerPanelTemplate(selected) : '<div class="small">Select a player to manage their data.</div>'}
           </article>
+          \${state.vipModalOpen && selected ? vipModalTemplate(selected) : ""}
           \${state.enforceModalOpen ? enforceFishingModalTemplate(selected) : ""}
           \${state.enforceAllModalOpen ? enforceFishingForAllModalTemplate() : ""}
         </div>\`;
@@ -3042,12 +3120,17 @@ const html = `<!doctype html>
 
     function playerPanelTemplate(record) {
       const player = record.player || {};
+      const vip = record.vip || {};
       return \`
         <div class="topline">
           <strong>\${escapeHtml(record.displayName || record.username || record.playFabId)}</strong>
           <span class="badge">\${escapeHtml(record.playFabId)}</span>
         </div>
         \${state.catchNotice ? \`<div class="small warning">\${escapeHtml(state.catchNotice)}</div>\` : ""}
+        <div class="wide item">
+          <div class="topline"><strong>VIP</strong><span class="badge">\${escapeHtml(vipStatusText(record))}</span></div>
+          <div class="small">VIP Points: <strong>\${Math.max(0, Math.floor(Number(vip.vipPoints || 0))).toLocaleString()}</strong></div>
+        </div>
         <div class="fields">
           \${playerField("Discord ID", "discordUserId", player.discordUserId || record.discordUserId || "")}
           \${playerField("Username", "discordUsername", player.discordUsername || record.username || "")}
@@ -3086,6 +3169,7 @@ const html = `<!doctype html>
           <div class="wide button-row">
             <button class="primary" data-save-player>Save Profile Data</button>
             <button data-save-player-quests>Save Quest Data</button>
+            <button data-open-add-vip>Add VIP</button>
             <button data-open-enforce-fishing>Enforce Fishing</button>
             <button data-refresh-entot>Refresh Entot</button>
             <button data-refresh-daily-quests>Refresh Daily Quests</button>
@@ -3383,14 +3467,26 @@ const html = `<!doctype html>
           \${field("Level EXP Multiplier", "levelExpMultiplier", state.settings.levelExpMultiplier ?? 1, 0, "number", "0.01")}
           \${field("Voice Progress Amount", "voiceExpAmount", state.settings.voiceExpAmount ?? 1, 0, "number", "1")}
           \${field("Voice Progress Interval, minutes", "voiceExpIntervalMinutes", state.settings.voiceExpIntervalMinutes ?? 15, 0, "number", "1")}
+          \${field("VIP Passive Progress Interval Multiplier ×", "vipPassiveFishingProgressMultiplier", state.settings.vipPassiveFishingProgressMultiplier ?? 2, 1, "number", "0.1")}
           \${field("Random Daily Quests Per Player", "dailyQuestCount", state.settings.dailyQuestCount ?? 3, 0, "number", "1")}
+          <div class="wide"><strong>VIP Server Boost Settings</strong></div>
+          \${field("VIP Gold Boost Per Use (%)", "vipServerBoostGoldPercent", state.settings.vipServerBoostGoldPercent ?? 100, 0, "number", "1")}
+          \${field("VIP Gold Boost Maximum (%)", "vipServerBoostGoldMaxPercent", state.settings.vipServerBoostGoldMaxPercent ?? 400, 0, "number", "1")}
+          \${field("VIP EXP Boost Per Use (%)", "vipServerBoostExpPercent", state.settings.vipServerBoostExpPercent ?? 100, 0, "number", "1")}
+          \${field("VIP EXP Boost Maximum (%)", "vipServerBoostExpMaxPercent", state.settings.vipServerBoostExpMaxPercent ?? 400, 0, "number", "1")}
+          \${field("VIP Fishing Speed Per Use (%)", "vipServerBoostFishingSpeedPercent", state.settings.vipServerBoostFishingSpeedPercent ?? 100, 0, "number", "1")}
+          \${field("VIP Fishing Speed Maximum (%)", "vipServerBoostFishingSpeedMaxPercent", state.settings.vipServerBoostFishingSpeedMaxPercent ?? 400, 0, "number", "1")}
+          \${field("VIP Mutation Chance Per Use (%)", "vipServerBoostMutationChancePercent", state.settings.vipServerBoostMutationChancePercent ?? 100, 0, "number", "1")}
+          \${field("VIP Mutation Chance Maximum (%)", "vipServerBoostMutationChanceMaxPercent", state.settings.vipServerBoostMutationChanceMaxPercent ?? 400, 0, "number", "1")}
           <label class="wide toggle-row"><input type="checkbox" data-key="allowActivity" \${state.settings.allowActivity !== false ? "checked" : ""}> Allow Activity</label>
-          <div class="wide small">EXP Multiplier changes EXP gained from fish. Voice Progress Amount and Interval control passive fishing progress from voice.</div>
+          <div class="wide small">Each VIP boost stat is configured independently. Values use percentage points: 100 means +100%. Each maximum is automatically kept at least as high as its corresponding per-use value. The VIP passive progress multiplier controls how many times longer an active VIP user must stay out of counted voice channels for the same progress amount; 2 means twice as long as normal voice progress.</div>
           <div class="image-grid">
             \${settingsImageFields("Rod Store Image", "rodStoreImage")}
             \${settingsImageFields("Fish Guide Banner", "fishGuideBanner")}
             \${settingsImageFields("Fish Help Banner", "fishHelpBanner")}
             \${settingsImageFields("Sell Fish Banner", "sellFishBanner")}
+            \${settingsImageFields("VIP Fish Showoff Banner", "vipFishShowoffBanner")}
+            <div class="wide small">VIP aktif akan memakai banner ini saat menggunakan /fishshowoff. Jika dikosongkan, bot tetap membuat banner VIP dengan badge VIP pada template standar.</div>
           </div>
         </div>\`;
     }
@@ -3640,6 +3736,7 @@ const html = `<!doctype html>
             \${field("Fish Raid Cooldown, minutes", "fishRaidCooldownMinutes", state.settings.fishRaidCooldownMinutes ?? 60, 0, "number", "1")}
             \${field("Quota Increase per Completion Streak, %", "fishRaidQuotaStreakBonusPercent", state.settings.fishRaidQuotaStreakBonusPercent ?? 0, 0, "number", "0.1")}
             \${field("Reward Increase per Completion Streak, %", "fishRaidRewardStreakBonusPercent", state.settings.fishRaidRewardStreakBonusPercent ?? 0, 0, "number", "0.1")}
+            \${field("Streak Decrease after Failed Raid", "fishRaidFailureStreakDecrease", state.settings.fishRaidFailureStreakDecrease ?? 2, 0, "number", "1")}
             \${fishRaidControlsTemplate()}
             <label class="wide">Raid Events JSON<textarea data-settings-json="fishRaidEvents">\${escapeHtml(JSON.stringify(state.settings.fishRaidEvents || [], null, 2))}</textarea></label>
             <div class="wide small">Raid events use the same format as Fish Comp Events, but only affect FishRaid turns.</div>
@@ -5343,6 +5440,29 @@ const html = `<!doctype html>
       render();
     }
 
+    async function addVipToSelectedPlayer() {
+      const selected = selectedPlayerRecord();
+      if (!selected) return;
+      const days = Number(state.vipDays);
+      if (!Number.isInteger(days) || days === 0) throw new Error("VIP day adjustment must be a non-zero whole number.");
+      setStatus(days > 0 ? "Adding VIP..." : "Removing VIP time...");
+      const response = await fetch("/api/player/add-vip", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ playFabId: selected.playFabId, days })
+      });
+      const payload = await response.json();
+      if (!response.ok) throw new Error(payload.error || "Could not add VIP.");
+      updateSelectedPlayer(payload.player);
+      state.vipModalOpen = false;
+      const absoluteDays = Math.abs(days);
+      state.catchNotice = days > 0
+        ? "Added " + absoluteDays + " VIP day" + (absoluteDays === 1 ? "" : "s") + " and " + absoluteDays + " VIP Point" + (absoluteDays === 1 ? "" : "s") + "."
+        : "Removed up to " + absoluteDays + " VIP day" + (absoluteDays === 1 ? "" : "s") + " and VIP Point" + (absoluteDays === 1 ? "" : "s") + ".";
+      setStatus("VIP status saved.");
+      render();
+    }
+
     async function saveSelectedPlayerQuests() {
       const selected = selectedPlayerRecord();
       if (!selected || !confirm("Replace this player's saved quest state with the quest JSON shown here?")) return;
@@ -5768,6 +5888,10 @@ const html = `<!doctype html>
     });
     grid.addEventListener("input", (event) => {
       const target = event.target;
+      if (target.dataset.vipDays !== undefined) {
+        state.vipDays = Number(target.value);
+        return;
+      }
       if (target.dataset.fishQuestDropKey) {
         const drop = state.fish[Number(target.dataset.index)]?.questDrops?.[Number(target.dataset.fishQuestDropIndex)];
         if (drop) drop[target.dataset.fishQuestDropKey] = target.type === "number" ? Number(target.value) : target.value;
@@ -6825,6 +6949,22 @@ const html = `<!doctype html>
       }
       if (event.target.closest("[data-load-players]") || event.target.closest("[data-search-players]")) {
         loadPlayers().catch((error) => setStatus(error.message, true));
+        return;
+      }
+      if (event.target.closest("[data-open-add-vip]")) {
+        state.vipDays = 7;
+        state.vipModalOpen = true;
+        render();
+        return;
+      }
+      const vipModalOverlay = event.target.closest("[data-close-vip-modal-overlay]");
+      if (event.target.closest("[data-close-vip-modal]") || (vipModalOverlay && event.target === vipModalOverlay)) {
+        state.vipModalOpen = false;
+        render();
+        return;
+      }
+      if (event.target.closest("[data-add-vip]")) {
+        addVipToSelectedPlayer().catch((error) => setStatus(error.message, true));
         return;
       }
       if (event.target.closest("[data-save-player]")) {
